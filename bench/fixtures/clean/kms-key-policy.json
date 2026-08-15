@@ -4,22 +4,31 @@
     {
       "Sid": "AllowEnclaveDecryptAttested",
       "Effect": "Allow",
-      "Principal": {"AWS": "arn:aws:iam::123456789012:role/enclave-parent"},
-      "Action": ["kms:Decrypt", "kms:GenerateDataKey"],
+      "Principal": {
+        "AWS": "arn:aws:iam::123456789012:role/enclave-parent"
+      },
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey"
+      ],
       "Resource": "*",
       "Condition": {
         "StringEqualsIgnoreCase": {
-          "kms:RecipientAttestation:PCR1": "b1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
-          "kms:RecipientAttestation:PCR2": "c1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
-          "kms:RecipientAttestation:PCR8": "d1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"
+          "kms:RecipientAttestation:PCR1": "c036dddaef9181d9c94a8652cca5e06694da935fd4abac69dade120710b9aa6a3c9eae73fd4d2e14f64295af7e98c5ee",
+          "kms:RecipientAttestation:PCR2": "21b9efbc184807662e966d34f390821309eeac6802309798826296bf3e8bec7c10edb30948c90ba67310f7b964fc500a"
         }
       }
     },
     {
       "Sid": "AllowDescribeUnconditional",
       "Effect": "Allow",
-      "Principal": {"AWS": "arn:aws:iam::123456789012:role/ops"},
-      "Action": ["kms:DescribeKey", "kms:ListAliases"],
+      "Principal": {
+        "AWS": "arn:aws:iam::123456789012:role/ops"
+      },
+      "Action": [
+        "kms:DescribeKey",
+        "kms:ListAliases"
+      ],
       "Resource": "*"
     }
   ]
