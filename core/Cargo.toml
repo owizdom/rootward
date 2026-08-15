@@ -1,0 +1,37 @@
+[package]
+name = "tee_audit_core"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "EIF parsing, ramdisk inspection, and secret scanning for TEE audits"
+
+[lib]
+name = "tee_audit_core"
+
+[[bin]]
+name = "tee-audit-core"
+path = "src/main.rs"
+
+[dependencies]
+flate2 = "1"
+hex = "0.4"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Pinned to 0.10 to match the version aws-nitro-enclaves-image-format depends on,
+# so the dependency tree carries one sha2, not two.
+sha2 = "0.10"
+
+# Test oracle only, never shipped. This crate has no feature flags and pulls
+# aws-config, aws-sdk-kms, tokio, hyper, rustls and openssl as mandatory
+# dependencies (545 crates transitively) because it also does KMS-backed signing.
+# We only read, so it is gated behind `differential` and used to cross-check
+# src/measure.rs against the official implementation.
+[dependencies.aws-nitro-enclaves-image-format]
+version = "0.6"
+optional = true
+
+[features]
+default = []
+# cargo test --features differential
+differential = ["aws-nitro-enclaves-image-format"]
