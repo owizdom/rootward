@@ -1,0 +1,41 @@
+[project]
+name = "tee-audit"
+version = "0.1.0"
+description = "Static auditor for Web3 protocols on cloud TEEs (AWS Nitro Enclaves, dstack)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+
+dependencies = [
+    # Catalog loading and validation.
+    "pyyaml>=6",
+    "jsonschema>=4",
+]
+
+[project.optional-dependencies]
+# The code-pattern rules. Kept optional so the tool degrades to the Rust core and the
+# Python analyzers rather than failing when semgrep is unavailable.
+semgrep = ["semgrep>=1.100"]
+
+# The four judgment rules. Optional because 19 of 29 rules never need a model call, and
+# nobody should pay for inference to run a parser.
+semantic = ["claude-agent-sdk>=0.1"]
+
+all = ["semgrep>=1.100", "claude-agent-sdk>=0.1"]
+
+[project.scripts]
+tee-audit = "cli.audit:main"
+
+[tool.uv]
+# Resolve once into .venv rather than re-resolving on every `uv run --with` invocation.
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "E501",  # long lines are usually prose in a message string
+]
