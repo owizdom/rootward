@@ -140,8 +140,8 @@ rules:
       - pattern: requests.$M(..., verify=False, ...)
       - pattern: ssl._create_unverified_context(...)
       - pattern: 'InsecureSkipVerify: true'
-      - pattern: rejectUnauthorized: false
-      - pattern: process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+      - pattern: 'rejectUnauthorized: false'
+      - pattern: 'process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"'
 
   # ---------------------------------------------------------------- BT-T07A ---
   - id: tee-vsock-no-timeout
