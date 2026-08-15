@@ -34,7 +34,16 @@ GOVERNANCE_USE = re.compile(
 KMS_DUPLICATION = re.compile(r"(?i)\b(simple[_-]?duplication|duplicate[_-]?root[_-]?key|single[_-]?node[_-]?kms)\b")
 KMS_THRESHOLD = re.compile(r"(?i)\b(shamir|threshold|secret[_-]?shar\w*|mpc|t_?of_?n|k_?of_?n)\b")
 
-MEASURED_BOOT = re.compile(r"(?i)\b(rtmr\d?|mrtd|measured[_-]?boot|quote|tdx[_-]?report)\b")
+# `quote` alone is far too generic — it appears in hardhat configs, TOML keys, and any
+# code that talks about string quoting. dstack produced a critical finding on
+# `quote_file = "quote.hex"` and then on `hardhat.config.ts`. Only qualified forms count.
+MEASURED_BOOT = re.compile(
+    r"(?i)\b("
+    r"rtmr\d?|mrtd|measured[_-]?boot|td[_-]?report|tdx[_-]?report|"
+    r"(get|verify|fetch|request|parse)[_-]?quote|quote[_-]?(verify|validation|body|header)|"
+    r"tdx[_-]?quote"
+    r")\b"
+)
 POLICY_COMPARE = re.compile(
     r"(?i)\b(expected[_-]?(rtmr|mrtd|measurement)|"
     r"verify[_-]?(quote|measurement|rtmr)|compare[_-]?measurement|"
@@ -134,12 +143,23 @@ def check_kms_mode(root: Path) -> list[Finding]:
     return findings
 
 
+# Measurement comparison happens in code, never in configuration. dstack's
+# `guest-agent/dstack.toml:17` has `quote_file = "quote.hex"`, which matched MEASURED_BOOT
+# on the word "quote" and produced a critical finding about a config key.
+CODE_SUFFIXES = {".rs", ".go", ".py", ".ts", ".js", ".mjs", ".sol"}
+# Build tooling written in a code language is still configuration.
+CONFIG_NAME = re.compile(r"(?i)(^|/)[^/]*\.config\.[a-z]+$|(^|/)(hardhat|vite|webpack|rollup|jest)\.")
+
+
 def check_rtmr_policy(root: Path) -> list[Finding]:
     """BT-DS04 — measurements collected but never compared against expected policy."""
     collectors: list[tuple[Path, str]] = []
     compares = False
     for path, text in _iter_text(root):
-        if MEASURED_BOOT.search(text):
+        rel = str(path.relative_to(root))
+        if CONFIG_NAME.search(rel):
+            continue
+        if path.suffix in CODE_SUFFIXES and MEASURED_BOOT.search(text):
             collectors.append((path, text))
         if POLICY_COMPARE.search(text):
             compares = True

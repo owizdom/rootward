@@ -13,12 +13,13 @@
 repos:
   - name: dstack
     url: https://github.com/Dstack-TEE/dstack
-    # zkSecurity audited dstack over May–June 2025 and published findings including a
-    # high-severity OVMF build-configuration issue plus medium-severity issues in terminal
-    # binaries, symlink handling, and environment-variable protection. Auditing at a
-    # pre-fix ref gives external ground truth. Pin updated once the exact audited commit
-    # is confirmed from the published report rather than inferred from dates.
-    ref: main
+    # The exact commit zkSecurity audited, from the report's introduction: "The audit
+    # focused on parts of two public codebases: dstack at commit be9d0476, and meta-dstack
+    # at commit 5b63aec3." Auditing this pre-fix commit is what makes the comparison
+    # meaningful — current main has the fixes applied.
+    # resolved from the short form via the GitHub API; committed 2025-05-29,
+    # inside the May 26 - June 13 audit window.
+    ref: be9d0476a63e937eda4c13659547a25088393394
     platform: dstack
     note: >-
       External validation target. What this re-finds from the zkSecurity report is a

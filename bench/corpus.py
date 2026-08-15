@@ -50,8 +50,37 @@ def clone(url: str, ref: str, dest: Path, attempts: int = 3) -> bool:
         return True
     dest.parent.mkdir(parents=True, exist_ok=True)
 
+    import os
+
+    # A full 40-char SHA cannot be reached with `clone --branch`; fetch it directly so the
+    # corpus can pin the exact commit an external audit covered rather than drifting with
+    # the default branch.
+    is_sha = bool(ref) and len(ref) == 40 and all(c in "0123456789abcdef" for c in ref.lower())
+
     for attempt in range(1, attempts + 1):
         shutil.rmtree(dest, ignore_errors=True)
+        if is_sha:
+            dest.mkdir(parents=True, exist_ok=True)
+            steps = [
+                ["git", "init", "--quiet", str(dest)],
+                ["git", "-C", str(dest), "remote", "add", "origin", url],
+                ["git", "-C", str(dest), "fetch", "--depth", "1", "--quiet", "origin", ref],
+                ["git", "-C", str(dest), "checkout", "--quiet", "FETCH_HEAD"],
+            ]
+            failed = None
+            for step in steps:
+                r = subprocess.run(step, capture_output=True, text=True, timeout=3600)
+                if r.returncode != 0:
+                    failed = r
+                    break
+            if failed is None:
+                return True
+            print(f"  fetch attempt {attempt}/{attempts} failed: "
+                  f"{(failed.stderr or '').strip().splitlines()[0][:160] if failed.stderr else '?'}",
+                  file=sys.stderr)
+            time.sleep(3 * attempt)
+            continue
+
         cmd = ["git", "clone", "--depth", "1", "--quiet"]
         if ref and ref != "main":
             cmd += ["--branch", ref]
@@ -59,7 +88,7 @@ def clone(url: str, ref: str, dest: Path, attempts: int = 3) -> bool:
         proc = subprocess.run(
             cmd, capture_output=True, text=True, timeout=3600,
             # Fail fast on a stalled transfer rather than hanging the whole corpus run.
-            env={**__import__("os").environ,
+            env={**os.environ,
                  "GIT_HTTP_LOW_SPEED_LIMIT": "1000",
                  "GIT_HTTP_LOW_SPEED_TIME": "120"},
         )
