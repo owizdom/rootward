@@ -196,9 +196,9 @@ pub(crate) mod testing {
         assert_eq!(out.len(), HEADER_LEN);
         out.extend_from_slice(name.as_bytes());
         out.push(0);
-        out.extend(std::iter::repeat(0u8).take(pad4(HEADER_LEN + namesize)));
+        out.extend(std::iter::repeat_n(0u8, pad4(HEADER_LEN + namesize)));
         out.extend_from_slice(body);
-        out.extend(std::iter::repeat(0u8).take(pad4(body.len())));
+        out.extend(std::iter::repeat_n(0u8, pad4(body.len())));
         out
     }
 

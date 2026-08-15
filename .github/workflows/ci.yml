@@ -1,0 +1,89 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  core:
+    name: rust core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+      - name: test
+        working-directory: core
+        run: cargo test --locked
+
+      # The differential test is the reason the local PCR implementation is trustworthy:
+      # it asserts our measurements match the official aws-nitro-enclaves-image-format
+      # crate. That crate pulls ~545 transitive dependencies including openssl, which is
+      # why it is optional and why this is a separate job step rather than the default.
+      - name: differential check against the official AWS implementation
+        working-directory: core
+        run: cargo test --features differential measurements_match
+
+      - name: clippy
+        working-directory: core
+        run: cargo clippy --all-targets -- -D warnings
+
+  catalog:
+    name: catalog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv venv && uv pip install pyyaml jsonschema
+
+      # Fails on a rule with no source citation, no stated false-positive mode, a filename
+      # that disagrees with its id, or a duplicate id.
+      - name: validate rule catalog
+        run: .venv/bin/python catalog/validate.py
+
+      # Reports what is catalogued vs implemented, and fails on a detector referencing a
+      # catalog id that does not exist — which would emit a finding no rule explains.
+      - name: coverage
+        run: .venv/bin/python catalog/coverage.py
+
+  detect:
+    name: detection gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+      - uses: astral-sh/setup-uv@v5
+
+      - name: build core
+        working-directory: core
+        run: cargo build --release --bins
+
+      - run: uv venv && uv pip install pyyaml jsonschema semgrep
+
+      - name: semgrep ruleset is valid
+        run: .venv/bin/semgrep --validate --config detectors/semgrep/tee/
+
+      - name: build binary fixtures
+        run: .venv/bin/python bench/fixtures/build.py
+
+      # Recall on the vulnerable trees, and — the number that matters — zero findings on
+      # the clean trees. Three rules have already shipped-and-been-caught firing on
+      # correct code; this is what keeps that from recurring.
+      - name: fixture regression
+        env:
+          PATH: ${{ github.workspace }}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+        run: .venv/bin/python bench/test_fixtures.py
+
+      # Injects one catalogued defect at a time into a clean tree and asserts that rule
+      # fires. Ground truth is exact by construction, so recall is measured not estimated.
+      - name: mutation benchmark
+        env:
+          PATH: ${{ github.workspace }}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+        run: .venv/bin/python bench/mutate.py
