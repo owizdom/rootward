@@ -13,6 +13,7 @@ pair, an absent condition key); those set `evidence` to the structural fact itse
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
@@ -126,6 +127,89 @@ def read_lines(path: Path) -> list[str]:
         return path.read_text(encoding="utf-8", errors="replace").splitlines()
     except (OSError, UnicodeDecodeError):
         return []
+
+
+_LINE_COMMENT = {
+    ".py": "#", ".sh": "#", ".bash": "#", ".yaml": "#", ".yml": "#", ".toml": "#",
+    ".rs": "//", ".go": "//", ".ts": "//", ".js": "//", ".mjs": "//", ".sol": "//",
+}
+
+
+def code_only(text: str, suffix: str) -> str:
+    """Strip comments so absence checks cannot be satisfied by prose.
+
+    This exists because the mutation benchmark caught the detectors reading
+    ``# Walk the cabundle to the pinned AWS Nitro root`` as evidence that the cabundle was
+    walked. Every "is the safeguard present?" rule has that hole: a comment describing
+    security is not security, and comments describing what code *used to* do outlive the
+    code constantly.
+
+    Blank lines are preserved so line numbers stay correct for evidence quoting — a
+    detector that reports the wrong line is worse than one that reports nothing.
+    """
+    marker = _LINE_COMMENT.get(suffix)
+    out: list[str] = []
+    in_block = False
+
+    for line in text.splitlines():
+        stripped = line
+
+        if marker == "//":
+            # Block comments, tracked across lines.
+            if in_block:
+                end = stripped.find("*/")
+                if end == -1:
+                    out.append("")
+                    continue
+                stripped = stripped[end + 2 :]
+                in_block = False
+            while "/*" in stripped:
+                start = stripped.find("/*")
+                end = stripped.find("*/", start + 2)
+                if end == -1:
+                    stripped = stripped[:start]
+                    in_block = True
+                    break
+                stripped = stripped[:start] + stripped[end + 2 :]
+
+        if marker:
+            idx = 0
+            while True:
+                idx = stripped.find(marker, idx)
+                if idx == -1:
+                    break
+                # Don't cut a URL scheme ("https://") or a string quote boundary.
+                if marker == "//" and idx > 0 and stripped[idx - 1] == ":":
+                    idx += 2
+                    continue
+                before = stripped[:idx]
+                # Crude but effective: an odd number of quotes means we are inside a
+                # string literal, so this marker is content rather than a comment.
+                if before.count('"') % 2 == 1 or before.count("'") % 2 == 1:
+                    idx += len(marker)
+                    continue
+                stripped = before
+                break
+
+        out.append(stripped)
+
+    return "\n".join(out)
+
+
+# Definition sites, which are not evidence that the thing is ever called.
+DEFINITION_SITE = re.compile(r"^\s*(?:async\s+)?(?:def|fn|func|function|pub\s+fn)\s+\w+")
+
+
+def strip_definitions(text: str) -> str:
+    """Blank out function *definition* lines.
+
+    Companion to `code_only`, for the same reason: the benchmark showed a dead
+    ``def verify_cert_chain(chain, root)`` counting as proof that chain validation happens,
+    when the only call to it had been deleted. Keeping the line as blank preserves numbering.
+    """
+    return "\n".join(
+        "" if DEFINITION_SITE.match(line) else line for line in text.splitlines()
+    )
 
 
 def quote_line(lines: list[str], line_no: int, limit: int = 200) -> str:

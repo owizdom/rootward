@@ -17,7 +17,7 @@ import json
 import re
 from pathlib import Path
 
-from model import Confidence, Finding, Severity, read_lines, quote_line
+from model import Confidence, Finding, Severity, code_only, quote_line, read_lines
 from platform_detect import Platform
 
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}
@@ -51,7 +51,9 @@ def _iter_text(root: Path):
         try:
             if path.stat().st_size > 1_000_000:
                 continue
-            yield path, path.read_text(encoding="utf-8", errors="replace")
+            raw = path.read_text(encoding="utf-8", errors="replace")
+            # Absence checks match live code only — see model.code_only.
+            yield path, code_only(raw, path.suffix)
         except OSError:
             continue
 

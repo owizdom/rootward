@@ -20,7 +20,15 @@ import re
 import subprocess
 from pathlib import Path
 
-from model import Confidence, Finding, Severity, read_lines, quote_line
+from model import (
+    Confidence,
+    Finding,
+    Severity,
+    code_only,
+    quote_line,
+    read_lines,
+    strip_definitions,
+)
 
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}
 CODE_SUFFIXES = {".rs", ".go", ".py", ".ts", ".js", ".mjs"}
@@ -36,15 +44,26 @@ DOES_ATTESTATION = re.compile(
 )
 
 # --- BT-T06: is the chain actually walked to a pinned root? --------------------
-ROOT_OF_TRUST = re.compile(
+#
+# Split into two signals rather than one, because the mutation benchmark showed a single
+# OR-of-everything pattern is defeated by a leftover constant: deleting the chain-walking
+# code while leaving `AWS_NITRO_ROOT_CERT` defined still looked safe. Possessing a root
+# certificate is not the same as using it, and the realistic regression is exactly that —
+# verification gets refactored away and the constant stays behind.
+#
+# CHAIN_WALK is the load-bearing signal: evidence the cabundle is actually traversed.
+CHAIN_WALK = re.compile(
     r"(?i)\b("
     r"cabundle|ca_?bundle|"
-    r"root_?cert|root_?ca|aws_?root|nitro_?root|trust_?anchor|"
     r"X509Store|X509StoreContext|add_cert|set_trust|verify_cert_chain|"
+    r"build_chain|validate_chain|verify_chain|"
+    # Known-good implementations that do the walk internally.
     r"attestation_?doc_?validation|nitro_enclave_attestation_document|"
-    r"aws_nitro_enclaves_nsm_api|attestation-doc-validation"
+    r"aws_nitro_enclaves_nsm_api"
     r")\b"
 )
+# ROOT_MATERIAL alone proves only that a root is available, not that it is consulted.
+ROOT_MATERIAL = re.compile(r"(?i)\b(root_?cert|root_?ca|aws_?root|nitro_?root|trust_?anchor)\b")
 
 # --- BT-CFG02: is an all-zero PCR map rejected? --------------------------------
 HANDLES_PCRS = re.compile(r"(?i)\b(pcr0|pcr_?map|pcrs?\[|recipientattestation|imagesha384)\b")
@@ -88,10 +107,17 @@ def check_chain_validation(root: Path) -> list[Finding]:
     findings: list[Finding] = []
     for path in _iter_code(root):
         text = path.read_text(encoding="utf-8", errors="replace")
-        if not DOES_ATTESTATION.search(text):
+        # Match safeguards against live code only. A comment saying the cabundle is walked
+        # and an uncalled helper that walks it are both text, not verification.
+        live = strip_definitions(code_only(text, path.suffix))
+        if not DOES_ATTESTATION.search(live):
             continue
-        if ROOT_OF_TRUST.search(text):
+        if CHAIN_WALK.search(live):
             continue
+
+        # A root constant with no chain walk is a stronger signal than nothing at all: it
+        # usually means the verification was removed and the constant was left behind.
+        orphaned_root = bool(ROOT_MATERIAL.search(live))
 
         lines = text.splitlines()
         line = _first_match_line(lines, DOES_ATTESTATION)
@@ -102,17 +128,27 @@ def check_chain_validation(root: Path) -> list[Finding]:
                 line=line,
                 evidence=quote_line(lines, line),
                 message=(
-                    "File parses attestation documents but contains no reference to a "
-                    "certificate bundle, a pinned root, or a known validating library. "
-                    "Verifying a document against the certificate embedded in that same "
+                    (
+                        "File parses attestation documents and defines root certificate "
+                        "material, but never walks a certificate bundle — the root is "
+                        "present and unused. This is the shape left behind when chain "
+                        "validation is refactored away and the constant survives. "
+                        if orphaned_root
+                        else "File parses attestation documents but contains no reference "
+                        "to a certificate bundle, a pinned root, or a known validating "
+                        "library. "
+                    )
+                    + "Verifying a document against the certificate embedded in that same "
                     "document proves nothing: an attacker generates a keypair, signs a "
                     "document asserting any PCR values they like, embeds their own "
                     "certificate, and it verifies. The security of the scheme is entirely "
                     "in walking the cabundle to an out-of-band pinned AWS Nitro root."
                 ),
                 severity=Severity.CRITICAL,
-                confidence=Confidence.MEDIUM,
+                # A dangling root constant is more specific evidence than plain absence.
+                confidence=Confidence.HIGH if orphaned_root else Confidence.MEDIUM,
                 detector="attestation.chain_validation",
+                metadata={"orphaned_root_material": orphaned_root},
             )
         )
     return findings
@@ -123,10 +159,11 @@ def check_zero_pcr_rejected(root: Path) -> list[Finding]:
     findings: list[Finding] = []
     for path in _iter_code(root):
         text = path.read_text(encoding="utf-8", errors="replace")
-        if not (HANDLES_PCRS.search(text) and DOES_ATTESTATION.search(text)):
+        live = code_only(text, path.suffix)
+        if not (HANDLES_PCRS.search(live) and DOES_ATTESTATION.search(live)):
             continue
         # A hardcoded 96-hex-char pin already excludes all-zero.
-        if REJECTS_ZERO.search(text) or HARDCODED_PCR.search(text):
+        if REJECTS_ZERO.search(live) or HARDCODED_PCR.search(live):
             continue
 
         lines = text.splitlines()
