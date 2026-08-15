@@ -33,8 +33,23 @@ from model import (
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}
 CODE_SUFFIXES = {".rs", ".go", ".py", ".ts", ".js", ".mjs"}
 
+# Tests, type declarations, and FFI shims name attestation types without performing
+# verification. Corpus A found all seven false positives on Evervault's *correct* validator
+# living in exactly these: a `.d.ts` with no implementation, `__test__/index.spec.mjs`, and
+# binding structs whose only crime was a field called `pcr0`.
+TEST_PATH = re.compile(
+    r"(?i)(^|/)(tests?|__tests?__|spec|specs|testdata|fixtures?|examples?|benches)(/|$)"
+    r"|(^|/)(test_[^/]+|[^/]+_test|[^/]+\.(test|spec))\.[a-z]+$"
+)
+DECLARATION_ONLY = re.compile(r"\.d\.ts$")
+
 # --- phase 1: does this file handle attestation documents at all? ---------------
-DOES_ATTESTATION = re.compile(
+#
+# Split into a noun and a verb. Naming an attestation type is not doing attestation work —
+# an FFI binding that passes a document through, or a struct with a `pcr0` field, mentions
+# every noun and performs no verification. Requiring both halves is what keeps this rule
+# off the shims and on the code that actually decides whether to trust a document.
+ATTESTATION_NOUN = re.compile(
     r"(?i)\b("
     r"attestation_?doc|attestationdoc|attestation_document|"
     r"cose_?sign1|coseSign1|"
@@ -42,6 +57,25 @@ DOES_ATTESTATION = re.compile(
     r"describe_?nsm|GetAttestationDoc|get_attestation"
     r")\b"
 )
+ATTESTATION_VERB = re.compile(
+    r"(?i)\b("
+    r"verify|validate|authenticate|check_?signature|"
+    r"from_slice|decode|deserialize|parse|loads?\b"
+    r")\b"
+)
+
+
+def _does_attestation(text: str) -> bool:
+    return bool(ATTESTATION_NOUN.search(text) and ATTESTATION_VERB.search(text))
+
+
+def _is_auditable(rel: str) -> bool:
+    """Exclude tests and declaration-only files from absence checks.
+
+    A missing safeguard in a test file is not a vulnerability, and a `.d.ts` cannot contain
+    a safeguard at all. Both were sources of confident-looking false positives.
+    """
+    return not (TEST_PATH.search(rel) or DECLARATION_ONLY.search(rel))
 
 # --- BT-T06: is the chain actually walked to a pinned root? --------------------
 #
@@ -51,22 +85,40 @@ DOES_ATTESTATION = re.compile(
 # certificate is not the same as using it, and the realistic regression is exactly that —
 # verification gets refactored away and the constant stays behind.
 #
+# Audited implementations that own verification themselves. A file that delegates to one
+# of these is not missing a safeguard — the safeguard is in the library. Corpus A surfaced
+# this: Evervault's own Kotlin and wasm bindings import `validate_expected_pcrs` from the
+# core crate and were flagged for not re-implementing checks the crate already performs.
+KNOWN_VALIDATOR = re.compile(
+    r"(?i)\b("
+    r"attestation_?doc_?validation|nitro_enclave_attestation_document|"
+    r"aws_nitro_enclaves_nsm_api|validate_expected_pcrs|"
+    r"validate_attestation_doc_against_cert"
+    r")\b"
+)
+
 # CHAIN_WALK is the load-bearing signal: evidence the cabundle is actually traversed.
 CHAIN_WALK = re.compile(
     r"(?i)\b("
     r"cabundle|ca_?bundle|"
     r"X509Store|X509StoreContext|add_cert|set_trust|verify_cert_chain|"
-    r"build_chain|validate_chain|verify_chain|"
-    # Known-good implementations that do the walk internally.
-    r"attestation_?doc_?validation|nitro_enclave_attestation_document|"
-    r"aws_nitro_enclaves_nsm_api"
+    r"build_chain|validate_chain|verify_chain"
     r")\b"
 )
 # ROOT_MATERIAL alone proves only that a root is available, not that it is consulted.
 ROOT_MATERIAL = re.compile(r"(?i)\b(root_?cert|root_?ca|aws_?root|nitro_?root|trust_?anchor)\b")
 
 # --- BT-CFG02: is an all-zero PCR map rejected? --------------------------------
+#
+# Naming a PCR is not consuming one. Corpus A flagged `pcr0: Option<String>` in a Kotlin
+# binding struct and a wasm getter attribute — files that carry PCR values across an FFI
+# boundary and verify nothing. The rule needs evidence the values are actually *compared*.
 HANDLES_PCRS = re.compile(r"(?i)\b(pcr0|pcr_?map|pcrs?\[|recipientattestation|imagesha384)\b")
+COMPARES_PCRS = re.compile(
+    r"(?i)(expected_?pcrs?|pcr_?(match|mismatch|check|compare|verify)|"
+    r"\bpcrs?\b[^\n]{0,40}(==|!=|\.eq\(|equals|compare)|"
+    r"(==|!=)[^\n]{0,40}\bpcrs?\b)"
+)
 REJECTS_ZERO = re.compile(
     r"(?i)("
     r"all\(\s*\|?\w*\|?\s*\*?\w+\s*==\s*0|"          # rust: iter().all(|b| *b == 0)
@@ -86,6 +138,8 @@ def _iter_code(root: Path):
         if path.suffix not in CODE_SUFFIXES or not path.is_file():
             continue
         if any(part in SKIP_DIRS for part in path.parts):
+            continue
+        if not _is_auditable(str(path.relative_to(root))):
             continue
         try:
             if path.stat().st_size > 1_000_000:
@@ -110,9 +164,9 @@ def check_chain_validation(root: Path) -> list[Finding]:
         # Match safeguards against live code only. A comment saying the cabundle is walked
         # and an uncalled helper that walks it are both text, not verification.
         live = strip_definitions(code_only(text, path.suffix))
-        if not DOES_ATTESTATION.search(live):
+        if not _does_attestation(live):
             continue
-        if CHAIN_WALK.search(live):
+        if CHAIN_WALK.search(live) or KNOWN_VALIDATOR.search(live):
             continue
 
         # A root constant with no chain walk is a stronger signal than nothing at all: it
@@ -120,7 +174,7 @@ def check_chain_validation(root: Path) -> list[Finding]:
         orphaned_root = bool(ROOT_MATERIAL.search(live))
 
         lines = text.splitlines()
-        line = _first_match_line(lines, DOES_ATTESTATION)
+        line = _first_match_line(lines, ATTESTATION_NOUN)
         findings.append(
             Finding(
                 rule_id="BT-T06-no-root-cert-validation",
@@ -160,7 +214,11 @@ def check_zero_pcr_rejected(root: Path) -> list[Finding]:
     for path in _iter_code(root):
         text = path.read_text(encoding="utf-8", errors="replace")
         live = code_only(text, path.suffix)
-        if not (HANDLES_PCRS.search(live) and DOES_ATTESTATION.search(live)):
+        if not (HANDLES_PCRS.search(live) and _does_attestation(live)):
+            continue
+        # Declaring a PCR field is not verifying against one, and delegating to an
+        # audited validator means the check lives there rather than here.
+        if not COMPARES_PCRS.search(live) or KNOWN_VALIDATOR.search(live):
             continue
         # A hardcoded 96-hex-char pin already excludes all-zero.
         if REJECTS_ZERO.search(live) or HARDCODED_PCR.search(live):

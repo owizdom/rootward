@@ -40,6 +40,13 @@ rules:
       # secret-ish regex — so without this the rule fires hardest on correct code.
       - pattern-not: $A.ct_eq($B) == $R
       - pattern-not: $A.ct_eq($B) != $R
+      # Corpus A: `attestation_document.digest == Digest::SHA384` was flagged because
+      # "digest" is in the secret-name regex — but the comparison is against an algorithm
+      # enum, not a secret. Comparing to an enum variant or a SCREAMING_CASE constant is a
+      # type or mode check, never a secret comparison.
+      - metavariable-regex:
+          metavariable: $RHS
+          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$).*
 
   - id: tee-timing-oracle-compare-go
     languages: [go]
@@ -67,6 +74,13 @@ rules:
       # subtle.ConstantTimeCompare(...) == 1 and hmac.Equal(...) are the recommended
       # fixes; flagging them would penalise correct code.
       - pattern-not: subtle.ConstantTimeCompare(...) == $R
+      # Corpus A: `attestation_document.digest == Digest::SHA384` was flagged because
+      # "digest" is in the secret-name regex — but the comparison is against an algorithm
+      # enum, not a secret. Comparing to an enum variant or a SCREAMING_CASE constant is a
+      # type or mode check, never a secret comparison.
+      - metavariable-regex:
+          metavariable: $RHS
+          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$).*
       - pattern-not: subtle.ConstantTimeCompare(...) != $R
       - pattern-not: hmac.Equal(...) == $R
 
@@ -96,6 +110,13 @@ rules:
       - pattern-not: len($LHS) == $RHS
       - pattern-not: len($LHS) != $RHS
       - pattern-not: hmac.compare_digest(...) == $R
+      # Corpus A: `attestation_document.digest == Digest::SHA384` was flagged because
+      # "digest" is in the secret-name regex — but the comparison is against an algorithm
+      # enum, not a secret. Comparing to an enum variant or a SCREAMING_CASE constant is a
+      # type or mode check, never a secret comparison.
+      - metavariable-regex:
+          metavariable: $RHS
+          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$).*
       - pattern-not: secrets.compare_digest(...) == $R
 
   - id: tee-timing-oracle-compare-js
@@ -122,4 +143,11 @@ rules:
       - pattern-not: $LHS.length === $RHS
       - pattern-not: $LHS.length !== $RHS
       - pattern-not: crypto.timingSafeEqual(...) === $R
+      # Corpus A: `attestation_document.digest == Digest::SHA384` was flagged because
+      # "digest" is in the secret-name regex — but the comparison is against an algorithm
+      # enum, not a secret. Comparing to an enum variant or a SCREAMING_CASE constant is a
+      # type or mode check, never a secret comparison.
+      - metavariable-regex:
+          metavariable: $RHS
+          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$).*
       - pattern-not: crypto.timingSafeEqual(...) == $R

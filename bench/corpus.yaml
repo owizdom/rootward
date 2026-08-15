@@ -1,0 +1,54 @@
+# Corpus A — real repositories, pinned by commit.
+#
+# Fixtures and mutants measure the detectors against code shaped for them. This measures
+# them against code that was never written with this tool in mind, which is the only place
+# the real false-positive rate shows up. Nothing here is vendored: `bench/corpus.py` clones
+# at the pinned ref, so what is audited is verifiable rather than a snapshot someone took.
+#
+# `expect` is deliberately absent from most entries. Guessing what a real repository ought
+# to produce and then tuning until it matches is how a benchmark becomes a mirror. The
+# exception is dstack, where an independent audit gives ground truth this project did not
+# author.
+
+repos:
+  - name: dstack
+    url: https://github.com/Dstack-TEE/dstack
+    # zkSecurity audited dstack over May–June 2025 and published findings including a
+    # high-severity OVMF build-configuration issue plus medium-severity issues in terminal
+    # binaries, symlink handling, and environment-variable protection. Auditing at a
+    # pre-fix ref gives external ground truth. Pin updated once the exact audited commit
+    # is confirmed from the published report rather than inferred from dates.
+    ref: main
+    platform: dstack
+    note: >-
+      External validation target. What this re-finds from the zkSecurity report is a
+      result; what it misses is a documented gap. Their findings were largely in build
+      configuration and OS-image generation, which is adjacent to but not identical to
+      this catalog's scope — expect partial overlap at best, and say so.
+
+  - name: aws-nitro-enclaves-samples
+    url: https://github.com/aws-samples/aws-nitro-enclaves-workshop
+    ref: main
+    platform: nitro
+    note: >-
+      AWS's own sample code. Findings here are worth reading twice: sample code trades
+      completeness for clarity, so an omitted safeguard may be pedagogical rather than a
+      defect. Useful precisely because it is the code people copy.
+
+  - name: aws-nitro-enclaves-sdk-c
+    url: https://github.com/aws/aws-nitro-enclaves-sdk-c
+    ref: main
+    platform: nitro
+    note: >-
+      Reference implementation of the KMS attestation flow. A well-maintained repository
+      that should be close to clean — any finding is either a real issue or a false
+      positive, and both are informative.
+
+  - name: attestation-doc-validation
+    url: https://github.com/evervault/attestation-doc-validation
+    ref: main
+    platform: nitro
+    note: >-
+      A correct attestation validator. BT-T06 must NOT fire here; if it does, the
+      chain-walk detection is wrong. This is the negative control for the rule most likely
+      to over-report.
