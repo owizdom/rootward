@@ -1,0 +1,111 @@
+# BT-T07C — non-constant-time comparison of a secret-derived value.
+#
+# The highest-precision rule in the catalog, and deliberately tuned toward recall: a
+# constant-time comparison of a public value costs nothing, so a false positive here is
+# cheap. Missing one is not — byte-comparison short-circuits on first mismatch, which turns
+# an exponential brute force into a linear one at ~256 queries per byte, and the parent
+# instance sits close enough to the enclave to measure the difference cleanly.
+
+rules:
+  - id: tee-timing-oracle-compare-rust
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      Non-constant-time comparison on a secret-derived value ($LHS). Comparison
+      short-circuits on the first differing byte, so response latency leaks how many
+      leading bytes matched and the value can be recovered byte by byte from the parent
+      instance. Use subtle::ConstantTimeEq.
+    metadata:
+      catalog-id: BT-T07C-timing-oracle-compare
+      threat: 7
+      layer_required: 3
+      confidence: HIGH
+      references:
+        - https://cwe.mitre.org/data/definitions/208.html
+        - https://docs.rs/subtle
+    patterns:
+      - pattern-either:
+          - pattern: $LHS == $RHS
+          - pattern: $LHS != $RHS
+          - pattern: $LHS.eq(&$RHS)
+          - pattern: $LHS.as_slice() == $RHS.as_slice()
+      - metavariable-regex:
+          metavariable: $LHS
+          regex: (?i).*\b?(secret|hmac|signature|sig|mac|tag|digest|token|passwd|password|auth_?code|api_?key|private_?key|shared_?key|session_?key|nonce)\b?.*
+      # A length check is not the leaky comparison; it leaks only the length.
+      - pattern-not: $LHS.len() == $RHS
+      - pattern-not: $LHS.len() != $RHS
+
+  - id: tee-timing-oracle-compare-go
+    languages: [go]
+    severity: WARNING
+    message: >-
+      Non-constant-time comparison on a secret-derived value ($LHS). Use
+      crypto/subtle.ConstantTimeCompare; bytes.Equal and == both short-circuit and leak
+      the length of the matching prefix through timing.
+    metadata:
+      catalog-id: BT-T07C-timing-oracle-compare
+      threat: 7
+      layer_required: 3
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: $LHS == $RHS
+          - pattern: $LHS != $RHS
+          - pattern: bytes.Equal($LHS, $RHS)
+          - pattern: strings.EqualFold($LHS, $RHS)
+      - metavariable-regex:
+          metavariable: $LHS
+          regex: (?i).*(secret|hmac|signature|sig|mac|tag|digest|token|passwd|password|authCode|apiKey|privateKey|sharedKey|sessionKey|nonce).*
+      - pattern-not: len($LHS) == $RHS
+      - pattern-not: len($LHS) != $RHS
+
+  - id: tee-timing-oracle-compare-python
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Non-constant-time comparison on a secret-derived value ($LHS). Use
+      hmac.compare_digest; == on bytes or str short-circuits and leaks the matching prefix
+      length through response timing.
+    metadata:
+      catalog-id: BT-T07C-timing-oracle-compare
+      threat: 7
+      layer_required: 3
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: $LHS == $RHS
+          - pattern: $LHS != $RHS
+      - metavariable-regex:
+          metavariable: $LHS
+          regex: (?i).*(secret|hmac|signature|sig|mac|tag|digest|token|passwd|password|auth_code|api_key|private_key|shared_key|session_key|nonce).*
+      - pattern-not-inside: |
+          def $F(...):
+            ...
+            assert ...
+      - pattern-not: len($LHS) == $RHS
+      - pattern-not: len($LHS) != $RHS
+
+  - id: tee-timing-oracle-compare-js
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Non-constant-time comparison on a secret-derived value ($LHS). Use
+      crypto.timingSafeEqual; === on strings or Buffers short-circuits and leaks the
+      matching prefix length through response timing.
+    metadata:
+      catalog-id: BT-T07C-timing-oracle-compare
+      threat: 7
+      layer_required: 3
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: $LHS === $RHS
+          - pattern: $LHS !== $RHS
+          - pattern: $LHS == $RHS
+          - pattern: $LHS.equals($RHS)
+      - metavariable-regex:
+          metavariable: $LHS
+          regex: (?i).*(secret|hmac|signature|sig|mac|tag|digest|token|passwd|password|authCode|apiKey|privateKey|sharedKey|sessionKey|nonce).*
+      - pattern-not: $LHS.length === $RHS
+      - pattern-not: $LHS.length !== $RHS
