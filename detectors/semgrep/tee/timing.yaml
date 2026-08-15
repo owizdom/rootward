@@ -31,7 +31,7 @@ rules:
           - pattern: $LHS.as_slice() == $RHS.as_slice()
       - metavariable-regex:
           metavariable: $LHS
-          regex: (?i).*(secret|hmac|signature|sig|mac|tag|digest|token|passwd|password|auth_?code|api_?key|private_?key|shared_?key|session_?key|nonce).*
+          regex: (?i).*(secret|hmac|signature|sig|mac|tag|token|passwd|password|auth_?code|api_?key|private_?key|shared_?key|session_?key).*
       # A length check is not the leaky comparison; it leaks only the length.
       - pattern-not: $LHS.len() == $RHS
       - pattern-not: $LHS.len() != $RHS
@@ -40,13 +40,17 @@ rules:
       # secret-ish regex — so without this the rule fires hardest on correct code.
       - pattern-not: $A.ct_eq($B) == $R
       - pattern-not: $A.ct_eq($B) != $R
-      # Corpus A: `attestation_document.digest == Digest::SHA384` was flagged because
-      # "digest" is in the secret-name regex — but the comparison is against an algorithm
-      # enum, not a secret. Comparing to an enum variant or a SCREAMING_CASE constant is a
-      # type or mode check, never a secret comparison.
+      # A length comparison leaks only the length, not the value.
+      - metavariable-regex:
+          metavariable: $LHS
+          regex: ^(?!.*\.len\(\)$)(?!.*\.length$).*
+      # Comparing against an enum variant, a SCREAMING_CASE constant, a string or byte
+      # literal, an array literal, or a number is a format or magic-value check, never a
+      # secret comparison. dstack supplied one of each: `!= Digest::SHA384`,
+      # `!= pe::IMAGE_NT_SIGNATURE`, `!= b"TDVF"`, `!= [0u8; 48]`, `.len() != 96`.
       - metavariable-regex:
           metavariable: $RHS
-          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$).*
+          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$)(?!b?["'])(?!\[)(?!\d).*
 
   - id: tee-timing-oracle-compare-go
     languages: [go]
@@ -68,19 +72,23 @@ rules:
           - pattern: strings.EqualFold($LHS, $RHS)
       - metavariable-regex:
           metavariable: $LHS
-          regex: (?i).*(secret|hmac|signature|sig|mac|tag|digest|token|passwd|password|authCode|apiKey|privateKey|sharedKey|sessionKey|nonce).*
+          regex: (?i).*(secret|hmac|signature|sig|mac|tag|token|passwd|password|authCode|apiKey|privateKey|sharedKey|sessionKey).*
       - pattern-not: len($LHS) == $RHS
       - pattern-not: len($LHS) != $RHS
       # subtle.ConstantTimeCompare(...) == 1 and hmac.Equal(...) are the recommended
       # fixes; flagging them would penalise correct code.
       - pattern-not: subtle.ConstantTimeCompare(...) == $R
-      # Corpus A: `attestation_document.digest == Digest::SHA384` was flagged because
-      # "digest" is in the secret-name regex — but the comparison is against an algorithm
-      # enum, not a secret. Comparing to an enum variant or a SCREAMING_CASE constant is a
-      # type or mode check, never a secret comparison.
+      # A length comparison leaks only the length, not the value.
+      - metavariable-regex:
+          metavariable: $LHS
+          regex: ^(?!.*\.len\(\)$)(?!.*\.length$).*
+      # Comparing against an enum variant, a SCREAMING_CASE constant, a string or byte
+      # literal, an array literal, or a number is a format or magic-value check, never a
+      # secret comparison. dstack supplied one of each: `!= Digest::SHA384`,
+      # `!= pe::IMAGE_NT_SIGNATURE`, `!= b"TDVF"`, `!= [0u8; 48]`, `.len() != 96`.
       - metavariable-regex:
           metavariable: $RHS
-          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$).*
+          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$)(?!b?["'])(?!\[)(?!\d).*
       - pattern-not: subtle.ConstantTimeCompare(...) != $R
       - pattern-not: hmac.Equal(...) == $R
 
@@ -102,7 +110,7 @@ rules:
           - pattern: $LHS != $RHS
       - metavariable-regex:
           metavariable: $LHS
-          regex: (?i).*(secret|hmac|signature|sig|mac|tag|digest|token|passwd|password|auth_code|api_key|private_key|shared_key|session_key|nonce).*
+          regex: (?i).*(secret|hmac|signature|sig|mac|tag|token|passwd|password|auth_code|api_key|private_key|shared_key|session_key).*
       - pattern-not-inside: |
           def $F(...):
             ...
@@ -110,13 +118,17 @@ rules:
       - pattern-not: len($LHS) == $RHS
       - pattern-not: len($LHS) != $RHS
       - pattern-not: hmac.compare_digest(...) == $R
-      # Corpus A: `attestation_document.digest == Digest::SHA384` was flagged because
-      # "digest" is in the secret-name regex — but the comparison is against an algorithm
-      # enum, not a secret. Comparing to an enum variant or a SCREAMING_CASE constant is a
-      # type or mode check, never a secret comparison.
+      # A length comparison leaks only the length, not the value.
+      - metavariable-regex:
+          metavariable: $LHS
+          regex: ^(?!.*\.len\(\)$)(?!.*\.length$).*
+      # Comparing against an enum variant, a SCREAMING_CASE constant, a string or byte
+      # literal, an array literal, or a number is a format or magic-value check, never a
+      # secret comparison. dstack supplied one of each: `!= Digest::SHA384`,
+      # `!= pe::IMAGE_NT_SIGNATURE`, `!= b"TDVF"`, `!= [0u8; 48]`, `.len() != 96`.
       - metavariable-regex:
           metavariable: $RHS
-          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$).*
+          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$)(?!b?["'])(?!\[)(?!\d).*
       - pattern-not: secrets.compare_digest(...) == $R
 
   - id: tee-timing-oracle-compare-js
@@ -139,15 +151,19 @@ rules:
           - pattern: $LHS.equals($RHS)
       - metavariable-regex:
           metavariable: $LHS
-          regex: (?i).*(secret|hmac|signature|sig|mac|tag|digest|token|passwd|password|authCode|apiKey|privateKey|sharedKey|sessionKey|nonce).*
+          regex: (?i).*(secret|hmac|signature|sig|mac|tag|token|passwd|password|authCode|apiKey|privateKey|sharedKey|sessionKey).*
       - pattern-not: $LHS.length === $RHS
       - pattern-not: $LHS.length !== $RHS
       - pattern-not: crypto.timingSafeEqual(...) === $R
-      # Corpus A: `attestation_document.digest == Digest::SHA384` was flagged because
-      # "digest" is in the secret-name regex — but the comparison is against an algorithm
-      # enum, not a secret. Comparing to an enum variant or a SCREAMING_CASE constant is a
-      # type or mode check, never a secret comparison.
+      # A length comparison leaks only the length, not the value.
+      - metavariable-regex:
+          metavariable: $LHS
+          regex: ^(?!.*\.len\(\)$)(?!.*\.length$).*
+      # Comparing against an enum variant, a SCREAMING_CASE constant, a string or byte
+      # literal, an array literal, or a number is a format or magic-value check, never a
+      # secret comparison. dstack supplied one of each: `!= Digest::SHA384`,
+      # `!= pe::IMAGE_NT_SIGNATURE`, `!= b"TDVF"`, `!= [0u8; 48]`, `.len() != 96`.
       - metavariable-regex:
           metavariable: $RHS
-          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$).*
+          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$)(?!b?["'])(?!\[)(?!\d).*
       - pattern-not: crypto.timingSafeEqual(...) == $R

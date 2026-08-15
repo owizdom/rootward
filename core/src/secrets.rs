@@ -128,8 +128,15 @@ fn is_placeholder(value: &str) -> bool {
 /// digest rather than a secret. The `regex` crate has no lookbehind, so this inspects the
 /// preceding window directly.
 fn preceded_by_digest_label(line: &str, start: usize) -> bool {
-    const LABELS: [&str; 8] = [
+    // Two shapes, both extremely common in build files:
+    //   sha256:<hex>        OCI image digests, lockfile integrity fields
+    //   FOO_SHA256=<hex>    toolchain checksums in .env / Makefile / CI config
+    // dstack's os/mkosi/versions.env carries five of the latter (KERNEL_SHA256,
+    // RUSTC_TOOLCHAIN_SHA256, GO_TOOLCHAIN_SHA256, ...) and every one was reported as an
+    // EVM private key, because only the colon form was recognised.
+    const LABELS: [&str; 14] = [
         "sha256:", "sha512:", "sha384:", "sha1:", "md5:", "integrity", "checksum", "digest",
+        "sha256=", "sha512=", "sha384=", "sha1=", "md5=", "_hash=",
     ];
     let window_start = start.saturating_sub(16);
     // Guard against slicing through a UTF-8 boundary on a line with multibyte characters.
