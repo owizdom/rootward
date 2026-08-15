@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -203,6 +204,53 @@ def run_eif_scan(root: Path, core: Path | None) -> tuple[list[Finding], list[str
                 )
             )
     return findings, warnings, reports
+
+
+# --------------------------------------------------------- semantic scope ---
+ENCLAVE_HINTS = re.compile(
+    r"(?i)(enclave|vsock|attest|nsm|kms|tee|nitro|dstack|tappd|seal|secure|crypt)"
+)
+SCOPE_SUFFIXES = {".rs", ".go", ".py", ".ts", ".js", ".mjs", ".md"}
+
+
+def semantic_scope(root: Path, findings: list[Finding], limit: int = 60) -> list[str]:
+    """Files worth spending a model call on.
+
+    Handing an agent a whole repository wastes context on vendored dependencies and lets it
+    wander. The scope is: files the deterministic layer already flagged, plus files whose
+    path suggests they sit on the enclave boundary, plus the README (which BT-LYR01 needs
+    to compare claims against reality).
+    """
+    picked: list[str] = []
+    seen: set[str] = set()
+
+    def add(rel: str) -> None:
+        if rel not in seen:
+            seen.add(rel)
+            picked.append(rel)
+
+    for f in findings:
+        rel = f.file.split("!", 1)[0]
+        if (root / rel).is_file():
+            add(rel)
+
+    for name in ("README.md", "readme.md", "README", "docs/README.md"):
+        if (root / name).is_file():
+            add(name)
+
+    for path in sorted(root.rglob("*")):
+        if len(picked) >= limit:
+            break
+        if not path.is_file() or path.suffix not in SCOPE_SUFFIXES:
+            continue
+        if any(part in {".git", "node_modules", "target", "venv", ".venv", "dist", "build"}
+               for part in path.parts):
+            continue
+        rel = str(path.relative_to(root))
+        if ENCLAVE_HINTS.search(rel):
+            add(rel)
+
+    return picked[:limit]
 
 
 # ------------------------------------------------------------ scorecard ---
@@ -410,6 +458,19 @@ def main() -> int:
     ap.add_argument("path")
     ap.add_argument("--format", choices=["md", "json"], default="md")
     ap.add_argument("--semgrep", default="semgrep")
+    ap.add_argument(
+        "--semantic",
+        action="store_true",
+        help="run the four judgment rules (BT-T00/T05/T08/LYR01) through the Claude Agent "
+             "SDK, each finding adversarially verified. Costs model calls and minutes; the "
+             "deterministic layer is complete without it.",
+    )
+    ap.add_argument(
+        "--no-verify",
+        action="store_true",
+        help="skip the adversarial refutation pass. Semantic findings then ship unverified "
+             "and are labelled as such — not recommended outside debugging.",
+    )
     args = ap.parse_args()
 
     root = Path(args.path).resolve()
@@ -437,6 +498,25 @@ def main() -> int:
     findings += attestation.run(root, core)
     findings += dstack_rules.run(root, platform)
 
+    refuted: list[Finding] = []
+    if args.semantic:
+        import asyncio
+
+        sys.path.insert(0, str(ROOT / "agent"))
+        from semantic import run_semantic
+
+        scope = semantic_scope(root, findings)
+        kept, refuted, sem_warnings = asyncio.run(
+            run_semantic(root, scope, verify=not args.no_verify)
+        )
+        findings += kept
+        warnings += sem_warnings
+    else:
+        warnings.append(
+            "semantic rules (BT-T00 trust boundary, BT-T05 TCB bloat, BT-T08 metadata "
+            "leakage, BT-LYR01 layer claims) did not run; pass --semantic to enable them"
+        )
+
     findings = sort_for_report(dedupe(findings))
     scorecard = layer_scorecard(catalog, findings)
 
@@ -446,6 +526,9 @@ def main() -> int:
         "scorecard": scorecard,
         "eif": eif_reports,
         "findings": [f.to_dict() for f in findings],
+        # Refuted findings are kept out of the report but recorded. A refutation rate of
+        # zero means the adversarial pass is rubber-stamping and should be distrusted.
+        "refuted": [f.to_dict() for f in refuted],
         "not_verified": not_verified(root, catalog, platform, core, eif_reports, warnings),
     }
 

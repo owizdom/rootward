@@ -2,9 +2,11 @@
 
 Static auditor for Web3 protocols built on cloud TEEs — AWS Nitro Enclaves and dstack.
 
-> **Status: P0.** The rule catalog is complete and validated. The detectors that implement it are
-> not built yet. Nothing here has been benchmarked, so no detection-rate claim is made.
-> See [Build status](#build-status).
+> **Status: detection works, benchmark does not exist yet.** All 19 deterministic rules are
+> implemented and pass against fixtures (16 rule families found on the vulnerable trees, 0
+> false positives on the clean ones). That is a fixture result, not a benchmark — no
+> precision/recall number over real repositories has been measured, so no detection-rate
+> claim is made. See [Build status](#build-status).
 
 ## Why
 
@@ -88,12 +90,19 @@ running instance, no active probing. Repository in, report out.
 
 | Phase | | |
 |---|---|---|
-| P0 | rule catalog + schema + validator | done |
-| P1 | Rust core: EIF, CPIO, secret scan, PCR recompute | |
-| P2 | semgrep TEE ruleset + Python detectors | |
-| P3 | Agent SDK harness + semantic passes + adversarial verify | |
-| P4 | benchmark: corpora, mutants, precision/recall, ablation | |
-| P5 | report renderer + release | |
+| P0 | rule catalog + schema + validator | done — 29 rules, validator enforces citations |
+| P1 | Rust core: EIF, CPIO, secret scan, PCR recompute | done — 34 tests; PCRs verified against AWS's implementation |
+| P2 | semgrep TEE ruleset + Python detectors | done — 19/19 deterministic rules, 0 FP on clean fixtures |
+| P3 | Agent SDK harness + semantic passes + adversarial verify | written, not yet run end to end |
+| P4 | benchmark: corpora, mutants, precision/recall, ablation | not started |
+| P5 | report renderer + release | report done; release pending the benchmark |
+
+```
+python3 cli/audit.py <path>              # deterministic only, no model calls
+python3 cli/audit.py <path> --semantic   # + the four judgment rules, adversarially verified
+uv run --with pyyaml bench/test_fixtures.py   # regression gate
+uv run --with pyyaml catalog/coverage.py      # what is catalogued vs implemented
+```
 
 ## Benchmark
 
