@@ -4,17 +4,21 @@
 # and wrong. Checks that depend on something being *absent* across a whole file or repo
 # (no PCR pin anywhere, no root certificate pinned, no zero-PCR rejection) are not
 # expressible as a pattern match and live in the Python detectors instead.
+#
+# Structure note: semgrep requires every pattern in a rule to parse in every language the
+# rule declares, so a rule listing five languages cannot carry language-specific syntax.
+# Rules below are therefore split per language even where the finding is the same, and the
+# shared catalog-id in metadata is what stitches them back together in the report.
 
 rules:
   # ---------------------------------------------------------------- BT-T04A ---
-  - id: tee-host-supplied-entropy
-    languages: [rust, go, python, javascript, typescript]
+  - id: tee-host-supplied-entropy-rust
+    languages: [rust]
     severity: ERROR
     message: >-
-      Entropy appears to originate outside the enclave. If the parent can predict or bias
-      the randomness an enclave consumes, it can predict nonces, session keys, and blinding
-      factors without attacking the enclave at all. Seed from NSM GetRandom on Nitro, or
-      the platform RNG elsewhere.
+      Entropy seeded from a value that crosses the enclave boundary ($SRC). If the parent
+      can predict or bias the randomness an enclave consumes, it predicts nonces and
+      session keys without attacking the enclave. Seed from NSM GetRandom.
     metadata:
       catalog-id: BT-T04A-host-randomness
       threat: 4
@@ -22,25 +26,40 @@ rules:
       confidence: MEDIUM
     patterns:
       - pattern-either:
-          # A seed, nonce, or IV arriving as an input parameter is attacker-controlled by
-          # construction when the caller is across the boundary.
-          - pattern: $OBJ.seed_from($SRC)
           - pattern: ChaCha20Rng::from_seed($SRC)
           - pattern: StdRng::from_seed($SRC)
+          - pattern: SmallRng::from_seed($SRC)
+      - metavariable-regex:
+          metavariable: $SRC
+          regex: (?i).*(msg|message|req|request|payload|input|parent|host|vsock|body|param).*
+
+  - id: tee-host-supplied-entropy-python
+    languages: [python]
+    severity: ERROR
+    message: >-
+      RNG seeded from a value that crosses the enclave boundary ($SRC). Seed from the NSM
+      device instead; random.seed() with attacker-influenced input makes every subsequent
+      draw predictable.
+    metadata:
+      catalog-id: BT-T04A-host-randomness
+      threat: 4
+      layer_required: 1
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
           - pattern: random.seed($SRC)
-          - pattern: rand.Seed($SRC)
+          - pattern: np.random.seed($SRC)
       - metavariable-regex:
           metavariable: $SRC
           regex: (?i).*(msg|message|req|request|payload|input|parent|host|vsock|body|param).*
 
   # ---------------------------------------------------------------- BT-T04B ---
-  - id: tee-host-supplied-time-in-expiry
-    languages: [rust, go, python, javascript, typescript]
+  - id: tee-host-supplied-time-rust
+    languages: [rust]
     severity: WARNING
     message: >-
-      Security-relevant time comparison against a local clock. An enclave has no independent
-      clock, so an operator who can skew it can replay expired authorisations or hold a
-      transaction until it is profitable. Derive time from the attestation document
+      Expiry compared against the local clock. An enclave has no independent clock, so an
+      operator who skews it can replay expired authorisations. Use the attestation document
       timestamp or a consensus source.
     metadata:
       catalog-id: BT-T04B-host-time
@@ -51,24 +70,77 @@ rules:
       - pattern-either:
           - pattern: $EXP < SystemTime::now()
           - pattern: SystemTime::now() > $EXP
+          - pattern: $EXP < Instant::now()
+      - metavariable-regex:
+          metavariable: $EXP
+          regex: (?i).*(exp|expiry|expires|expiration|deadline|valid_until|not_after|ttl|lease).*
+
+  - id: tee-host-supplied-time-python
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Expiry compared against the local clock. Derive time from the attestation document
+      timestamp or a consensus source; the parent controls the clock an enclave sees.
+    metadata:
+      catalog-id: BT-T04B-host-time
+      threat: 4
+      layer_required: 1
+      confidence: LOW
+    patterns:
+      - pattern-either:
           - pattern: $EXP < time.time()
           - pattern: time.time() > $EXP
+          - pattern: $EXP < datetime.datetime.now()
+      - metavariable-regex:
+          metavariable: $EXP
+          regex: (?i).*(exp|expiry|expires|expiration|deadline|valid_until|not_after|ttl|lease).*
+
+  - id: tee-host-supplied-time-js
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Expiry compared against the local clock. Derive time from the attestation document
+      timestamp or a consensus source.
+    metadata:
+      catalog-id: BT-T04B-host-time
+      threat: 4
+      layer_required: 1
+      confidence: LOW
+    patterns:
+      - pattern-either:
           - pattern: $EXP < Date.now()
           - pattern: Date.now() > $EXP
+      - metavariable-regex:
+          metavariable: $EXP
+          regex: (?i).*(exp|expiry|expires|expiration|deadline|validUntil|notAfter|ttl|lease).*
+
+  - id: tee-host-supplied-time-go
+    languages: [go]
+    severity: WARNING
+    message: >-
+      Expiry compared against the local clock. Derive time from the attestation document
+      timestamp or a consensus source.
+    metadata:
+      catalog-id: BT-T04B-host-time
+      threat: 4
+      layer_required: 1
+      confidence: LOW
+    patterns:
+      - pattern-either:
           - pattern: time.Now().After($EXP)
           - pattern: $EXP.Before(time.Now())
       - metavariable-regex:
           metavariable: $EXP
-          regex: (?i).*(exp|expiry|expires|expiration|deadline|valid_?until|not_?after|ttl|lease).*
+          regex: (?i).*(exp|expiry|expires|expiration|deadline|validUntil|notAfter|ttl|lease).*
 
   # ----------------------------------------------------------------- BT-T03 ---
-  - id: tee-secret-to-log-sink
-    languages: [rust, go, python, javascript, typescript]
+  - id: tee-secret-to-log-sink-rust
+    languages: [rust]
     severity: ERROR
     message: >-
       Secret-derived value ($VAL) written to a log sink. Anything logged inside an enclave
-      leaves the trust boundary and lands where the operator can read it, typically
-      CloudWatch. Log a keyed hash or a truncated identifier instead.
+      leaves the trust boundary and lands where the operator can read it. Log a keyed hash
+      instead.
     metadata:
       catalog-id: BT-T03-secret-egress-logging
       threat: 3
@@ -78,54 +150,125 @@ rules:
       - pattern-either:
           - pattern: println!($FMT, ..., $VAL, ...)
           - pattern: eprintln!($FMT, ..., $VAL, ...)
-          - pattern: log::$LEVEL!($FMT, ..., $VAL, ...)
-          - pattern: tracing::$LEVEL!($FMT, ..., $VAL, ...)
-          - pattern: print($VAL)
+          - pattern: dbg!($VAL)
+      - metavariable-regex:
+          metavariable: $VAL
+          regex: (?i).*(secret|private_key|privkey|plaintext|decrypted|seed|mnemonic|passwd|password|credential|session_key|shared_key|api_key|token).*
+
+  - id: tee-secret-to-log-sink-python
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Secret-derived value ($VAL) written to a log sink. Inside an enclave this reaches the
+      operator, typically via CloudWatch. Log a keyed hash or truncated identifier.
+    metadata:
+      catalog-id: BT-T03-secret-egress-logging
+      threat: 3
+      layer_required: 1
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
           - pattern: print(..., $VAL, ...)
           - pattern: logging.$LEVEL(..., $VAL, ...)
           - pattern: logger.$LEVEL(..., $VAL, ...)
-          - pattern: console.$LEVEL(..., $VAL, ...)
-          - pattern: fmt.Print$SUFFIX(..., $VAL, ...)
-          - pattern: log.Print$SUFFIX(..., $VAL, ...)
       - metavariable-regex:
           metavariable: $VAL
-          regex: (?i).*(secret|private_?key|privkey|plaintext|decrypted|seed|mnemonic|passwd|password|credential|session_?key|shared_?key|api_?key|token).*
-      # Hashing or redacting before logging is the recommended fix, not a finding.
-      - pattern-not: $F($FMT, ..., hash($VAL), ...)
-      - pattern-not: $F($FMT, ..., $VAL.redacted(), ...)
+          regex: (?i).*(secret|private_key|privkey|plaintext|decrypted|seed|mnemonic|passwd|password|credential|session_key|shared_key|api_key|token).*
+
+  - id: tee-secret-to-log-sink-js
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Secret-derived value ($VAL) written to a log sink. Inside an enclave this reaches the
+      operator. Log a keyed hash or truncated identifier.
+    metadata:
+      catalog-id: BT-T03-secret-egress-logging
+      threat: 3
+      layer_required: 1
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: console.$LEVEL(..., $VAL, ...)
+      - metavariable-regex:
+          metavariable: $VAL
+          regex: (?i).*(secret|privateKey|privKey|plaintext|decrypted|seed|mnemonic|passwd|password|credential|sessionKey|sharedKey|apiKey|token).*
+
+  - id: tee-secret-to-log-sink-go
+    languages: [go]
+    severity: ERROR
+    message: >-
+      Secret-derived value ($VAL) written to a log sink. Inside an enclave this reaches the
+      operator. Log a keyed hash or truncated identifier.
+    metadata:
+      catalog-id: BT-T03-secret-egress-logging
+      threat: 3
+      layer_required: 1
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: fmt.Println(..., $VAL, ...)
+          - pattern: fmt.Printf($FMT, ..., $VAL, ...)
+          - pattern: log.Printf($FMT, ..., $VAL, ...)
+          - pattern: log.Println(..., $VAL, ...)
+      - metavariable-regex:
+          metavariable: $VAL
+          regex: (?i).*(secret|privateKey|privKey|plaintext|decrypted|seed|mnemonic|passwd|password|credential|sessionKey|sharedKey|apiKey|token).*
 
   # ---------------------------------------------------------------- BT-T03B ---
-  - id: tee-crash-dump-egress
-    languages: [rust, go, python]
+  - id: tee-crash-dump-egress-rust
+    languages: [rust]
     severity: WARNING
     message: >-
-      Panic or crash handler emits a backtrace. Inside an enclave a backtrace crosses the
-      trust boundary through the same stderr the operator reads, turning a liveness bug
-      into a potential key disclosure. Set panic=abort, disable core dumps, and emit a
-      static error code.
+      Backtrace capture inside an enclave. A backtrace crosses the trust boundary through
+      the same stderr the operator reads, turning a liveness bug into a possible key
+      disclosure. Use panic=abort and emit a static error code.
     metadata:
       catalog-id: BT-T03B-crash-dump-egress
       threat: 3
       layer_required: 3
       confidence: MEDIUM
     pattern-either:
-      - pattern: std::panic::set_hook(...)
       - pattern: Backtrace::capture()
       - pattern: Backtrace::force_capture()
+
+  - id: tee-crash-dump-egress-python
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Traceback printed or formatted inside an enclave. Tracebacks can carry local variable
+      content across the trust boundary. Emit a static error code instead.
+    metadata:
+      catalog-id: BT-T03B-crash-dump-egress
+      threat: 3
+      layer_required: 3
+      confidence: MEDIUM
+    pattern-either:
       - pattern: traceback.print_exc(...)
       - pattern: traceback.format_exc(...)
+
+  - id: tee-crash-dump-egress-go
+    languages: [go]
+    severity: WARNING
+    message: >-
+      Stack dump inside an enclave. The dump crosses the trust boundary through the same
+      stderr the operator reads.
+    metadata:
+      catalog-id: BT-T03B-crash-dump-egress
+      threat: 3
+      layer_required: 3
+      confidence: MEDIUM
+    pattern-either:
       - pattern: debug.PrintStack()
       - pattern: debug.Stack()
 
   # ---------------------------------------------------------------- BT-T06B ---
-  - id: tee-tls-verification-disabled
-    languages: [rust, go, python, javascript, typescript]
+  - id: tee-tls-verification-disabled-rust
+    languages: [rust]
     severity: ERROR
     message: >-
-      Certificate verification disabled. Every connection an enclave makes is proxied by
-      the parent, which the threat model treats as hostile — disabling verification hands
-      the operator a machine-in-the-middle position on KMS, oracle, and RPC traffic with no
-      attack required.
+      Certificate verification disabled. Every enclave connection is proxied by the parent,
+      which the threat model treats as hostile — this hands the operator a
+      machine-in-the-middle position on KMS and oracle traffic with no attack required.
     metadata:
       catalog-id: BT-T06B-tls-verification-disabled
       threat: 6
@@ -136,56 +279,101 @@ rules:
     pattern-either:
       - pattern: $B.danger_accept_invalid_certs(true)
       - pattern: $B.danger_accept_invalid_hostnames(true)
-      - pattern: $C.set_verify(SslVerifyMode::NONE)
+
+  - id: tee-tls-verification-disabled-python
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Certificate verification disabled on a connection that leaves the enclave through the
+      parent-side proxy.
+    metadata:
+      catalog-id: BT-T06B-tls-verification-disabled
+      threat: 6
+      layer_required: 2
+      confidence: HIGH
+    pattern-either:
       - pattern: requests.$M(..., verify=False, ...)
       - pattern: ssl._create_unverified_context(...)
-      - pattern: 'InsecureSkipVerify: true'
+      - pattern: httpx.$M(..., verify=False, ...)
+
+  - id: tee-tls-verification-disabled-go
+    languages: [go]
+    severity: ERROR
+    message: >-
+      Certificate verification disabled on a connection that leaves the enclave through the
+      parent-side proxy.
+    metadata:
+      catalog-id: BT-T06B-tls-verification-disabled
+      threat: 6
+      layer_required: 2
+      confidence: HIGH
+    pattern: 'InsecureSkipVerify: true'
+
+  - id: tee-tls-verification-disabled-js
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Certificate verification disabled on a connection that leaves the enclave through the
+      parent-side proxy.
+    metadata:
+      catalog-id: BT-T06B-tls-verification-disabled
+      threat: 6
+      layer_required: 2
+      confidence: HIGH
+    pattern-either:
       - pattern: 'rejectUnauthorized: false'
       - pattern: 'process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"'
 
   # ---------------------------------------------------------------- BT-T07A ---
-  - id: tee-vsock-no-timeout
-    languages: [rust, go, python]
+  - id: tee-vsock-no-timeout-python
+    languages: [python]
     severity: WARNING
     message: >-
-      vsock socket accepted or connected without a read/write deadline. vsock is the
-      enclave's only channel; a parent that opens connections and never writes pins every
-      handler slot, and the operator controls how many connections to open.
+      vsock socket created without a timeout. vsock is the enclave's only channel; a parent
+      that connects and never writes pins handler slots, and the operator chooses how many
+      connections to open.
     metadata:
       catalog-id: BT-T07A-vsock-no-timeout
       threat: 7
       layer_required: 1
       confidence: MEDIUM
     patterns:
+      - pattern: socket.socket(socket.AF_VSOCK, ...)
+      - pattern-not-inside: |
+          $S = socket.socket(socket.AF_VSOCK, ...)
+          ...
+          $S.settimeout(...)
+
+  - id: tee-vsock-no-timeout-rust
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      vsock listener or stream created without an explicit read/write timeout.
+    metadata:
+      catalog-id: BT-T07A-vsock-no-timeout
+      threat: 7
+      layer_required: 1
+      confidence: LOW
+    patterns:
       - pattern-either:
           - pattern: VsockListener::bind(...)
           - pattern: VsockStream::connect(...)
-          - pattern: vsock.VsockListener(...)
-          - pattern: socket.socket(socket.AF_VSOCK, ...)
       - pattern-not-inside: |
-          $S = <... $ANY ...>
+          $S = $ANY;
           ...
-          $S.set_read_timeout(...)
-      - pattern-not-inside: |
-          $S = <... $ANY ...>
-          ...
-          $S.settimeout(...)
-      - pattern-not-inside: |
-          $S = <... $ANY ...>
-          ...
-          $S.SetReadDeadline(...)
+          $S.set_read_timeout(...);
 
-  # ----------------------------------------------------------------- BT-T07B ---
-  - id: tee-error-differential-crypto
-    languages: [rust, go, python, javascript, typescript]
+  # ---------------------------------------------------------------- BT-T07B ---
+  - id: tee-error-differential-padding
+    languages: [generic]
     severity: WARNING
     message: >-
-      Distinct error text distinguishing padding from key/MAC failure. That single bit,
-      queried adaptively by the parent, is a padding oracle: it recovers plaintext without
-      recovering the key. Return one opaque error across the boundary.
+      Error message distinguishes a padding failure from a key or MAC failure. That single
+      bit, queried adaptively by the parent, is a padding oracle — it recovers plaintext
+      without recovering the key. Return one opaque error across the boundary.
     metadata:
       catalog-id: BT-T07B-error-differential
       threat: 7
       layer_required: 1
       confidence: MEDIUM
-    pattern-regex: (?i)["'`][^"'`]*\b(invalid|bad|wrong|incorrect)\s+padding\b[^"'`]*["'`]
+    pattern-regex: (?i)["'`][^"'`\n]*\b(invalid|bad|wrong|incorrect)\s+padding\b[^"'`\n]*["'`]

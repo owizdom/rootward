@@ -31,10 +31,15 @@ rules:
           - pattern: $LHS.as_slice() == $RHS.as_slice()
       - metavariable-regex:
           metavariable: $LHS
-          regex: (?i).*\b?(secret|hmac|signature|sig|mac|tag|digest|token|passwd|password|auth_?code|api_?key|private_?key|shared_?key|session_?key|nonce)\b?.*
+          regex: (?i).*(secret|hmac|signature|sig|mac|tag|digest|token|passwd|password|auth_?code|api_?key|private_?key|shared_?key|session_?key|nonce).*
       # A length check is not the leaky comparison; it leaks only the length.
       - pattern-not: $LHS.len() == $RHS
       - pattern-not: $LHS.len() != $RHS
+      # Do not flag the recommended fix. Comparing the *result* of a constant-time
+      # primitive is how those APIs are used, and the operand name still matches the
+      # secret-ish regex — so without this the rule fires hardest on correct code.
+      - pattern-not: $A.ct_eq($B) == $R
+      - pattern-not: $A.ct_eq($B) != $R
 
   - id: tee-timing-oracle-compare-go
     languages: [go]
@@ -59,6 +64,11 @@ rules:
           regex: (?i).*(secret|hmac|signature|sig|mac|tag|digest|token|passwd|password|authCode|apiKey|privateKey|sharedKey|sessionKey|nonce).*
       - pattern-not: len($LHS) == $RHS
       - pattern-not: len($LHS) != $RHS
+      # subtle.ConstantTimeCompare(...) == 1 and hmac.Equal(...) are the recommended
+      # fixes; flagging them would penalise correct code.
+      - pattern-not: subtle.ConstantTimeCompare(...) == $R
+      - pattern-not: subtle.ConstantTimeCompare(...) != $R
+      - pattern-not: hmac.Equal(...) == $R
 
   - id: tee-timing-oracle-compare-python
     languages: [python]
@@ -85,6 +95,8 @@ rules:
             assert ...
       - pattern-not: len($LHS) == $RHS
       - pattern-not: len($LHS) != $RHS
+      - pattern-not: hmac.compare_digest(...) == $R
+      - pattern-not: secrets.compare_digest(...) == $R
 
   - id: tee-timing-oracle-compare-js
     languages: [javascript, typescript]
@@ -109,3 +121,5 @@ rules:
           regex: (?i).*(secret|hmac|signature|sig|mac|tag|digest|token|passwd|password|authCode|apiKey|privateKey|sharedKey|sessionKey|nonce).*
       - pattern-not: $LHS.length === $RHS
       - pattern-not: $LHS.length !== $RHS
+      - pattern-not: crypto.timingSafeEqual(...) === $R
+      - pattern-not: crypto.timingSafeEqual(...) == $R
