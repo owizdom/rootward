@@ -124,6 +124,22 @@ fn is_placeholder(value: &str) -> bool {
     STANDINS.iter().any(|s| lower.contains(s))
 }
 
+/// True when the text immediately before `start` marks the following hex as a content
+/// digest rather than a secret. The `regex` crate has no lookbehind, so this inspects the
+/// preceding window directly.
+fn preceded_by_digest_label(line: &str, start: usize) -> bool {
+    const LABELS: [&str; 8] = [
+        "sha256:", "sha512:", "sha384:", "sha1:", "md5:", "integrity", "checksum", "digest",
+    ];
+    let window_start = start.saturating_sub(16);
+    // Guard against slicing through a UTF-8 boundary on a line with multibyte characters.
+    let Some(prefix) = line.get(window_start..start) else {
+        return false;
+    };
+    let prefix = prefix.to_ascii_lowercase();
+    LABELS.iter().any(|l| prefix.contains(l))
+}
+
 struct Patterns {
     pem: Regex,
     ssh: Regex,
@@ -210,11 +226,20 @@ pub fn scan_text(path: &str, text: &str) -> Vec<Finding> {
             push(Kind::AwsSecretAccessKey, &c[1]);
         }
         for c in p.evm.captures_iter(line) {
-            let v = &c[2];
+            let m = c.get(2).expect("group 2 is not optional");
+            let v = m.as_str();
             // A real key is high entropy. A zero-padded id or a repeated nibble is not.
-            if entropy(v) >= 3.3 {
-                push(Kind::EvmPrivateKey, v);
+            if entropy(v) < 3.3 {
+                continue;
             }
+            // Content-addressed digests are 64 hex chars with maximal entropy, so nothing
+            // about the value distinguishes them from a key — only what precedes them
+            // does. Every correctly pinned Dockerfile carries `FROM image@sha256:<64 hex>`,
+            // so without this the rule fires hardest on the repos doing it right.
+            if preceded_by_digest_label(line, m.start()) {
+                continue;
+            }
+            push(Kind::EvmPrivateKey, v);
         }
         for c in p.mnemonic.captures_iter(line) {
             let words = c[1].split_whitespace().count();
@@ -266,6 +291,33 @@ mod tests {
              API_KEY=changeme-changeme-changeme",
         );
         assert!(f.is_empty(), "placeholders must not be reported: {f:?}");
+    }
+
+    #[test]
+    fn ignores_a_pinned_docker_base_image_digest() {
+        // Regression: a digest-pinned FROM line is what a *correct* Dockerfile looks like.
+        // Flagging it as a private key made the rule fire hardest on repos doing the right
+        // thing — caught by the clean fixture, which is what clean fixtures are for.
+        let f = scan_text(
+            "Dockerfile",
+            "FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:1f2e3d4c5b6a798877665544332211ffeeddccbbaa99887766554433221100ff",
+        );
+        assert!(f.is_empty(), "pinned base image digest must not be a finding: {f:?}");
+    }
+
+    #[test]
+    fn still_finds_a_key_on_a_line_that_also_mentions_a_digest() {
+        // The suppression is positional, not line-wide: a digest earlier in the line must
+        // not shield a real key later in it.
+        let f = scan_text(
+            "deploy.sh",
+            "verify sha256:1f2e3d4c5b6a798877665544332211ffeeddccbbaa99887766554433221100ff && \
+             export PRIVATE_KEY=0x8f2a559490d1b7c3e0a2b41d6c95a7e3f18b204c7d6e9a1350f4c8b2d7e6a903",
+        );
+        assert!(
+            f.iter().any(|x| x.kind == Kind::EvmPrivateKey),
+            "key after a digest on the same line must still be found: {f:?}"
+        );
     }
 
     #[test]
