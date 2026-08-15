@@ -423,7 +423,9 @@ mod tests {
     #[test]
     #[cfg(feature = "differential")]
     fn measurements_match_the_official_aws_implementation() {
-        use aws_nitro_enclaves_image_format::utils::EifReader;
+        // utils/mod.rs re-exports only eif_signer, so EifReader is reached through its
+        // own module rather than the utils root.
+        use aws_nitro_enclaves_image_format::utils::eif_reader::EifReader;
 
         // Several shapes, because the routing rules differ by section count: PCR1 takes
         // only the first ramdisk and PCR2 takes the rest, so a one-ramdisk image and a
@@ -445,13 +447,31 @@ mod tests {
                 e
             }),
             ("three-ramdisks-and-metadata", {
+                // Metadata must deserialize into EifIdentityInfo or EifReader errors out
+                // before it reaches the measurements. It contributes to no hasher in
+                // either implementation, so its content cannot affect the comparison —
+                // it is here to prove that, and to keep the fixture shaped like a real
+                // image rather than a minimal one.
+                const METADATA: &[u8] = br#"{
+                    "ImageName": "tee-audit-fixture",
+                    "ImageVersion": "0.1.0",
+                    "BuildMetadata": {
+                        "BuildTime": "2026-01-01T00:00:00.000000000+00:00",
+                        "BuildTool": "tee-audit-test",
+                        "BuildToolVersion": "0.1.0",
+                        "OperatingSystem": "linux",
+                        "KernelVersion": "6.1"
+                    },
+                    "DockerInfo": {},
+                    "CustomMetadata": {}
+                }"#;
                 let mut e = header_bytes(6);
                 e.extend(section(1, b"K"));
                 e.extend(section(2, b"C"));
                 e.extend(section(3, b"r0"));
                 e.extend(section(3, b"r1"));
                 e.extend(section(3, b"r2"));
-                e.extend(section(5, br#"{"BuildTool":"test"}"#));
+                e.extend(section(5, METADATA));
                 e
             }),
         ];

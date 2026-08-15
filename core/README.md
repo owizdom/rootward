@@ -34,7 +34,8 @@ cargo test --features differential
 ```
 
 pulls the official crate as an optional dependency and asserts both implementations agree
-across several image shapes. AWS's code is the oracle; it just is not a runtime dependency.
+across several image shapes. **This passes** — PCR0/1/2 match AWS's implementation exactly
+for one-ramdisk, two-ramdisk, and three-ramdisk-plus-metadata images. AWS's code is the oracle; it just is not a runtime dependency.
 `nitro-cli` would be the more direct oracle but only runs on an EC2 Nitro host.
 
 The algorithm, transcribed from `defs/eif_hasher.rs` and `utils/eif_reader.rs` at 0.6.0:
@@ -97,7 +98,7 @@ substituted image.
 
 ```
 cargo test                          # 32 tests, ~13s cold
-cargo test --features differential  # + cross-check against the official AWS crate
+cargo test --features differential  # 33 tests, + cross-check against the official AWS crate
 ```
 
 The differential feature needs rustc 1.94.1 (an AWS SDK transitive requirement) even though
