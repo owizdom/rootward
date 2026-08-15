@@ -1,0 +1,31 @@
+id: BT-T06-no-root-cert-validation
+title: Attestation signature checked without validating the chain to the AWS Nitro root
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md
+  - https://github.com/evervault/attestation-doc-validation
+threat: 6
+layer_required: 2
+platform: [nitro]
+severity: critical
+detection: deterministic
+detector: semgrep:tee/attestation-no-chain-validation
+languages: [rust, go, python, typescript]
+rationale: >
+  A Nitro attestation document is COSE_Sign1, signed by a per-instance certificate that is itself
+  only meaningful because it chains to the published AWS Nitro root CA. Verifying the document
+  against the certificate embedded in the document proves nothing: an attacker generates their own
+  keypair, signs a document asserting whatever PCR values they like, embeds their own certificate,
+  and it verifies. The entire security of the scheme is in walking the cabundle to a root that was
+  pinned out of band.
+remediation: >
+  Validate the full certificate chain from the leaf through the supplied cabundle to a locally
+  pinned copy of the AWS Nitro root certificate, check validity periods, and only then trust the
+  PCR map. Prefer an audited implementation such as evervault/attestation-doc-validation or the
+  AWS NSM API over hand-rolling COSE verification.
+false_positives: >
+  Fires on code that delegates chain validation to a library call the pattern does not recognise,
+  which is the common case for anyone using a maintained crate. The detector allowlists the known
+  validating libraries, so a project using an unlisted or vendored one is over-reported.
+confidence: medium
+status: draft

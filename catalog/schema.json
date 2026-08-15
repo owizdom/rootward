@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/owizdom/tee-audit/catalog/schema.json",
+  "title": "TEE audit rule",
+  "description": "One detectable failure mode. Every rule must cite the source that justifies it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "source",
+    "platform",
+    "severity",
+    "detection",
+    "rationale",
+    "remediation",
+    "false_positives"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^BT-(T[0-9]{2}[A-Z]?|CFG[0-9]{2}|DS[0-9]{2}|LYR[0-9]{2})-[a-z0-9-]+$",
+      "description": "BT-T## threat rules, BT-CFG## build/deploy config, BT-DS## dstack-specific, BT-LYR## layer scoring."
+    },
+    "title": { "type": "string", "minLength": 10 },
+
+    "source": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://",
+      "description": "REQUIRED. The handbook section this rule is derived from. A rule with no source is not a rule."
+    },
+    "source_secondary": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" },
+      "description": "Primary sources for rules that are independently defensible (RFCs, vendor docs, CVEs). Present on every rule we would still ship if the handbook did not exist."
+    },
+
+    "threat": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10,
+      "description": "Handbook 'Dumb Ways to Get Rekt' threat number, where the rule maps to one."
+    },
+    "layer_required": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 6,
+      "description": "Lowest handbook security layer (0-6) that requires this rule to pass. Drives the scorecard: failing a rule caps the protocol below this layer."
+    },
+
+    "platform": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "enum": ["nitro", "dstack", "sgx", "tdx", "sev-snp", "generic"] }
+    },
+    "severity": { "enum": ["critical", "high", "medium", "low", "info"] },
+
+    "detection": {
+      "enum": ["deterministic", "semantic", "hybrid"],
+      "description": "deterministic = parse/AST/grep, no model call. semantic = requires judgment. hybrid = deterministic prefilter, semantic adjudication."
+    },
+    "detector": {
+      "type": "string",
+      "description": "Implementing detector id, e.g. semgrep:tee/timing-oracle-compare, core:eif-secret-scan, agent:trust-boundary."
+    },
+    "languages": {
+      "type": "array",
+      "items": { "enum": ["rust", "go", "python", "typescript", "javascript", "json", "dockerfile", "shell", "solidity", "any"] }
+    },
+
+    "rationale": { "type": "string", "minLength": 30, "description": "Why this is exploitable. Mechanism, not restatement of the title." },
+    "attack": { "type": "string", "description": "Documented real-world exploitation, where the handbook or public record names one." },
+    "remediation": { "type": "string", "minLength": 20 },
+
+    "false_positives": {
+      "type": "string",
+      "minLength": 20,
+      "description": "REQUIRED. When this rule is wrong. A rule whose author cannot name its failure mode has not been thought through, and an unreviewed rule inflates the FP rate the benchmark exists to measure."
+    },
+
+    "confidence": {
+      "enum": ["high", "medium", "low"],
+      "description": "Expected precision of the detector, set before benchmarking and corrected by it. Divergence between this and the measured number is itself a result."
+    },
+
+    "fixtures": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "positive": { "type": "array", "items": { "type": "string" } },
+        "negative": { "type": "array", "items": { "type": "string" } }
+      },
+      "description": "Paths under bench/fixtures/. A rule that fires on its own negative fixture does not ship."
+    },
+
+    "status": {
+      "enum": ["draft", "implemented", "benchmarked"],
+      "default": "draft",
+      "description": "draft = catalogued only. implemented = detector exists and passes fixtures. benchmarked = precision/recall measured on the mutation corpus."
+    }
+  }
+}

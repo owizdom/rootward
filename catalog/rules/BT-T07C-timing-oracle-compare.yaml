@@ -1,0 +1,29 @@
+id: BT-T07C-timing-oracle-compare
+title: Non-constant-time comparison of a secret-derived value
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://cwe.mitre.org/data/definitions/208.html
+  - https://docs.rs/subtle
+threat: 7
+layer_required: 3
+platform: [nitro, dstack, generic]
+severity: high
+detection: deterministic
+detector: semgrep:tee/timing-oracle-compare
+languages: [rust, go, python, typescript]
+rationale: >
+  Byte-comparison primitives short-circuit on the first mismatch, so response latency reveals how
+  many leading bytes were correct. That turns an exponential brute force into a linear one: an
+  attacker recovers a secret byte by byte, needing only 256 queries per byte. The parent is
+  perfectly positioned to measure this, with no network jitter between it and the enclave to
+  obscure the signal.
+remediation: >
+  Use subtle::ConstantTimeEq in Rust, hmac.compare_digest in Python, crypto.timingSafeEqual in
+  Node, or crypto/subtle.ConstantTimeCompare in Go, for every comparison whose operands derive
+  from a secret.
+false_positives: >
+  Comparisons on public values that merely appear secret by name (a request id, a public key, a
+  content hash) are flagged. Constant-time comparison of a public value is harmless, so the cost of
+  a false positive here is low, which is why the rule is deliberately tuned toward recall.
+confidence: high
+status: draft

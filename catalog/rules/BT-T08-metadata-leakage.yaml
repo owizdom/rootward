@@ -1,0 +1,30 @@
+id: BT-T08-metadata-leakage
+title: Observable request metadata correlates with confidential payload contents
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+threat: 8
+layer_required: 3
+platform: [nitro, dstack, generic]
+severity: critical
+detection: semantic
+detector: agent:metadata-leakage
+languages: [rust, go, python, typescript]
+rationale: >
+  Encryption hides payload contents, not payload shape. The handbook's worked example is an
+  encrypted mempool where vsock packet size reveals trade magnitude, processing duration
+  distinguishes a swap from a transfer, and gas estimates reveal complexity. A parent-resident MEV
+  bot front-runs on those signals without decrypting anything, which means the enclave can be doing
+  its job perfectly and still leak the thing it exists to protect.
+attack: >
+  Handbook cites the Flashbots relay exploitation (roughly 25 million USD, October 2024) and the
+  Jared 2.0 sandwich bot as real-world exploitation of metadata leakage at scale.
+remediation: >
+  Pad ciphertext to fixed-size buckets, make processing time independent of operation type via
+  constant-time dispatch or a fixed time floor, and batch requests so individual timing is not
+  attributable.
+false_positives: >
+  Detectable statically only in its coarsest form, namely variable-length responses over vsock with
+  no padding. Whether a given length correlation is exploitable is a runtime distributional
+  property that static analysis cannot observe. Expect low recall here and treat findings as
+  leads for manual review rather than confirmed defects.
+confidence: low
+status: draft

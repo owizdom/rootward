@@ -1,0 +1,25 @@
+id: BT-DS01-no-onchain-code-governance
+title: dstack deployment without KmsAuth or AppAuth code governance
+source: https://bluethroatlabs.com/docs/platforms/dstack-decentralized-cloud-tees
+source_secondary:
+  - https://github.com/Dstack-TEE/dstack
+layer_required: 2
+platform: [dstack]
+severity: high
+detection: deterministic
+detector: detectors:dstack.governance_contracts
+languages: [solidity, json, typescript, python]
+rationale: >
+  dstack's code-is-law property comes from a two-tier contract system: KmsAuth holds the global
+  allowlist of authorised applications and AppAuth holds per-application authorised code hashes and
+  upgrade rules. Enforcement happens at the KMS layer, so unauthorised code may still execute but
+  cannot obtain decryption keys and is functionally inert. Skipping this registration removes the
+  governance guarantee entirely while leaving the deployment superficially working.
+remediation: >
+  Register the application in KmsAuth, define authorised code hashes and upgrade logic in AppAuth,
+  and confirm the KMS refuses key release for an unregistered hash before relying on the property.
+false_positives: >
+  Governance contract addresses may live in deployment infrastructure outside the audited
+  repository. Absence in-repo is a finding worth raising but is not proof of absence in production.
+confidence: medium
+status: draft

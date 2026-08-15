@@ -1,0 +1,26 @@
+id: BT-T04B-host-time
+title: Security-relevant time obtained from the parent instance
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+threat: 4
+layer_required: 1
+platform: [nitro, dstack, generic]
+severity: high
+detection: deterministic
+detector: semgrep:tee/host-supplied-time
+languages: [rust, go, python, typescript]
+rationale: >
+  An enclave has no independent clock. If expiry checks, nonce windows, or rate limits are
+  evaluated against a timestamp the parent supplies or can skew, the operator can replay expired
+  authorisations, hold a transaction until it is profitable, or defeat a time-bound lock. The
+  attestation document carries its own trusted timestamp, and consensus sources such as block
+  timestamps are outside the operator's unilateral control.
+remediation: >
+  Derive time from the attestation document timestamp, a signed time attestation, or a consensus
+  source such as chain state. Where monotonicity alone is sufficient, use an in-enclave counter
+  that cannot be rewound.
+false_positives: >
+  Clock reads used for latency metrics, log timestamps, or cache TTLs are not security-relevant and
+  will be flagged identically to expiry checks. Triage requires deciding whether the value reaches
+  an authorisation decision, which the deterministic pass cannot do alone.
+confidence: low
+status: draft

@@ -1,0 +1,31 @@
+# rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+
+# benchmark corpora are fetched, never vendored; held-out set lives in ~/.tee-audit-bench/
+bench/corpus/
+bench/.cache/
+*.eif
+
+# audit output
+out/
+*.report.json
+*.report.md
+
+# local
+.env
+.DS_Store
+.idea/
+.vscode/

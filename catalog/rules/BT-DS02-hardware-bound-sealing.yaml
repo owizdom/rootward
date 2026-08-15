@@ -1,0 +1,23 @@
+id: BT-DS02-hardware-bound-sealing
+title: Keys sealed to hardware rather than derived from application identity
+source: https://bluethroatlabs.com/docs/platforms/dstack-decentralized-cloud-tees
+layer_required: 4
+platform: [dstack, sgx, tdx, sev-snp]
+severity: medium
+detection: hybrid
+detector: agent:key-derivation-portability
+languages: [rust, go, python, typescript]
+rationale: >
+  dstack replaces hardware-bound sealing with root keys derived using the application identifier as
+  a KDF parameter, which is what lets a workload migrate across physical TEEs and across vendors.
+  Code that seals to hardware instead forfeits that portability, and portability is not a
+  convenience here: rapid migration off a compromised host is one of the defences dstack relies on
+  precisely because it assumes the hardware will eventually be broken.
+remediation: >
+  Derive keys through dstack-KMS using the application identifier so that identity follows the
+  workload rather than the machine.
+false_positives: >
+  Hardware sealing is correct on platforms where portability is not a design goal, so this rule
+  should only be enabled under the dstack profile.
+confidence: low
+status: draft

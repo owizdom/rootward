@@ -1,0 +1,27 @@
+id: BT-T06B-tls-verification-disabled
+title: Certificate verification explicitly disabled on a trust-bearing connection
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://cwe.mitre.org/data/definitions/295.html
+threat: 6
+layer_required: 2
+platform: [nitro, dstack, generic]
+severity: high
+detection: deterministic
+detector: semgrep:tee/tls-verification-disabled
+languages: [rust, go, python, typescript]
+rationale: >
+  The enclave reaches every external service through a proxy on the parent, which is the exact
+  party the threat model treats as hostile. Disabling certificate verification on that path hands
+  the operator a machine-in-the-middle position on KMS, oracle, and chain RPC traffic by default,
+  with no attack required.
+remediation: >
+  Never disable verification on a connection that leaves the enclave. Where the parent proxy
+  terminates TLS, run an authenticated protocol inside the tunnel so the proxy stays a blind
+  transport rather than a trusted one.
+false_positives: >
+  Test fixtures, local development configuration, and integration-test helpers legitimately
+  disable verification. Path-based test exclusion is applied but will not catch verification
+  disabled behind a runtime configuration flag.
+confidence: high
+status: draft

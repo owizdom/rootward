@@ -1,0 +1,30 @@
+id: BT-T02-pcr0-only
+title: Policy pins PCR0 only, leaving kernel and application changes indistinguishable
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://docs.aws.amazon.com/enclaves/latest/user/set-up-attestation.html
+threat: 2
+layer_required: 2
+platform: [nitro]
+severity: high
+detection: deterministic
+detector: detectors:kms_policy.pcr_coverage
+languages: [json, rust, go, python, typescript]
+rationale: >
+  PCR0 is a hash over the whole EIF, so any change to kernel, bootstrap, or application moves it
+  together. Pinning PCR0 alone therefore forces a key-policy rotation for a routine kernel patch
+  while giving no ability to state "this kernel, any of these application versions". Teams resolve
+  that friction by loosening the pin, which is where the guarantee is actually lost. PCR1 (kernel
+  and bootstrap) and PCR2 (application) pinned separately give governance flexibility without
+  weakening the binding; PCR8 binds the EIF signing certificate.
+remediation: >
+  Pin PCR1 and PCR2 independently, and PCR8 where images are signed. Note that PCR3 (parent IAM
+  role) and PCR4 (parent instance ID) are runtime values not present in the EIF and cannot be
+  predicted from a build.
+false_positives: >
+  A deliberately minimal deployment that rebuilds and re-pins PCR0 on every release through
+  automation is not vulnerable, merely inflexible. Severity should be read as an operational-risk
+  signal, not proof of exploitability, and the rule is correctly suppressed for single-tenant
+  deployments with automated policy rotation.
+confidence: high
+status: draft

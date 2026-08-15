@@ -1,0 +1,27 @@
+id: BT-T07B-error-differential
+title: Distinct error messages returned across the enclave boundary form a decryption oracle
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://www.rfc-editor.org/rfc/rfc8446#section-6.2
+threat: 7
+layer_required: 1
+platform: [nitro, dstack, generic]
+severity: high
+detection: deterministic
+detector: semgrep:tee/error-differential
+languages: [rust, go, python, typescript]
+rationale: >
+  Returning "invalid padding" for one failure and "invalid key" for another tells the caller which
+  stage of the cryptographic operation failed. That single bit, queried adaptively, is a padding
+  oracle: it recovers plaintext without ever recovering the key. The handbook names this exact
+  pair. The parent can issue unlimited queries, so there is no rate limit that makes it safe.
+remediation: >
+  Return one opaque error to anything outside the boundary, regardless of failure mode. Keep the
+  detailed reason in an in-enclave diagnostic that is never transmitted.
+false_positives: >
+  Flags handlers with several distinct errors that are all non-cryptographic, such as schema
+  validation on a public endpoint, where differentiated errors are correct and useful. The rule is
+  scoped to decrypt and authentication paths to limit this, but that scoping depends on naming
+  conventions.
+confidence: medium
+status: draft

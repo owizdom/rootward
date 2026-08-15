@@ -1,0 +1,23 @@
+id: BT-DS04-no-rtmr-policy-check
+title: Measured boot values not compared against an expected policy
+source: https://bluethroatlabs.com/docs/platforms/dstack-decentralized-cloud-tees
+layer_required: 2
+platform: [dstack, tdx]
+severity: critical
+detection: deterministic
+detector: detectors:dstack.rtmr_policy
+languages: [rust, go, python, typescript, json]
+rationale: >
+  dstack's verification chain is measured boot from hardware through OS to containers, compared
+  against expected policy. Collecting the measurements without comparing them is the dstack
+  analogue of BT-T01: the quote verifies, and it attests to nothing in particular.
+remediation: >
+  Compare hardware, OS, and container measurements against a pinned expected policy and fail
+  closed. Where dstack-KMS enforces this on key release, confirm that enforcement is active rather
+  than assuming it.
+false_positives: >
+  Applications that correctly delegate comparison to dstack-KMS have no local comparison to find.
+  The detector checks for KMS-delegated enforcement before reporting, but an unrecognised
+  integration pattern will be over-reported.
+confidence: medium
+status: draft

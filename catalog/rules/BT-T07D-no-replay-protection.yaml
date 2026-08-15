@@ -1,0 +1,25 @@
+id: BT-T07D-no-replay-protection
+title: vsock message schema carries no nonce, counter, or signed timestamp
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+threat: 7
+layer_required: 1
+platform: [nitro, dstack]
+severity: high
+detection: hybrid
+detector: detectors:vsock.replay_protection
+languages: [rust, go, python, typescript]
+rationale: >
+  The parent sees every message the enclave receives and can send any of them again. If a request
+  authorising a withdrawal or a state transition carries no freshness token, replaying it re-executes
+  the action. Authentication alone does not help: a correctly signed message is still correctly
+  signed the second time.
+remediation: >
+  Include a monotonic counter or single-use nonce inside the authenticated portion of every
+  state-changing message, and track consumed values in enclave-side state that survives for the
+  window in which replay is meaningful.
+false_positives: >
+  Read-only and idempotent operations do not need replay protection, and the detector must infer
+  which handlers change state. Expect over-reporting on query paths and under-reporting where
+  freshness is enforced in a layer the detector does not parse.
+confidence: low
+status: draft

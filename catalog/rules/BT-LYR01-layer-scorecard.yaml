@@ -1,0 +1,27 @@
+id: BT-LYR01-layer-scorecard
+title: Effective security layer versus claimed security layer
+source: https://bluethroatlabs.com/docs/layers-of-security-for-tees
+layer_required: 0
+platform: [nitro, dstack, generic]
+severity: info
+detection: semantic
+detector: agent:layer-classifier
+languages: [any]
+rationale: >
+  Not a defect rule. Produces the report headline by placing the codebase on the handbook's Layer 0
+  to 6 ladder and diffing that against what the project claims in its README and documentation.
+  Each layer has prerequisites expressed as layer_required across this catalog, so the effective
+  layer is the highest one whose prerequisites all pass. The handbook is explicit that Layer 1,
+  TEE with no attestation verification, must not be used in production, which makes the gap between
+  claimed and effective layer the single most decision-relevant output of an audit.
+remediation: >
+  Either close the failing prerequisites for the claimed layer, or correct the claim. The handbook
+  also endorses hybrid architectures where different operations sit at different layers, so a
+  mixed result is legitimate as long as the boundaries are explicit and operations do not leak
+  across them.
+false_positives: >
+  Reads marketing claims from documentation, which may be aspirational, outdated, or written by
+  someone other than the engineers. The claimed layer is reported as sourced text with its
+  location, never as an accusation.
+confidence: medium
+status: draft

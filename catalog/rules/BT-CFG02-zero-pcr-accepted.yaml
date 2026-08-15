@@ -1,0 +1,23 @@
+id: BT-CFG02-zero-pcr-accepted
+title: Verifier accepts an all-zero PCR map
+source: https://bluethroatlabs.com/docs/platforms/aws-nitro-enclaves
+layer_required: 2
+platform: [nitro]
+severity: critical
+detection: deterministic
+detector: semgrep:tee/zero-pcr-accepted
+languages: [rust, go, python, typescript]
+rationale: >
+  The counterpart to BT-CFG01, on the verifying side. Debug enclaves emit all-zero PCRs, so a
+  verifier that does not explicitly reject them will accept any debug enclave as genuine. This is
+  the failure that converts a deployment mistake into an exploitable one, and it is invisible in
+  testing because a debug enclave is exactly what a developer runs locally.
+remediation: >
+  Reject any attestation document whose PCR values are all zero before any other check, and treat
+  it as a hard failure rather than a warning.
+false_positives: >
+  A verifier that pins non-zero PCR values already rejects all-zero maps implicitly, so an explicit
+  check is redundant there. The rule fires only where no pin is present or the pin is loaded from
+  configuration that could legitimately be zero.
+confidence: high
+status: draft

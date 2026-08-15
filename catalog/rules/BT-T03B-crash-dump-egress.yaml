@@ -1,0 +1,25 @@
+id: BT-T03B-crash-dump-egress
+title: Panic, crash dump, or backtrace path can emit enclave memory to the parent
+source: https://bluethroatlabs.com/docs/layers-of-security-for-tees
+threat: 3
+layer_required: 3
+platform: [nitro, dstack, generic]
+severity: high
+detection: deterministic
+detector: semgrep:tee/crash-dump-egress
+languages: [rust, go, python, typescript]
+rationale: >
+  The handbook lists memory crash dumps leaking secrets as a residual risk that survives all the
+  way to Layer 3. A panic handler that prints a backtrace, an unwrap on a secret-carrying value,
+  or a runtime configured to dump core turns a liveness bug into a key disclosure, because the
+  dump crosses the boundary through the same stderr channel the operator already reads.
+remediation: >
+  Set panic=abort and disable core dumps in the enclave image. Install a panic hook that emits a
+  static error code and nothing else. Wrap secrets in types whose Debug implementation is
+  redacted, so a backtrace cannot print them even by accident.
+false_positives: >
+  Flags panic handlers in code paths that provably never hold secret material, and flags
+  development-only backtrace configuration that is stripped in release builds. Build-profile
+  awareness is not implemented, so debug-gated handlers are over-reported.
+confidence: medium
+status: draft

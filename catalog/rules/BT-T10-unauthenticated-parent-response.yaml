@@ -1,0 +1,30 @@
+id: BT-T10-unauthenticated-parent-response
+title: Data relayed by the parent consumed without verifying its signature
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+threat: 10
+layer_required: 1
+platform: [nitro, dstack]
+severity: critical
+detection: hybrid
+detector: semgrep:tee/unauthenticated-relay-response
+languages: [rust, go, python, typescript]
+rationale: >
+  The enclave has no network stack, so every external response arrives via a parent-side proxy.
+  If the enclave parses that response and acts on it without checking a signature the parent cannot
+  forge, the proxy is not a blind transport but a trusted oracle. The handbook's worked example is a
+  price feed: an operator injects a fabricated price, liquidates healthy positions, and drains
+  collateral, with the enclave attesting correctly throughout.
+attack: >
+  Handbook estimates 20 to 50 million USD extractable by triggering liquidations of healthy
+  positions through injected price data.
+remediation: >
+  Require an end-to-end authenticated payload for every relayed response: a signature from the data
+  source verified in-enclave against a pinned key, TLS terminated inside the enclave, or a chain
+  state proof. Treat the KMS proxy as the blind transport it is documented to be, and verify the
+  KMS response itself.
+false_positives: >
+  Relayed data that is not security-relevant, such as a feature flag or a cache warm hint, is
+  flagged the same as a price feed. Deciding which relayed value carries authority requires
+  following it to its use site, which is why this rule is hybrid rather than deterministic.
+confidence: medium
+status: draft

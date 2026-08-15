@@ -1,0 +1,24 @@
+id: BT-CFG03-pcr-policy-eif-mismatch
+title: PCR value pinned in KMS policy does not match the PCR recomputed from the EIF
+source: https://bluethroatlabs.com/docs/platforms/aws-nitro-enclaves
+layer_required: 2
+platform: [nitro]
+severity: high
+detection: deterministic
+detector: core:pcr-policy-diff
+languages: [json]
+rationale: >
+  The strongest check in the catalog, because both sides are computable and the output is two
+  concrete hashes rather than a judgment. If the PCR0 recomputed from the committed EIF build does
+  not equal the value pinned in the KMS key policy, then either the policy authorises an image
+  nobody can account for, or the deployed image cannot obtain its keys. Both are defects, and which
+  one it is tells you a great deal about the deployment.
+remediation: >
+  Regenerate the key policy from the build output as part of CI so the two cannot drift, and fail
+  the pipeline on mismatch.
+false_positives: >
+  Requires a reproducible build to be meaningful. If the image is not deterministic, a mismatch is
+  expected rather than suspicious, which is why BT-CFG04 is a prerequisite for trusting this
+  rule's output.
+confidence: high
+status: draft

@@ -1,0 +1,27 @@
+id: BT-CFG01-debug-mode-launch
+title: Enclave launched in debug mode, voiding cryptographic attestation
+source: https://bluethroatlabs.com/docs/platforms/aws-nitro-enclaves
+source_secondary:
+  - https://docs.aws.amazon.com/enclaves/latest/user/set-up-attestation.html
+layer_required: 2
+platform: [nitro]
+severity: critical
+detection: deterministic
+detector: detectors:buildconfig.debug_mode
+languages: [shell, dockerfile, json]
+rationale: >
+  A debug-mode enclave produces attestation documents whose PCRs are entirely zeros, and the
+  handbook states plainly that these cannot be used for cryptographic attestation. Debug mode also
+  exposes the enclave console to the parent. A deployment script carrying --debug-mode therefore
+  turns off the single guarantee the whole architecture rests on, silently, with no error at
+  runtime.
+remediation: >
+  Strip --debug-mode from every production launch path and gate it behind an explicit
+  non-production environment check in CI. Independently, reject all-zero PCR maps in the verifier
+  so that a debug enclave fails closed even if it reaches production (see BT-CFG02).
+false_positives: >
+  Local development scripts and test harnesses legitimately use debug mode. Severity should be
+  downgraded when the flag appears only in paths clearly marked as development, but the detector
+  cannot always tell a dev script from a deploy script by path alone.
+confidence: high
+status: draft

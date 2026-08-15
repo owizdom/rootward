@@ -1,0 +1,32 @@
+id: BT-T00-parent-instance-trusted
+title: Parent instance treated as trusted rather than adversarial
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+threat: 0
+layer_required: 1
+platform: [nitro, generic]
+severity: high
+detection: semantic
+detector: agent:trust-boundary
+languages: [rust, go, python, typescript]
+rationale: >
+  The parent EC2 instance, its OS, and the hypervisor are outside the enclave boundary and must
+  be modelled as adversarial. A host-level attacker can manipulate vsock traffic, inject malformed
+  input, observe timing, control scheduling, and bias any entropy the enclave accepts from it.
+  Every other threat in this catalog is a specific instance of this one; it is catalogued
+  separately because code frequently validates external network input carefully while treating
+  anything arriving from the parent as already trusted.
+attack: >
+  Handbook root pattern: developer trusts an untrusted component, TEE hardware works correctly,
+  implementation leaks via side channel, attacker monetises, chain immutability locks in the loss.
+remediation: >
+  Treat every byte crossing vsock as hostile input. Validate schema and bounds, authenticate
+  origin where the message carries authority, and derive nothing security-critical (time, entropy,
+  identity, price) from the parent without independent verification.
+false_positives: >
+  Fires on legitimate designs that intentionally accept unauthenticated parent input for
+  non-security-critical paths, such as health-check pings, log-level changes, or metrics scrape
+  requests. The rule cannot tell "unvalidated" from "validated elsewhere" without following the
+  full call graph, so it will over-report in codebases that centralise validation in a middleware
+  layer the semantic pass does not read.
+confidence: low
+status: draft

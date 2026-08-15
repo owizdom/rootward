@@ -1,0 +1,31 @@
+id: BT-T01-no-measurement-pinning
+title: Attestation accepted without pinning measurements to an allowlist
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://docs.aws.amazon.com/enclaves/latest/user/set-up-attestation.html
+threat: 1
+layer_required: 2
+platform: [nitro, dstack]
+severity: critical
+detection: deterministic
+detector: semgrep:tee/attestation-no-pcr-pin
+languages: [rust, go, python, typescript, json]
+rationale: >
+  A syntactically valid, correctly signed attestation document only proves that some enclave
+  produced it. It says nothing about which code that enclave is running. If the verifier never
+  compares the returned PCR map against a known-good allowlist, an operator can swap the enclave
+  image for one that exfiltrates keys and still present a document that passes every signature
+  check.
+remediation: >
+  Compare the attestation document's PCR values against a hardcoded or config-pinned allowlist and
+  fail closed on mismatch. On AWS KMS, express the same constraint as a key policy condition
+  (kms:RecipientAttestation:PCR0 and siblings) so the guarantee is enforced by KMS rather than by
+  application code that can be bypassed.
+false_positives: >
+  Fires on verifier code that legitimately defers PCR comparison to a KMS key policy or an
+  on-chain contract rather than performing it locally, which is the stronger design. The detector
+  mitigates this by also scanning for KMS RecipientAttestation conditions and dstack AppAuth
+  registration, but a project that pins measurements in an unscanned deployment repo will still
+  be flagged.
+confidence: medium
+status: draft

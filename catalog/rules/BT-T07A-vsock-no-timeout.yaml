@@ -1,0 +1,25 @@
+id: BT-T07A-vsock-no-timeout
+title: Blocking vsock read with no timeout
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+threat: 7
+layer_required: 1
+platform: [nitro]
+severity: medium
+detection: deterministic
+detector: semgrep:tee/vsock-no-timeout
+languages: [rust, go, python, typescript]
+rationale: >
+  vsock is the enclave's only channel to the outside world. A parent that opens connections and
+  never writes will pin every accept loop slot and connection-handling thread the enclave has.
+  Because the parent controls scheduling and connection count, this is a denial of service the
+  operator can trigger at will, and an enclave that cannot answer is indistinguishable from one
+  that has been shut down.
+remediation: >
+  Set explicit read, write, and idle timeouts on every vsock socket, bound the number of concurrent
+  connections, and reap handlers that exceed a deadline.
+false_positives: >
+  A socket whose timeout is configured centrally, in a connection factory or a wrapper type, is
+  flagged at each use site because the deterministic pass does not follow construction across
+  functions.
+confidence: medium
+status: draft

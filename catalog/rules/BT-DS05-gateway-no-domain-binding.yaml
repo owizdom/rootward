@@ -1,0 +1,23 @@
+id: BT-DS05-gateway-no-domain-binding
+title: Zero Trust TLS domain binding not established for the workload
+source: https://bluethroatlabs.com/docs/platforms/dstack-decentralized-cloud-tees
+layer_required: 2
+platform: [dstack]
+severity: medium
+detection: hybrid
+detector: detectors:dstack.gateway_binding
+languages: [json, shell, typescript]
+rationale: >
+  dstack-Gateway provides a cryptographic binding between a domain and a verified workload, so a
+  client reaching the domain can confirm which code answers, without trusting a certificate
+  authority. A deployment that terminates TLS conventionally keeps the CA in the trust base and
+  loses the ability to prove that the responder is the attested workload rather than a proxy in
+  front of it.
+remediation: >
+  Route external traffic through dstack-Gateway with domain binding enabled, and publish the
+  on-chain record that lets clients confirm the code tied to the domain.
+false_positives: >
+  Internal services with no public domain do not need this. Enable only for workloads that
+  actually terminate external traffic.
+confidence: low
+status: draft

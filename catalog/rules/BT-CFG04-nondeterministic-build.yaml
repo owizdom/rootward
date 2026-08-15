@@ -1,0 +1,24 @@
+id: BT-CFG04-nondeterministic-build
+title: Enclave image build is not reproducible, so PCR values cannot be independently confirmed
+source: https://bluethroatlabs.com/docs/platforms/aws-nitro-enclaves
+layer_required: 2
+platform: [nitro, dstack]
+severity: medium
+detection: deterministic
+detector: detectors:buildconfig.build_determinism
+languages: [dockerfile, shell]
+rationale: >
+  The handbook notes that deterministic builds are what make PCR values stable and key policies
+  predictable. If a third party cannot rebuild the image and arrive at the same PCR0, then the
+  measurement attests only that AWS ran something, not that it ran the code in the public
+  repository. Floating base image tags, unpinned package installs, and embedded build timestamps
+  each break this independently.
+remediation: >
+  Pin base images by digest rather than tag, pin every package version, set SOURCE_DATE_EPOCH,
+  and publish the expected PCR values alongside each release so anyone can verify the build.
+false_positives: >
+  Flags nondeterminism that does not actually affect the measured layers, and cannot prove
+  reproducibility either way without performing two builds. Reported as a caveat on BT-CFG03
+  rather than as an independent vulnerability.
+confidence: medium
+status: draft

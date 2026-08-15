@@ -1,0 +1,28 @@
+id: BT-T04A-host-randomness
+title: Entropy sourced from the parent instead of the enclave RNG
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://github.com/aws/aws-nitro-enclaves-nsm-api
+threat: 4
+layer_required: 1
+platform: [nitro, dstack, generic]
+severity: critical
+detection: deterministic
+detector: semgrep:tee/host-supplied-entropy
+languages: [rust, go, python, typescript]
+rationale: >
+  If the parent can bias or predict the entropy an enclave consumes, it can predict nonces, session
+  keys, and blinding factors, which collapses confidentiality without touching the enclave itself.
+  Randomness must come from the enclave's own source: the NSM GetRandom interface on Nitro, or a
+  hardware RNG the parent cannot observe. Entropy read from a vsock message or a parent-mounted
+  device is attacker-controlled by construction.
+remediation: >
+  Seed exclusively from NSM GetRandom on Nitro or the platform RNG on other TEEs. Never accept a
+  seed, nonce, or IV as an input parameter from outside the enclave boundary.
+false_positives: >
+  Standard library RNG calls are flagged without proving the underlying source, and on a correctly
+  configured enclave the OS RNG may already be seeded from NSM. The rule is therefore precise about
+  the dangerous pattern (entropy crossing the boundary) and imprecise about generic rng calls,
+  which need the file to be confirmed as enclave-side first.
+confidence: medium
+status: draft

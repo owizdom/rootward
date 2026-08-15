@@ -1,0 +1,25 @@
+id: BT-CFG05-no-key-rotation
+title: No key rotation path, so a single compromise is permanent
+source: https://bluethroatlabs.com/docs/layers-of-security-for-tees
+layer_required: 2
+platform: [nitro, dstack, generic]
+severity: medium
+detection: hybrid
+detector: agent:key-lifecycle
+languages: [rust, go, python, typescript, solidity]
+rationale: >
+  The handbook lists absent key rotation as a residual risk at Layer 2, phrased as leading to
+  eventual compromise. The 2025 physical attacks make the reasoning concrete: WireTap, Battering
+  RAM, and TEE.fail demonstrated that memory-bus interposition against SGX, TDX, and SEV-SNP is
+  achievable with roughly a thousand dollars of hardware. A design whose keys never change assumes
+  the hardware guarantee holds forever, and that assumption now has published counterexamples.
+remediation: >
+  Support key rotation and enclave quarantine as routine operations, not incident response. The
+  handbook's closing argument is that governance is the shock absorber for exactly the cases
+  cryptography does not cover, which requires the rotation mechanism to exist before it is needed.
+false_positives: >
+  Absence of evidence is not evidence of absence: rotation may be handled operationally, in
+  infrastructure code, or in a separate repository the audit does not see. Report as an open
+  question rather than a defect when the repository has no deployment surface.
+confidence: low
+status: draft

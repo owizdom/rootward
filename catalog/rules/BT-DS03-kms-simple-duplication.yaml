@@ -1,0 +1,24 @@
+id: BT-DS03-kms-simple-duplication
+title: dstack-KMS configured for simple duplication rather than threshold sharing
+source: https://bluethroatlabs.com/docs/platforms/dstack-decentralized-cloud-tees
+layer_required: 4
+platform: [dstack]
+severity: high
+detection: deterministic
+detector: detectors:dstack.kms_mode
+languages: [json, shell]
+rationale: >
+  dstack-KMS offers two root-key strategies. Simple duplication has one node generate the root key
+  and share it with peers after verifying attestation, which is highly available and leaves a
+  single point of total compromise. Shamir-based MPC splits the root key so that reconstruction
+  requires a threshold of nodes to collaborate. Choosing duplication means one compromised node
+  yields every derived key in the system, which is the exact failure Layer 4 exists to prevent.
+remediation: >
+  Configure MPC-based Shamir secret sharing with a threshold appropriate to the operator set, and
+  document the threshold alongside the trust assumptions it implies.
+false_positives: >
+  Duplication may be a deliberate, documented availability tradeoff in a low-value or
+  pre-production deployment. Report the configuration and its consequence rather than asserting
+  the choice is wrong.
+confidence: high
+status: draft

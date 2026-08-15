@@ -1,0 +1,25 @@
+id: BT-T05-tcb-bloat
+title: Trusted computing base carries logic that is not confidentiality-critical
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+threat: 5
+layer_required: 1
+platform: [nitro, dstack, generic]
+severity: medium
+detection: semantic
+detector: agent:tcb-bloat
+languages: [rust, go, python, typescript, dockerfile]
+rationale: >
+  Every dependency inside the enclave is code whose bugs become enclave bugs. Business logic, HTTP
+  routing, template rendering, and ORM layers do not need confidentiality and can run outside with
+  their results verified cryptographically. Measured as a metric rather than a boolean: enclave-side
+  dependency count, lines of code inside the boundary, and the presence of subsystem categories
+  that have no confidentiality requirement.
+remediation: >
+  Move everything except key custody and the operations that must see plaintext outside the
+  boundary, and verify their output cryptographically instead of trusting it by location.
+false_positives: >
+  This is a judgment call reported as a metric, not a defect. A large TCB may be justified when the
+  confidential workload genuinely needs the surface. It is scored, not asserted, and should never
+  be reported as an exploitable finding.
+confidence: low
+status: draft
