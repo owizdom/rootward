@@ -94,28 +94,45 @@ async def _run_json(system_prompt: str, user_prompt: str, cwd: Path, schema: dic
         output_format={"type": "json_schema", "schema": schema},
     )
 
+    # Where the structured result actually lands, verified against sdk 0.2.139: the model
+    # emits a `StructuredOutput` tool call, and the parsed value appears on the terminal
+    # ResultMessage as `structured_output` (with `result` carrying the same thing as a JSON
+    # string). It is NOT in an AssistantMessage text block — those hold the model's prose
+    # preamble ("I'll produce the finding."), which is why reading text blocks yielded
+    # unparseable output and silently produced zero findings on every pass.
+    structured: dict | None = None
+    raw_result: str | None = None
     chunks: list[str] = []
+
     async for message in query(prompt=user_prompt, options=options):
+        so = getattr(message, "structured_output", None)
+        if isinstance(so, dict):
+            structured = so
+        res = getattr(message, "result", None)
+        if isinstance(res, str) and res.strip():
+            raw_result = res
+        # Kept as a fallback for a run where structured output did not engage.
         for block in getattr(message, "content", []) or []:
             text = getattr(block, "text", None)
             if text:
                 chunks.append(text)
 
-    blob = "".join(chunks).strip()
-    if not blob:
-        return {}
-    try:
-        return json.loads(blob)
-    except json.JSONDecodeError:
-        # Structured output should make this unreachable; recover the last JSON object
-        # rather than losing a pass to a stray prose wrapper.
-        start, end = blob.find("{"), blob.rfind("}")
-        if start >= 0 and end > start:
-            try:
-                return json.loads(blob[start : end + 1])
-            except json.JSONDecodeError:
-                return {}
-        return {}
+    if structured is not None:
+        return structured
+
+    for candidate in (raw_result, "".join(chunks).strip()):
+        if not candidate:
+            continue
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            start, end = candidate.find("{"), candidate.rfind("}")
+            if start >= 0 and end > start:
+                try:
+                    return json.loads(candidate[start : end + 1])
+                except json.JSONDecodeError:
+                    pass
+    return {}
 
 
 async def run_pass(rule_id: str, root: Path, scope: list[str]) -> list[Finding]:
