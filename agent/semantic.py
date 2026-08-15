@@ -38,6 +38,11 @@ import prompts  # noqa: E402
 READ_ONLY_TOOLS = ["Read", "Grep", "Glob"]
 
 FINDER_MODEL = "claude-opus-5"
+# Hard ceiling per agent invocation. An auditor that spawns a dozen agents over an
+# unfamiliar repository should not be able to run up an unbounded bill because one of them
+# decided to read every file in node_modules. Verified present on ClaudeAgentOptions in
+# claude-agent-sdk 0.2.139.
+MAX_USD_PER_AGENT = 2.00
 # The refuter is the check on the finder, so it needs comparable capability — a weaker
 # refuter rubber-stamps, which is worse than no refutation because it launders claims.
 REFUTER_MODEL = "claude-opus-5"
@@ -79,10 +84,13 @@ async def _run_json(system_prompt: str, user_prompt: str, cwd: Path, schema: dic
     options = ClaudeAgentOptions(
         system_prompt=system_prompt,
         allowed_tools=READ_ONLY_TOOLS,
+        # Read-only tools only, so nothing here can edit the audited repository. The
+        # permission mode governs prompting, not capability — the tool list is the guard.
         permission_mode="bypassPermissions",
         cwd=str(cwd),
         model=model,
         max_turns=max_turns,
+        max_budget_usd=MAX_USD_PER_AGENT,
         output_format={"type": "json_schema", "schema": schema},
     )
 
