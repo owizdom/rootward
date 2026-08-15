@@ -310,6 +310,7 @@ def not_verified(
     core: Path | None,
     eif_reports: list[dict],
     warnings: list[str],
+    semantic_ran: bool = False,
 ) -> list[str]:
     """What this audit structurally could not check. Computed, not hand-written, so it
     cannot drift away from what the tool actually did."""
@@ -321,7 +322,11 @@ def not_verified(
         import coverage as cov  # type: ignore
 
         impl: dict[str, list[str]] = {}
-        for src in (cov.semgrep_catalog_ids(), cov.python_rule_ids(), cov.rust_rule_ids()):
+        sources = [cov.semgrep_catalog_ids(), cov.python_rule_ids(), cov.rust_rule_ids()]
+        # The semantic rules count as covered only on a run that actually invoked them.
+        if semantic_ran:
+            sources.append(cov.agent_rule_ids())
+        for src in sources:
             for cid, who in src.items():
                 impl.setdefault(cid, []).extend(who)
         missing = sorted(set(catalog) - set(impl))
@@ -529,7 +534,9 @@ def main() -> int:
         # Refuted findings are kept out of the report but recorded. A refutation rate of
         # zero means the adversarial pass is rubber-stamping and should be distrusted.
         "refuted": [f.to_dict() for f in refuted],
-        "not_verified": not_verified(root, catalog, platform, core, eif_reports, warnings),
+        "not_verified": not_verified(
+            root, catalog, platform, core, eif_reports, warnings, semantic_ran=args.semantic
+        ),
     }
 
     print(json.dumps(result, indent=2) if args.format == "json" else render_markdown(result))

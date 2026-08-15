@@ -48,6 +48,25 @@ def python_rule_ids() -> dict[str, list[str]]:
     return out
 
 
+def agent_rule_ids() -> dict[str, list[str]]:
+    """Rules implemented by the semantic layer.
+
+    Read from agent/prompts.py rather than hardcoded, so adding a pass without a catalog
+    entry (or vice versa) shows up as an orphan rather than passing silently.
+    """
+    out: dict[str, list[str]] = {}
+    prompts = ROOT / "agent" / "prompts.py"
+    if not prompts.exists():
+        return out
+    text = prompts.read_text()
+    block = re.search(r"PASSES\s*=\s*\{(.*?)\n\}", text, re.S)
+    if not block:
+        return out
+    for cid in re.findall(r'"(BT-[A-Z0-9]+-[a-z0-9-]+)"\s*:', block.group(1)):
+        out.setdefault(cid, []).append("agent:semantic")
+    return out
+
+
 def rust_rule_ids() -> dict[str, list[str]]:
     """Rules implemented in the Rust core, which does not emit catalog ids itself —
     the mapping lives here so it stays visible rather than implicit."""
@@ -62,7 +81,7 @@ def main() -> int:
         rules.append(yaml.safe_load(path.read_text()))
 
     impl: dict[str, list[str]] = {}
-    for source in (semgrep_catalog_ids(), python_rule_ids(), rust_rule_ids()):
+    for source in (semgrep_catalog_ids(), python_rule_ids(), rust_rule_ids(), agent_rule_ids()):
         for cid, who in source.items():
             impl.setdefault(cid, []).extend(who)
 

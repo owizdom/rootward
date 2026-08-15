@@ -42,20 +42,36 @@ NEGATIVE_CONTROLS = {
 }
 
 
-def clone(url: str, ref: str, dest: Path) -> bool:
-    if dest.exists():
+def clone(url: str, ref: str, dest: Path, attempts: int = 3) -> bool:
+    """Shallow clone, retried. Large repositories over a slow link fail mid-transfer with
+    RPC/sideband errors often enough that a single attempt makes the corpus look broken
+    when the network is merely slow."""
+    if dest.exists() and (dest / ".git").exists():
         return True
     dest.parent.mkdir(parents=True, exist_ok=True)
-    cmd = ["git", "clone", "--depth", "1", "--quiet"]
-    if ref and ref != "main":
-        cmd += ["--branch", ref]
-    cmd += [url, str(dest)]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
-    if proc.returncode != 0:
-        print(f"  clone failed: {proc.stderr.strip()[:200]}", file=sys.stderr)
+
+    for attempt in range(1, attempts + 1):
         shutil.rmtree(dest, ignore_errors=True)
-        return False
-    return True
+        cmd = ["git", "clone", "--depth", "1", "--quiet"]
+        if ref and ref != "main":
+            cmd += ["--branch", ref]
+        cmd += [url, str(dest)]
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=3600,
+            # Fail fast on a stalled transfer rather than hanging the whole corpus run.
+            env={**__import__("os").environ,
+                 "GIT_HTTP_LOW_SPEED_LIMIT": "1000",
+                 "GIT_HTTP_LOW_SPEED_TIME": "120"},
+        )
+        if proc.returncode == 0:
+            return True
+        print(f"  clone attempt {attempt}/{attempts} failed: "
+              f"{proc.stderr.strip().splitlines()[0][:160] if proc.stderr.strip() else '?'}",
+              file=sys.stderr)
+        time.sleep(3 * attempt)
+
+    shutil.rmtree(dest, ignore_errors=True)
+    return False
 
 
 def head_sha(path: Path) -> str:
