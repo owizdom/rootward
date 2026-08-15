@@ -42,7 +42,10 @@ FINDER_MODEL = "claude-opus-5"
 # unfamiliar repository should not be able to run up an unbounded bill because one of them
 # decided to read every file in node_modules. Verified present on ClaudeAgentOptions in
 # claude-agent-sdk 0.2.139.
-MAX_USD_PER_AGENT = 2.00
+# $2 was too low: on dstack the BT-T08 pass died with "Reached maximum budget ($2)" and
+# was reported as a failed pass rather than a clean one. A real repository needs room to
+# read. Override with TEE_AUDIT_MAX_USD when auditing something large.
+MAX_USD_PER_AGENT = float(__import__("os").environ.get("TEE_AUDIT_MAX_USD", "8.00"))
 # The refuter is the check on the finder, so it needs comparable capability — a weaker
 # refuter rubber-stamps, which is worse than no refutation because it launders claims.
 REFUTER_MODEL = "claude-opus-5"
@@ -72,7 +75,7 @@ def _require_sdk():
 
 
 async def _run_json(system_prompt: str, user_prompt: str, cwd: Path, schema: dict,
-                    model: str, max_turns: int = 30) -> dict:
+                    model: str, max_turns: int = 60) -> dict:
     """Run one agent to completion and return its structured output.
 
     Returns {} when the agent produced nothing parseable, which the callers treat as "no
