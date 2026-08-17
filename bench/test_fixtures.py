@@ -39,6 +39,9 @@ EXPECTED: dict[str, dict] = {
             "T06", "T06B",      # no chain validation, TLS verification disabled
             "T07A", "T07B", "T07C",  # vsock timeout, padding oracle, timing oracle
             "T09A", "T09B",     # secret in ramdisk, secret in Dockerfile
+            "T00A",             # host path followed through a symlink
+            "T03C",             # whole output stream exposed by configuration
+            "T07D", "T10",      # no replay protection, unauthenticated relayed data
             "CFG01", "CFG02", "CFG03", "CFG04",
         },
         "max_layer": 0,
@@ -46,7 +49,7 @@ EXPECTED: dict[str, dict] = {
     "clean": {"platform": "nitro", "must_find": set(), "expect_zero": True},
     "dstack-vulnerable": {
         "platform": "dstack",
-        "must_find": {"DS01", "DS03", "DS04"},
+        "must_find": {"DS01", "DS02", "DS03", "DS04", "DS05"},
     },
     "dstack-clean": {"platform": "dstack", "must_find": set(), "expect_zero": True},
 }

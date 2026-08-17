@@ -51,6 +51,7 @@ MAX_USD_PER_AGENT = float(__import__("os").environ.get("TEE_AUDIT_MAX_USD", "8.0
 REFUTER_MODEL = "claude-opus-5"
 
 SEVERITY_BY_RULE = {
+    "BT-CFG05-no-key-rotation": Severity.MEDIUM,
     "BT-T00-parent-instance-trusted": Severity.HIGH,
     "BT-T05-tcb-bloat": Severity.MEDIUM,
     "BT-T08-metadata-leakage": Severity.CRITICAL,

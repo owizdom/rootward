@@ -22,4 +22,4 @@ false_positives: >
   infrastructure code, or in a separate repository the audit does not see. Report as an open
   question rather than a defect when the repository has no deployment surface.
 confidence: low
-status: draft
+status: implemented

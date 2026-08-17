@@ -66,7 +66,7 @@
     },
     "languages": {
       "type": "array",
-      "items": { "enum": ["rust", "go", "python", "typescript", "javascript", "json", "dockerfile", "shell", "solidity", "any"] }
+      "items": { "enum": ["rust", "go", "python", "typescript", "javascript", "json", "yaml", "toml", "dockerfile", "shell", "solidity", "any"] }
     },
 
     "rationale": { "type": "string", "minLength": 30, "description": "Why this is exploitable. Mechanism, not restatement of the title." },

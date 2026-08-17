@@ -1,0 +1,37 @@
+id: BT-T00A-host-path-symlink
+title: Host-supplied filesystem path used without rejecting symbolic links
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://phala.com/dstack/dstack-audit.pdf
+  - https://cwe.mitre.org/data/definitions/59.html
+threat: 0
+layer_required: 1
+platform: [nitro, dstack, generic]
+severity: high
+detection: deterministic
+detector: semgrep:tee/host-path-symlink
+languages: [rust, go, python]
+rationale: >
+  A path that originates on the host is attacker-chosen, and the standard-library copy and
+  read primitives dereference symbolic links. An operator replaces an expected input file
+  with a link to /proc/kcore or /proc/self/mem, and the enclave copies live kernel memory
+  into its own filesystem or into an error message. At early boot that memory holds TDX
+  injected randomness and ASLR offsets, so even a partial read leaks non-deterministic
+  secrets. The copy is what makes it exploitable: the target lands somewhere the host can
+  read back, or is echoed through a parse error into logs the host already sees.
+attack: >
+  zkSecurity finding #02 against dstack (May-June 2025): fs_err::copy in
+  dstack-util/src/system_setup.rs inherits std::fs::copy's link-following behaviour, letting
+  a malicious host substitute app-compose.json with a symlink. Fixed in commit 95814f4.
+remediation: >
+  Use symlink-aware metadata (symlink_metadata / lstat / O_NOFOLLOW) and reject a link
+  before opening the target. Check-then-open is racy on its own, so open with O_NOFOLLOW or
+  verify the opened descriptor, and treat the host-shared directory as hostile input rather
+  than as a filesystem.
+false_positives: >
+  Copies from paths that never originate on the host are flagged the same as host-shared
+  ones; the rule scopes itself to files that also reference a host-shared, 9p, vsock, or
+  mounted-input path, which limits but does not eliminate this. A repository that centralises
+  its path validation in a helper the pattern does not recognise will also be reported.
+confidence: medium
+status: draft

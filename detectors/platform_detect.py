@@ -18,22 +18,33 @@ from pathlib import Path
 
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}
 
-NITRO_SIGNALS: list[tuple[str, re.Pattern]] = [
-    ("nitro-cli invocation", re.compile(r"\bnitro-cli\b")),
-    ("EIF reference", re.compile(r"(?i)\b(\.eif\b|enclave[_-]?image[_-]?file)")),
-    ("NSM API", re.compile(r"(?i)\b(nsm_?api|/dev/nsm|nitro_enclaves_nsm)")),
-    ("vsock/AF_VSOCK", re.compile(r"(?i)\b(AF_VSOCK|VsockStream|VsockListener|vsock_?proxy)")),
-    ("KMS attestation condition", re.compile(r"kms:RecipientAttestation")),
-    ("nitro enclaves SDK", re.compile(r"(?i)aws[-_]nitro[-_]enclaves")),
+# Signals are weighted, because a single weak one must not unlock a whole platform's rules.
+# A lone mention of "app-compose.json" in a path string inside a Nitro fixture flipped the
+# platform to dstack and fired all five dstack rules on a repository that does not use it.
+# Weight 2 = unmistakable (a tool, an API, a contract name that exists nowhere else).
+# Weight 1 = suggestive but coincidental in isolation (a filename, a vendor name, a
+# transport used by more than one platform).
+STRONG, WEAK = 2, 1
+DETECT_THRESHOLD = 2  # one strong signal, or two independent weak ones
+
+NITRO_SIGNALS: list[tuple[str, re.Pattern, int]] = [
+    ("nitro-cli invocation", re.compile(r"\bnitro-cli\b"), STRONG),
+    ("NSM API", re.compile(r"(?i)\b(nsm_?api|/dev/nsm|nitro_enclaves_nsm)"), STRONG),
+    ("KMS attestation condition", re.compile(r"kms:RecipientAttestation"), STRONG),
+    ("nitro enclaves SDK", re.compile(r"(?i)aws[-_]nitro[-_]enclaves"), STRONG),
+    ("EIF reference", re.compile(r"(?i)\b(\.eif\b|enclave[_-]?image[_-]?file)"), WEAK),
+    # vsock is the Nitro transport but is not exclusive to it.
+    ("vsock/AF_VSOCK", re.compile(r"(?i)\b(AF_VSOCK|VsockStream|VsockListener|vsock_?proxy)"), WEAK),
 ]
 
-DSTACK_SIGNALS: list[tuple[str, re.Pattern]] = [
-    ("dstack reference", re.compile(r"(?i)\bdstack[-_]?(kms|gateway|vmm|os)?\b")),
-    ("app-compose manifest", re.compile(r"(?i)app[-_]compose\.(json|ya?ml)")),
-    ("tappd socket", re.compile(r"(?i)\btappd\b")),
-    ("governance contracts", re.compile(r"\b(KmsAuth|AppAuth)\b")),
-    ("Phala cloud", re.compile(r"(?i)\bphala\b")),
-    ("RTMR", re.compile(r"\bRTMR\d?\b")),
+DSTACK_SIGNALS: list[tuple[str, re.Pattern, int]] = [
+    ("dstack tooling", re.compile(r"(?i)\bdstack[-_](kms|gateway|vmm|os|util|types)\b"), STRONG),
+    ("tappd socket", re.compile(r"(?i)\btappd\b"), STRONG),
+    ("governance contracts", re.compile(r"\b(KmsAuth|AppAuth)\b"), STRONG),
+    ("RTMR", re.compile(r"\bRTMR\d?\b"), STRONG),
+    ("dstack reference", re.compile(r"(?i)\bdstack\b"), WEAK),
+    ("app-compose manifest", re.compile(r"(?i)app[-_]compose\.(json|ya?ml)"), WEAK),
+    ("Phala cloud", re.compile(r"(?i)\bphala\b"), WEAK),
 ]
 
 SCAN_SUFFIXES = {
@@ -49,6 +60,9 @@ class Platform:
     dstack: bool = False
     evidence: dict[str, list[str]] = field(default_factory=dict)
     """signal name -> up to a few 'file:line' locations that produced it."""
+
+    scores: dict[str, int] = field(default_factory=dict)
+    """Accumulated weight per platform, so a reader can see how close a call it was."""
 
     @property
     def any(self) -> bool:
@@ -70,6 +84,8 @@ class Platform:
 
 def detect(root: Path, max_files: int = 4000) -> Platform:
     result = Platform()
+    nitro_hits: dict[str, int] = {}
+    dstack_hits: dict[str, int] = {}
     seen = 0
 
     for path in root.rglob("*"):
@@ -90,16 +106,24 @@ def detect(root: Path, max_files: int = 4000) -> Platform:
         seen += 1
 
         rel = str(path.relative_to(root))
-        for label, pattern in NITRO_SIGNALS:
+        for label, pattern, weight in NITRO_SIGNALS:
             m = pattern.search(text)
             if m:
-                result.nitro = True
+                nitro_hits[label] = weight
                 _record(result, label, text, m, rel)
-        for label, pattern in DSTACK_SIGNALS:
+        for label, pattern, weight in DSTACK_SIGNALS:
             m = pattern.search(text)
             if m:
-                result.dstack = True
+                dstack_hits[label] = weight
                 _record(result, label, text, m, rel)
+
+    # Each distinct signal counts once no matter how many files carry it: a filename
+    # repeated across twenty files is still one piece of evidence, not twenty.
+    nitro_score = sum(nitro_hits.values())
+    dstack_score = sum(dstack_hits.values())
+    result.scores = {"nitro": nitro_score, "dstack": dstack_score}
+    result.nitro = nitro_score >= DETECT_THRESHOLD
+    result.dstack = dstack_score >= DETECT_THRESHOLD
 
     return result
 

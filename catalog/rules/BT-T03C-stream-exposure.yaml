@@ -1,0 +1,34 @@
+id: BT-T03C-stream-exposure
+title: Container or process output stream exposed across the enclave boundary by configuration
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://phala.com/dstack/dstack-audit.pdf
+threat: 3
+layer_required: 1
+platform: [nitro, dstack, generic]
+severity: high
+detection: deterministic
+detector: detectors:streams.stream_exposure
+languages: [rust, go, python, typescript, json, yaml, dockerfile]
+rationale: >
+  BT-T03 catches a secret-named value passed to a log call. This catches the case with no
+  offending line at all: a configuration or relay that exposes an entire stdout/stderr
+  stream to the host, so every future log statement inside the enclave becomes an egress
+  channel regardless of what it prints. The defect is architectural rather than local, which
+  is exactly why a value-level pattern misses it — and why an auditor that only reports
+  lines will report the wrong thing.
+attack: >
+  zkSecurity finding #08 against dstack: unrestricted exposure of stdout/stderr from CVM
+  Docker containers via the guest agent's log relay.
+remediation: >
+  Do not relay container or process output across the boundary. Where operators need
+  diagnostics, emit a fixed vocabulary of event codes with no interpolated values, or
+  require attestation-gated authentication on the log endpoint and document that anything
+  written to it is public.
+false_positives: >
+  A log relay in a development-only configuration, or one already gated behind
+  authentication the detector does not recognise, will be reported. Public-by-design
+  telemetry from a workload that holds no secrets is also a legitimate pattern this cannot
+  distinguish from the dangerous one.
+confidence: medium
+status: draft

@@ -20,4 +20,4 @@ false_positives: >
   Hardware sealing is correct on platforms where portability is not a design goal, so this rule
   should only be enabled under the dstack profile.
 confidence: low
-status: draft
+status: implemented

@@ -1,0 +1,117 @@
+# BT-T00A — a host-supplied filesystem path used without rejecting symbolic links.
+#
+# The concrete recall gap the zkSecurity comparison exposed. Their finding #02: dstack's
+# `fs_err::copy` inherits `std::fs::copy`'s link-following behaviour, so a malicious host
+# replaces `app-compose.json` with a symlink to `/proc/kcore` and the guest copies live
+# kernel memory into its own staging directory. BT-T00 read that function and said nothing,
+# because "copies a file" is not a shape a trust-boundary prompt recognises as dangerous.
+#
+# It is a pattern, so it belongs here rather than in the semantic layer.
+
+rules:
+  - id: tee-host-path-symlink-rust
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      Filesystem copy or read on a host-supplied path with no symlink rejection. std::fs and
+      fs_err both dereference symbolic links, so an operator can substitute an expected input
+      with a link to /proc/kcore or /proc/self/mem and have the enclave copy live kernel
+      memory — which at early boot holds TDX injected randomness and ASLR offsets. Use
+      symlink_metadata to reject links, and open with O_NOFOLLOW so the check cannot be raced.
+    metadata:
+      catalog-id: BT-T00A-host-path-symlink
+      threat: 0
+      layer_required: 1
+      confidence: MEDIUM
+      references:
+        - https://phala.com/dstack/dstack-audit.pdf
+        - https://cwe.mitre.org/data/definitions/59.html
+    patterns:
+      - pattern-either:
+          - pattern: fs::copy($SRC, ...)
+          - pattern: fs_err::copy($SRC, ...)
+          - pattern: std::fs::copy($SRC, ...)
+          - pattern: fs::read($SRC)
+          - pattern: fs_err::read($SRC)
+          - pattern: std::fs::read($SRC)
+          - pattern: fs::read_to_string($SRC)
+          - pattern: File::open($SRC)
+      # Scope to paths that plausibly originate on the host. Without this the rule fires on
+      # every file read in the repository and is worthless.
+      - metavariable-regex:
+          metavariable: $SRC
+          regex: (?i).*(host|shared|guest|mount|9p|vsock|incoming|upload|external|untrusted).*
+      # symlink_metadata / O_NOFOLLOW is the fix; do not flag code that already applies it.
+      # The exclusion has to be a syntactically valid Rust context — a bare call between
+      # `...` ellipses does not parse and semgrep rejects the whole ruleset for it.
+      - pattern-not-inside: |
+          fn $F(...) {
+            ...
+            $X.symlink_metadata(...)
+            ...
+          }
+      - pattern-not-inside: |
+          fn $F(...) {
+            ...
+            $O.custom_flags(...)
+            ...
+          }
+
+  - id: tee-host-path-symlink-python
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Filesystem copy or open on a host-supplied path with no symlink rejection. shutil.copy
+      and open() follow symbolic links, so the host can redirect an expected input at
+      /proc/kcore or any file the enclave can read. Use os.lstat / os.path.islink to reject
+      links, and open with O_NOFOLLOW.
+    metadata:
+      catalog-id: BT-T00A-host-path-symlink
+      threat: 0
+      layer_required: 1
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: shutil.copy($SRC, ...)
+          - pattern: shutil.copyfile($SRC, ...)
+          - pattern: shutil.copytree($SRC, ...)
+          - pattern: open($SRC, ...)
+          - pattern: open($SRC)
+          - pattern: Path($SRC).read_text(...)
+          - pattern: Path($SRC).read_bytes()
+      - metavariable-regex:
+          metavariable: $SRC
+          regex: (?i).*(host|shared|guest|mount|9p|vsock|incoming|upload|external|untrusted).*
+      - pattern-not-inside: |
+          ...
+          os.path.islink(...)
+          ...
+      - pattern-not-inside: |
+          ...
+          os.lstat(...)
+          ...
+
+  - id: tee-host-path-symlink-go
+    languages: [go]
+    severity: WARNING
+    message: >-
+      Filesystem read on a host-supplied path with no symlink rejection. os.Open and
+      os.ReadFile follow symbolic links; use os.Lstat to reject a link before opening, and
+      prefer openat with O_NOFOLLOW so the check cannot be raced.
+    metadata:
+      catalog-id: BT-T00A-host-path-symlink
+      threat: 0
+      layer_required: 1
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: os.Open($SRC)
+          - pattern: os.ReadFile($SRC)
+          - pattern: ioutil.ReadFile($SRC)
+      - metavariable-regex:
+          metavariable: $SRC
+          regex: (?i).*(host|shared|guest|mount|vsock|incoming|upload|external|untrusted).*
+      - pattern-not-inside: |
+          ...
+          os.Lstat(...)
+          ...

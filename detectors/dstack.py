@@ -1,5 +1,5 @@
-"""dstack-specific rules — BT-DS01 (code governance), BT-DS03 (KMS mode),
-BT-DS04 (measured-boot policy).
+"""dstack-specific rules — BT-DS01 (code governance), BT-DS02 (key derivation),
+BT-DS03 (KMS mode), BT-DS04 (measured-boot policy), BT-DS05 (gateway domain binding).
 
 Only runs when platform detection says the repo uses dstack. On a Nitro repo every one of
 these would fire and every one would be wrong, and a report padded with inapplicable
@@ -37,6 +37,43 @@ KMS_THRESHOLD = re.compile(r"(?i)\b(shamir|threshold|secret[_-]?shar\w*|mpc|t_?o
 # `quote` alone is far too generic — it appears in hardhat configs, TOML keys, and any
 # code that talks about string quoting. dstack produced a critical finding on
 # `quote_file = "quote.hex"` and then on `hardhat.config.ts`. Only qualified forms count.
+# --- BT-DS02: keys sealed to hardware rather than derived from app identity ----------
+#
+# dstack replaces hardware-bound sealing with root keys derived using the application
+# identifier as a KDF parameter, which is what lets a workload migrate across physical TEEs
+# and vendors. Sealing to hardware forfeits that, and portability is not a convenience here:
+# rapid migration off a compromised host is one of the defences dstack leans on precisely
+# because it assumes the hardware will eventually break.
+HARDWARE_SEALING = re.compile(
+    r"(?i)\b("
+    r"seal_?(data|key|to_?hardware)?|unseal|sgx_?seal|"
+    r"ekpub|endorsement_?key|hardware_?bound|"
+    r"tpm_?(seal|bind)|mrenclave_?seal|mrsigner_?seal"
+    r")\b"
+)
+APP_IDENTITY_DERIVATION = re.compile(
+    r"(?i)\b("
+    r"app_?id|compose_?hash|derive_?key|kdf|hkdf|"
+    r"get_?key\b|dstack_?kms|key_?provider|derived_?key"
+    r")\b"
+)
+
+# --- BT-DS05: Zero Trust TLS domain binding not established --------------------------
+GATEWAY_BINDING = re.compile(
+    r"(?i)\b("
+    r"dstack_?gateway|gateway_?(domain|binding|url|rpc)|"
+    r"zero_?trust_?tls|ra_?tls|domain_?binding|"
+    r"wireguard|wg_?(interface|listen)"
+    r")\b"
+)
+EXTERNAL_TLS = re.compile(
+    r"(?i)\b("
+    r"certbot|acme|lets_?encrypt|letsencrypt|"
+    r"tls_?cert|ssl_?cert|https_?server|serve_?tls|"
+    r"bind_?public|public_?domain|0\.0\.0\.0"
+    r")\b"
+)
+
 MEASURED_BOOT = re.compile(
     r"(?i)\b("
     r"rtmr\d?|mrtd|measured[_-]?boot|td[_-]?report|tdx[_-]?report|"
@@ -192,14 +229,84 @@ def check_rtmr_policy(root: Path) -> list[Finding]:
     ]
 
 
+def check_key_derivation(root: Path) -> list[Finding]:
+    """BT-DS02 — keys sealed to hardware instead of derived from application identity."""
+    findings: list[Finding] = []
+    for path, text in _iter_text(root):
+        if not HARDWARE_SEALING.search(text):
+            continue
+        if APP_IDENTITY_DERIVATION.search(text):
+            continue
+        lines = text.splitlines()
+        line = _first_line(text, HARDWARE_SEALING)
+        findings.append(
+            Finding(
+                rule_id="BT-DS02-hardware-bound-sealing",
+                file=str(path.relative_to(root)),
+                line=line,
+                evidence=quote_line(lines, line),
+                message=(
+                    "Key material appears sealed to hardware with no application-identity "
+                    "derivation alongside it. dstack derives root keys using the application "
+                    "identifier as a KDF parameter so a workload can migrate across physical "
+                    "TEEs and vendors; hardware sealing pins the key to one machine and "
+                    "removes migration as a response to compromise — which dstack's own "
+                    "threat model assumes will eventually happen."
+                ),
+                severity=Severity.MEDIUM,
+                confidence=Confidence.LOW,
+                detector="dstack.key_derivation_portability",
+            )
+        )
+    return findings
+
+
+def check_gateway_binding(root: Path) -> list[Finding]:
+    """BT-DS05 — external TLS terminated without dstack-Gateway domain binding."""
+    serves_external: list[tuple[Path, str]] = []
+    binds = False
+    for path, text in _iter_text(root):
+        if EXTERNAL_TLS.search(text):
+            serves_external.append((path, text))
+        if GATEWAY_BINDING.search(text):
+            binds = True
+
+    if binds or not serves_external:
+        return []
+
+    path, text = serves_external[0]
+    lines = text.splitlines()
+    line = _first_line(text, EXTERNAL_TLS)
+    return [
+        Finding(
+            rule_id="BT-DS05-gateway-no-domain-binding",
+            file=str(path.relative_to(root)),
+            line=line,
+            evidence=quote_line(lines, line),
+            message=(
+                "External TLS is terminated with no reference to dstack-Gateway or Zero "
+                "Trust TLS. Conventional termination keeps a certificate authority in the "
+                "trust base and gives a client no way to confirm that the responder is the "
+                "attested workload rather than a proxy standing in front of it."
+            ),
+            severity=Severity.MEDIUM,
+            confidence=Confidence.LOW,
+            detector="dstack.gateway_binding",
+            metadata={"note": "internal services with no public domain do not need this"},
+        )
+    ]
+
+
 def run(root: Path, platform: Platform | None = None) -> list[Finding]:
     """No-ops unless the repo actually uses dstack."""
     if platform is not None and not platform.dstack:
         return []
     return [
         *check_governance(root),
+        *check_key_derivation(root),
         *check_kms_mode(root),
         *check_rtmr_policy(root),
+        *check_gateway_binding(root),
     ]
 
 

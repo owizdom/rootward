@@ -27,4 +27,4 @@ false_positives: >
   flagged the same as a price feed. Deciding which relayed value carries authority requires
   following it to its use site, which is why this rule is hybrid rather than deterministic.
 confidence: medium
-status: draft
+status: implemented

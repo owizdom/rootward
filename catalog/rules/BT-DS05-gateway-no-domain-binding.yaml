@@ -20,4 +20,4 @@ false_positives: >
   Internal services with no public domain do not need this. Enable only for workloads that
   actually terminate external traffic.
 confidence: low
-status: draft
+status: implemented

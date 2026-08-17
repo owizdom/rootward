@@ -143,7 +143,33 @@ layers, is legitimate — say so rather than scoring it down, as long as the bou
 explicit.
 """
 
+KEY_LIFECYCLE = """\
+Rule BT-CFG05 — no key rotation path, so a single compromise is permanent.
+
+Determine whether this system can rotate the keys it holds, quarantine a compromised \
+enclave, or re-provision after a breach — as a routine operation rather than as incident \
+improvisation.
+
+Look for and cite: a rotation function or endpoint; a key version or epoch carried in \
+storage or on chain; a revocation or quarantine path; governance able to replace an \
+authorised measurement. Any one of these, cited with file:line, means the capability exists \
+and you should return an empty list.
+
+Report a finding only when key material is clearly long-lived and nothing you can find \
+replaces it. Cite where the key is created or loaded, since that is the evidence a reader \
+needs.
+
+Be careful with absence here, because absence of evidence is weak evidence. Rotation is \
+frequently operational, lives in a deployment repository, or is a runbook rather than code. \
+Use confidence "low" and phrase the finding as an open question unless the repository \
+clearly owns its own key lifecycle. The 2025 memory-bus attacks (WireTap, Battering RAM, \
+TEE.fail) are why this matters — a design whose keys never change assumes the hardware \
+guarantee holds forever, and that assumption now has published counterexamples — but do \
+NOT report those attacks themselves. They are out of scope.
+"""
+
 PASSES = {
+    "BT-CFG05-no-key-rotation": KEY_LIFECYCLE,
     "BT-T00-parent-instance-trusted": TRUST_BOUNDARY,
     "BT-T05-tcb-bloat": TCB_BLOAT,
     "BT-T08-metadata-leakage": METADATA_LEAKAGE,

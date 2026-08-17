@@ -22,4 +22,4 @@ false_positives: >
   which handlers change state. Expect over-reporting on query paths and under-reporting where
   freshness is enforced in a layer the detector does not parse.
 confidence: low
-status: draft
+status: implemented

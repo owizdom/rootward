@@ -38,6 +38,8 @@ import buildconfig  # noqa: E402
 import dstack as dstack_rules  # noqa: E402
 import kms_policy  # noqa: E402
 import platform_detect  # noqa: E402
+import streams as stream_rules  # noqa: E402
+import vsock as vsock_rules  # noqa: E402
 from model import (  # noqa: E402
     Confidence,
     Finding,
@@ -501,6 +503,8 @@ def main() -> int:
     findings += kms_policy.run(root)
     findings += buildconfig.run(root, core)
     findings += attestation.run(root, core)
+    findings += vsock_rules.run(root)
+    findings += stream_rules.run(root)
     findings += dstack_rules.run(root, platform)
 
     refuted: list[Finding] = []
