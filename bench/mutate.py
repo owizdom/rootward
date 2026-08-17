@@ -12,17 +12,26 @@ code shaped like the rule. Real code is not. Mutating a *clean* tree means the s
 context is whatever the tree already was, and the rule has to find the defect in it rather
 than in a sentence written to be found.
 
-Two numbers come out, and the second is the one that decides whether anyone runs this twice:
+Two numbers come out per rule, and the second is the one that decides whether anyone runs
+this twice:
 
-  recall     did the planted defect fire its rule?
-  collateral did the mutant produce findings the clean baseline did not, other than the
-             planted one? Those are false positives caused by the mutation.
+  recall     of the mutants planting rule R, how many did R detect?
+  precision  of every finding of rule R across the whole run, how many were the planted
+             defect rather than noise? The denominator is deliberately harsh: it counts R
+             firing on a mutant that planted a *different* rule, and R firing on the
+             untouched clean baseline. Both are false positives.
+
+Each rule gets several mutants that vary the *shape* of the defect, not just the file it
+sits in. A rule that only recognises the one idiom its author had in mind will show full
+recall against a single mutant and fail on real code; three shapes is the cheapest defence
+against measuring the fixture instead of the rule.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -39,9 +48,10 @@ PYTHON = str(ROOT / ".venv" / "bin" / "python") if (ROOT / ".venv" / "bin" / "py
 class Mutation:
     """One planted defect.
 
-    `find` and `replace` are literal strings, not regexes, so a mutation either applies
-    cleanly or is reported as inapplicable. A mutation that silently matched nothing would
-    show up as a recall failure and send someone debugging the wrong thing.
+    `find` and `replace` are literal by default, so a mutation either applies cleanly or is
+    reported as inapplicable. A mutation that silently matched nothing would show up as a
+    recall failure and send someone debugging the wrong thing. Set `regex=True` only where
+    the target text is generated rather than checked in.
     """
 
     rule_family: str
@@ -50,14 +60,40 @@ class Mutation:
     replace: str
     note: str
 
+    extra_edits: tuple[tuple[str, str], ...] = ()
+    """Further (find, replace) pairs applied in order after the first.
+
+    Some defects take more than one edit to plant. The KMS policy pins PCR1 *and* PCR2, so
+    a single swap leaves the other pin standing and the rule is correct to stay quiet — the
+    first version of those two mutants made exactly that mistake and read as rule misses.
+    """
+
+    regex: bool = False
+    """Treat `find` (and `extra_edits` finds) as regexes.
+
+    Off by default and used sparingly: a literal either applies or is reported inapplicable,
+    which is the property that keeps a silently-matching-nothing mutation from looking like
+    a recall failure. It is switched on only where the target text is *generated* — the KMS
+    fixture's PCR values come from the built EIF, so they cannot be written out literally.
+    """
+
     def apply(self, root: Path) -> bool:
         path = root / self.target
         if not path.is_file():
             return False
         text = path.read_text(encoding="utf-8")
-        if self.find not in text:
-            return False
-        path.write_text(text.replace(self.find, self.replace, 1), encoding="utf-8")
+
+        for find, replace in ((self.find, self.replace), *self.extra_edits):
+            if self.regex:
+                text, n = re.subn(find, replace, text, count=1)
+                if n == 0:
+                    return False
+            else:
+                if find not in text:
+                    return False
+                text = text.replace(find, replace, 1)
+
+        path.write_text(text, encoding="utf-8")
         return True
 
 
@@ -168,6 +204,163 @@ MUTATIONS: list[Mutation] = [
         '"_Condition": {',
         "attestation condition removed from the KMS policy",
     ),
+
+    # ---- additional shapes -------------------------------------------------------
+    # Everything below varies HOW the defect is written rather than where it lives. A
+    # rule that recognises only its author's idiom scores full recall on one mutant and
+    # then misses the same bug in real code, which is precisely what the zkSecurity
+    # comparison caught for BT-T00 (it read the vulnerable function and said nothing).
+
+    # T07C — the recommended fix removed in three different dialects.
+    Mutation(
+        "T07C", "enclave.rs",
+        "hmac_tag.ct_eq(expected).into()",
+        "hmac_tag.as_slice() == expected.as_slice()",
+        "constant-time compare replaced with slice ==",
+    ),
+    Mutation(
+        "T07C", "api.ts",
+        "  return a.length === b.length && crypto.timingSafeEqual(a, b);",
+        "  return token === expected;",
+        "timingSafeEqual replaced with ===",
+    ),
+
+    # T03 — secret reaching a sink, in each language's idiom.
+    Mutation(
+        "T03", "enclave.rs",
+        'eprintln!("derived session key fingerprint={}", fingerprint(session_key));',
+        'eprintln!("derived session_key={}", session_key);',
+        "secret interpolated into eprintln",
+    ),
+    Mutation(
+        "T03", "api.ts",
+        '  console.log("sessionFingerprint", sessionFingerprint);',
+        '  console.log("sessionKey", sessionKey);',
+        "secret passed to console.log",
+    ),
+
+    # T06B — verification disabled, three libraries.
+    Mutation(
+        "T06B", "handler.py",
+        "def fetch(url):\n    return requests.get(url)",
+        "def fetch(url):\n    import ssl\n    ctx = ssl._create_unverified_context()\n    return requests.get(url)",
+        "unverified ssl context constructed",
+    ),
+
+    # T04B — host clock reached through different call shapes.
+    Mutation(
+        "T04B", "enclave.rs",
+        "pub fn check_lease(valid_until: u64, attested_now: u64) -> bool {\n    valid_until < attested_now\n}",
+        "pub fn check_lease(valid_until: std::time::SystemTime) -> bool {\n    valid_until < SystemTime::now()\n}",
+        "expiry compared against SystemTime::now",
+    ),
+    Mutation(
+        "T04B", "api.ts",
+        "export const agent = new https.Agent({});",
+        "export function expired(expiresAt: number): boolean {\n  return expiresAt < Date.now();\n}\nexport const agent = new https.Agent({});",
+        "expiry compared against Date.now",
+    ),
+
+    # T07A — the timeout removed from a listener as well as a client socket.
+    Mutation(
+        "T07A", "enclave.rs",
+        "use subtle::ConstantTimeEq;",
+        "use subtle::ConstantTimeEq;\nuse vsock::VsockListener;\n\npub fn serve() -> std::io::Result<VsockListener> {\n    VsockListener::bind(&addr())\n}\nfn addr() -> vsock::VsockAddr { unimplemented!() }",
+        "vsock listener bound with no timeout",
+    ),
+
+    # T07B — the oracle phrased differently.
+    Mutation(
+        "T07B", "handler.py",
+        'raise ValueError("decryption failed")',
+        'raise ValueError("Bad padding on ciphertext")',
+        "padding named in a differently-worded error",
+    ),
+
+    # T03B — backtrace egress in two languages.
+    Mutation(
+        "T03B", "relay.go",
+        'func audit(keyFingerprint string) {',
+        'func dumpOnPanic() {\n\tdebug.PrintStack()\n}\n\nfunc audit(keyFingerprint string) {',
+        "stack dump added to a panic path",
+    ),
+
+    # T02 — the policy loosened to a single register rather than stripped entirely.
+    # Both pins must go: the clean policy pins PCR1 AND PCR2, so swapping one leaves the
+    # other and the policy is still not PCR0-only. The first version of this mutant made
+    # that mistake and read as a rule miss when the rule was right.
+    Mutation(
+        "T02", "kms-key-policy.json",
+        r',\s*"kms:RecipientAttestation:PCR2": "[0-9a-fA-F]+"', "",
+        "pins collapsed onto PCR0 only",
+        extra_edits=(
+            (r'"kms:RecipientAttestation:PCR1"', '"kms:RecipientAttestation:PCR0"'),
+        ),
+        regex=True,
+    ),
+
+    # T04A — entropy taken from across the boundary.
+    Mutation(
+        "T04A", "handler.py",
+        "def listen():",
+        "def seed_from(msg):\n    import random\n    random.seed(msg)\n\ndef listen():",
+        "RNG seeded from a message",
+    ),
+
+    # CFG01 — debug mode reached through a variable rather than a literal flag.
+    Mutation(
+        "CFG01", "run-enclave.sh",
+        "nitro-cli run-enclave --cpu-count 2 --memory 512 --eif-path app.eif",
+        'FLAGS="--debug-mode"\nnitro-cli run-enclave --cpu-count 2 --memory 512 --eif-path app.eif $FLAGS',
+        "debug mode passed through a shell variable",
+    ),
+
+    # CFG04 — determinism broken by an unpinned install rather than the base image.
+    Mutation(
+        "CFG04", "Dockerfile",
+        "RUN yum install -y python3-3.9.16 openssl-3.0.8",
+        "RUN yum install -y python3 openssl",
+        "package versions unpinned",
+    ),
+
+    # T09B — a secret in ARG rather than ENV.
+    Mutation(
+        "T09B", "Dockerfile",
+        "COPY . /app",
+        "ARG DEPLOY_KEY=0x7c3e0a2b41d6c95a7e3f18b204c7d6e9a1350f4c8b2d7e6a9038f2a559490d1b\nCOPY . /app",
+        "private key passed as a build ARG",
+    ),
+
+    # T06 — chain validation replaced by a bare signature check on a different shape.
+    Mutation(
+        "T06", "attest.py",
+        "    verify_cert_chain(chain, root)",
+        "    pass  # chain check disabled",
+        "chain validation call neutered but constant left behind",
+    ),
+
+    # CFG02 — the zero check weakened rather than deleted.
+    Mutation(
+        "CFG02", "attest.py",
+        '    if all(b == 0 for v in pcrs.values() for b in v):\n'
+        '        raise ValueError("debug-mode attestation rejected")',
+        '    if False:\n'
+        '        raise ValueError("debug-mode attestation rejected")',
+        "zero-PCR check made unreachable",
+    ),
+
+    # T01 — conditions kept but pointed at non-attestation keys. Same trap as T02: both
+    # pins have to be replaced or an attestation condition survives and the rule is
+    # correct to stay quiet.
+    Mutation(
+        "T01", "kms-key-policy.json",
+        r',\s*"kms:RecipientAttestation:PCR2": "[0-9a-fA-F]+"', "",
+        "attestation conditions swapped for unrelated keys",
+        extra_edits=(
+            (r'"kms:RecipientAttestation:PCR1"', '"aws:SourceVpc"'),
+        ),
+        regex=True,
+    ),
 ]
 
 
@@ -189,6 +382,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", default=str(DEFAULT_BASE), help="clean tree to mutate")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--markdown", metavar="PATH",
+                    help="also write the per-rule table to a markdown file")
     args = ap.parse_args()
 
     base = Path(args.repo).resolve()
@@ -232,39 +427,147 @@ def main() -> int:
             })
 
     applied = [r for r in rows if r["status"] == "ok"]
-    detected = [r for r in applied if r["detected"]]
-    with_collateral = [r for r in applied if r["collateral"]]
+    scores = score(rows, baseline_families)
 
     if args.json:
         print(json.dumps({
             "baseline_findings": len(baseline["findings"]),
             "mutations": rows,
-            "recall": len(detected) / len(applied) if applied else 0.0,
+            "per_rule": scores,
+            "recall": (sum(s["tp"] for s in scores.values())
+                       / max(1, sum(s["planted"] for s in scores.values()))),
         }, indent=2))
-        return 0 if len(detected) == len(applied) else 1
+        return 0 if all(s["tp"] == s["planted"] for s in scores.values()) else 1
 
     print(f"base tree: {base}")
     print(f"baseline findings: {len(baseline['findings'])}\n")
-    print(f"{'rule':8} {'target':22} {'detected':9} {'collateral':>10}  note")
-    print("-" * 92)
-    for r in rows:
-        mark = "-" if r["status"] == "inapplicable" else ("yes" if r["detected"] else "NO")
-        coll = "" if r["status"] == "inapplicable" else str(len(r["collateral"]))
-        print(f"{r['rule']:8} {r['target']:22} {mark:9} {coll:>10}  {r['note']}")
+
+    print(f"{'rule':8} {'recall':>10} {'precision':>11} {'planted':>8} {'fp':>4}  shapes")
+    print("-" * 96)
+    for rule in sorted(scores):
+        s = scores[rule]
+        rec = f"{s['tp']}/{s['planted']}"
+        prec = "n/a" if (s["tp"] + s["fp"]) == 0 else f"{100 * s['precision']:.0f}%"
+        print(f"{rule:8} {rec:>10} {prec:>11} {s['planted']:>8} {s['fp']:>4}  "
+              f"{', '.join(s['shapes'][:3])}")
+
+    total_tp = sum(s["tp"] for s in scores.values())
+    total_planted = sum(s["planted"] for s in scores.values())
+    total_fp = sum(s["fp"] for s in scores.values())
 
     print()
-    print(f"applied      {len(applied)}/{len(rows)}")
-    print(f"recall       {len(detected)}/{len(applied)}"
-          + (f"  ({100 * len(detected) / len(applied):.0f}%)" if applied else ""))
-    print(f"collateral   {len(with_collateral)} mutant(s) produced unrelated findings")
+    print(f"applied      {len(applied)}/{len(rows)} mutants")
+    print(f"recall       {total_tp}/{total_planted}"
+          + (f"  ({100 * total_tp / total_planted:.0f}%)" if total_planted else ""))
+    print(f"false pos    {total_fp} finding(s) attributable to no planted defect")
 
     for r in applied:
         if not r["detected"]:
             print(f"  MISS  {r['rule']:8} {r['target']:22} {r['note']}")
         if r["collateral"]:
             print(f"  EXTRA {r['rule']:8} {r['target']:22} -> {r['collateral']}")
+    for r in rows:
+        if r["status"] == "inapplicable":
+            print(f"  SKIP  {r['rule']:8} {r['target']:22} {r['note']}")
 
-    return 0 if len(detected) == len(applied) else 1
+    if args.markdown:
+        out = Path(args.markdown)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render_markdown(scores, rows, base), encoding="utf-8")
+        print(f"\nwrote {out}")
+
+    return 0 if total_tp == total_planted else 1
+
+
+def score(rows: list[dict], baseline_families: set[str]) -> dict[str, dict]:
+    """Per-rule precision and recall.
+
+    recall    = detections ÷ mutants planting that rule
+    precision = detections ÷ (detections + firings attributable to no planted defect)
+
+    The precision denominator counts a rule firing on a mutant that planted something else,
+    which is the harsh reading on purpose: on the clean tree that finding did not exist, so
+    the mutation caused it and the rule owns it. Baseline findings are excluded because the
+    clean tree is asserted to be empty elsewhere; if it ever is not, main() warns.
+    """
+    planted: dict[str, int] = {}
+    tp: dict[str, int] = {}
+    fp: dict[str, int] = {}
+    shapes: dict[str, list[str]] = {}
+
+    for r in rows:
+        if r["status"] != "ok":
+            continue
+        rule = r["rule"]
+        planted[rule] = planted.get(rule, 0) + 1
+        shapes.setdefault(rule, []).append(r["note"])
+        if r["detected"]:
+            tp[rule] = tp.get(rule, 0) + 1
+        for other in r["collateral"]:
+            fp[other] = fp.get(other, 0) + 1
+
+    out: dict[str, dict] = {}
+    for rule in sorted(set(planted) | set(fp)):
+        t, f = tp.get(rule, 0), fp.get(rule, 0)
+        out[rule] = {
+            "planted": planted.get(rule, 0),
+            "tp": t,
+            "fp": f,
+            "recall": t / planted[rule] if planted.get(rule) else 0.0,
+            "precision": t / (t + f) if (t + f) else 0.0,
+            "shapes": shapes.get(rule, []),
+        }
+    return out
+
+
+def render_markdown(scores: dict[str, dict], rows: list[dict], base: Path) -> str:
+    total_tp = sum(s["tp"] for s in scores.values())
+    total_planted = sum(s["planted"] for s in scores.values())
+    total_fp = sum(s["fp"] for s in scores.values())
+
+    lines = [
+        "# Benchmark results — mutation corpus",
+        "",
+        "Generated by `bench/mutate.py`. Ground truth is exact by construction: the harness",
+        "plants one catalogued defect in a clean tree and asks whether that rule fires.",
+        "",
+        f"- base tree: `{base.relative_to(ROOT) if base.is_relative_to(ROOT) else base}`",
+        f"- mutants: {len([r for r in rows if r['status'] == 'ok'])} applied, "
+        f"{len([r for r in rows if r['status'] != 'ok'])} inapplicable",
+        f"- **recall {total_tp}/{total_planted}"
+        + (f" ({100 * total_tp / total_planted:.0f}%)**" if total_planted else "**"),
+        f"- **false positives: {total_fp}**",
+        "",
+        "`precision` counts a rule firing on a mutant that planted a *different* defect as a",
+        "false positive — that finding did not exist on the clean tree, so the rule owns it.",
+        "",
+        "| rule | recall | precision | mutants | FP | defect shapes tested |",
+        "|---|---|---|---|---|---|",
+    ]
+    for rule in sorted(scores):
+        s = scores[rule]
+        rec = f"{s['tp']}/{s['planted']}"
+        prec = "n/a" if (s["tp"] + s["fp"]) == 0 else f"{100 * s['precision']:.0f}%"
+        lines.append(
+            f"| `{rule}` | {rec} | {prec} | {s['planted']} | {s['fp']} | "
+            f"{'; '.join(s['shapes'])} |"
+        )
+
+    misses = [r for r in rows if r["status"] == "ok" and not r["detected"]]
+    if misses:
+        lines += ["", "## Misses", ""]
+        lines += [f"- `{r['rule']}` — {r['note']} (`{r['target']}`)" for r in misses]
+
+    skipped = [r for r in rows if r["status"] != "ok"]
+    if skipped:
+        lines += ["", "## Inapplicable mutants", "",
+                  "These did not apply against the current fixture tree and are reported",
+                  "rather than silently dropped — a mutation that matches nothing would",
+                  "otherwise look like a recall failure.", ""]
+        lines += [f"- `{r['rule']}` — {r['note']} (`{r['target']}`)" for r in skipped]
+
+    lines.append("")
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

@@ -97,12 +97,21 @@ KNOWN_VALIDATOR = re.compile(
     r")\b"
 )
 
-# CHAIN_WALK is the load-bearing signal: evidence the cabundle is actually traversed.
-CHAIN_WALK = re.compile(
+# Split into material and verification, because the mutation benchmark showed that touching
+# the bundle was being read as validating it: neutering the `verify_cert_chain(chain, root)`
+# call left `chain = [... for c in doc["cabundle"]]` behind, the old combined pattern still
+# matched on "cabundle", and the rule went quiet on a genuinely broken verifier.
+#
+# CHAIN_MATERIAL — the bundle is accessed. Necessary, nowhere near sufficient.
+CHAIN_MATERIAL = re.compile(r"(?i)\b(cabundle|ca_?bundle|cert_?chain)\b")
+
+# CHAIN_VERIFY — the chain is actually checked against something. This is the load-bearing
+# signal; the rule stays quiet only when one of these (or a KNOWN_VALIDATOR) is present.
+CHAIN_VERIFY = re.compile(
     r"(?i)\b("
-    r"cabundle|ca_?bundle|"
-    r"X509Store|X509StoreContext|add_cert|set_trust|verify_cert_chain|"
-    r"build_chain|validate_chain|verify_chain"
+    r"X509Store|X509StoreContext|add_cert|set_trust|"
+    r"verify_cert_chain|build_chain|validate_chain|verify_chain|"
+    r"verify_directly_issued_by|check_chain|chain_verify"
     r")\b"
 )
 # ROOT_MATERIAL alone proves only that a root is available, not that it is consulted.
@@ -166,12 +175,14 @@ def check_chain_validation(root: Path) -> list[Finding]:
         live = strip_definitions(code_only(text, path.suffix))
         if not _does_attestation(live):
             continue
-        if CHAIN_WALK.search(live) or KNOWN_VALIDATOR.search(live):
+        if CHAIN_VERIFY.search(live) or KNOWN_VALIDATOR.search(live):
             continue
 
-        # A root constant with no chain walk is a stronger signal than nothing at all: it
-        # usually means the verification was removed and the constant was left behind.
+        # Two shapes of leftover, both meaning "the pieces are here and nothing checks them":
+        # a pinned root constant that is never consulted, or a chain assembled from the
+        # cabundle and then discarded. Either is stronger evidence than plain absence.
         orphaned_root = bool(ROOT_MATERIAL.search(live))
+        unused_chain = bool(CHAIN_MATERIAL.search(live))
 
         lines = text.splitlines()
         line = _first_match_line(lines, ATTESTATION_NOUN)
@@ -183,13 +194,17 @@ def check_chain_validation(root: Path) -> list[Finding]:
                 evidence=quote_line(lines, line),
                 message=(
                     (
-                        "File parses attestation documents and defines root certificate "
-                        "material, but never walks a certificate bundle — the root is "
-                        "present and unused. This is the shape left behind when chain "
-                        "validation is refactored away and the constant survives. "
+                        "File assembles a certificate chain from the attestation document's "
+                        "cabundle and never verifies it against anything — the chain is "
+                        "built and discarded. This is the shape left behind when the "
+                        "verification call is removed and the plumbing around it survives. "
+                        if unused_chain
+                        else "File parses attestation documents and defines root certificate "
+                        "material, but never verifies a certificate chain — the root is "
+                        "present and unused. "
                         if orphaned_root
-                        else "File parses attestation documents but contains no reference "
-                        "to a certificate bundle, a pinned root, or a known validating "
+                        else "File parses attestation documents but contains no certificate "
+                        "chain verification, no pinned root, and no known validating "
                         "library. "
                     )
                     + "Verifying a document against the certificate embedded in that same "
@@ -199,10 +214,15 @@ def check_chain_validation(root: Path) -> list[Finding]:
                     "in walking the cabundle to an out-of-band pinned AWS Nitro root."
                 ),
                 severity=Severity.CRITICAL,
-                # A dangling root constant is more specific evidence than plain absence.
-                confidence=Confidence.HIGH if orphaned_root else Confidence.MEDIUM,
+                # Leftover plumbing is more specific evidence than plain absence.
+                confidence=(
+                    Confidence.HIGH if (unused_chain or orphaned_root) else Confidence.MEDIUM
+                ),
                 detector="attestation.chain_validation",
-                metadata={"orphaned_root_material": orphaned_root},
+                metadata={
+                    "orphaned_root_material": orphaned_root,
+                    "unverified_chain_material": unused_chain,
+                },
             )
         )
     return findings
