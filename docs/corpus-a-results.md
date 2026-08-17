@@ -1,4 +1,4 @@
-# Corpus A — first run against real repositories
+# Corpus A — real repositories
 
 Deterministic layer only (no model calls). Reproduce with:
 
@@ -8,18 +8,19 @@ Deterministic layer only (no model calls). Reproduce with:
 
 | repo | ref | platform | layer | findings | rules |
 |---|---|---|---|---|---|
-| aws-nitro-enclaves-workshop | `93b0851e44d7` | nitro | 0/4 | 14 | CFG04×7, T07A×4, T01×2, T03×1 |
+| dstack | `be9d0476a63e` | dstack | 0/4 | 14 | T07D×4, T03C×3, T07A×2, T10×2, DS04×1, T00A×1, T07C×1 |
+| meta-dstack | `5b63aec337f1` | dstack | 1/4 | 1 | DS01×1 |
+| aws-nitro-enclaves-workshop | `93b0851e44d7` | nitro | 0/4 | 19 | CFG04×7, T07D×5, T07A×4, T01×2, T03×1 |
 | aws-nitro-enclaves-sdk-c | `cd61b6187c8b` | nitro | 4/4 | 9 | CFG04×7, CFG01×2 |
-| attestation-doc-validation | `494131dcbe48` | nitro | 2/4 | 1 | T07C×1 |
-| dstack | — | — | — | — | clone failed (network) |
+| attestation-doc-validation | `494131dcbe48` | nitro | 4/4 | **0** | — |
 
-Audit time was ~2s per repository. `layer` is capped at a verifiable ceiling of 4 because
-the catalog carries no rules for layers 5–6 — see the scorecard note in the report.
+Audit time is 2–8 seconds per repository. `layer` is capped at a verifiable ceiling of 4
+because the catalog carries no rules for layers 5–6 — see the scorecard note in the report.
 
 ## Verified by hand
 
-Two findings on the AWS workshop samples were checked against the source rather than taken
-on trust. Both are true positives.
+Two findings on the AWS workshop samples were checked against source rather than taken on
+trust. Both are true positives.
 
 ### BT-T01 — KMS policy releases key material with no attestation condition
 
@@ -60,40 +61,50 @@ handbook's Threat 3 verbatim, in code written to be copied.
 
 ## The negative control
 
-`attestation-doc-validation` (Evervault) is a correct attestation validator, so BT-T06
-firing there means the detector is wrong, not the repository. On the first run it fired
-three times, alongside four other false positives.
-
-All five distinct false-positive causes came from the same mistake — treating text that
-mentions security as evidence of security:
+`attestation-doc-validation` (Evervault) is a correct attestation validator, so `BT-T06`
+firing there means the detector is wrong, not the repository. **It now reports zero findings
+at layer 4/4.** Getting there took five distinct fixes, every one of them a rule firing on
+correct code:
 
 | cause | example |
 |---|---|
 | TypeScript declaration files | `index.d.ts`, which contains no implementation at all |
 | test files | `__test__/index.spec.mjs`, `tests/test_attestation.py` |
 | FFI binding shims | a struct field `pcr0: Option<String>`, a `wasm_bindgen` getter |
-| enum comparison | `attestation_document.digest == Digest::SHA384` — matched because "digest" is in the secret-name regex, but this compares an algorithm identifier |
+| enum comparison | `attestation_document.digest == Digest::SHA384` — matched because "digest" was in the secret-name regex, but this compares an algorithm identifier |
 | delegation to an audited library | bindings importing `validate_expected_pcrs` from the core crate, flagged for not re-implementing checks the crate performs |
 
-After the fixes: **9 findings → 1**, and the layer score rose from 1/4 to 2/4 as the
-spurious caps dropped away. Recall on the mutation benchmark stayed at 17/17 and the fixture
-suite stayed clean, so none of this was bought with precision-for-recall trades.
+The tool went from 9 findings to 0 on this repository across those fixes, while mutation
+recall stayed at 100% — the precision was not bought with recall.
 
-The one remaining finding is `matching_nonce == expected_nonce` in
-`attestation_doc.rs:141`. A nonce is chosen by the verifier and is not secret, so timing
-leakage there reveals nothing an attacker does not already know. This is the documented
-false-positive class in the rule's own `false_positives` field: BT-T07C is deliberately
-tuned toward recall, because constant-time comparison of a public value costs nothing while
-a missed timing oracle is recoverable byte by byte.
+## Corpus findings by rule, and what they are worth
+
+**`CFG04` (build determinism) dominates by count** — 14 of 43 findings across two repos. It
+is the lowest-severity rule in the catalog and fires on any floating base image or unpinned
+package. Accurate, and worth reading last.
+
+**`T07D` (replay protection) is new and untriaged** — 9 findings across dstack and the AWS
+samples. It is a `hybrid` rule shipping at LOW confidence when a handler carries no freshness
+token at all, precisely because an idempotent read-only handler legitimately needs none.
+These need a human before any of them counts.
+
+**`T00A` on dstack** is the rule written *because* the zkSecurity comparison showed the tool
+missing their finding #02. It now fires on that repository. Whether it lands on the same call
+site they identified has not been verified line-for-line and should not be claimed.
+
+**meta-dstack returns almost nothing (1 finding), and that is the expected result.** Five of
+zkSecurity's fourteen findings live in that repository — including the only High, OVMF built
+with Config-A leaving the VMM inside the TCB — and every one is about Yocto recipes and
+firmware build configuration. The catalog has no rule class for that. Auditing the repo makes
+the gap measurable instead of assumed, which is the only reason it is in the corpus.
 
 ## What this run does not show
 
-- **No precision or recall number for real repositories.** Only two findings were verified
-  by hand. The honest summary is "24 findings across three repos, 2 confirmed true
-  positives, 1 known-class false positive, 21 unreviewed".
-- **dstack did not run.** Its clone failed on a transient network error; retry logic has
-  since been added. dstack is the external-validation target, since zkSecurity published an
-  independent audit of it — that comparison is still outstanding.
-- **The semantic rules did not run.** This was the deterministic layer only.
+- **No precision or recall figure for real repositories.** Ground truth does not exist for
+  them; that is what the mutation corpus (`docs/benchmark-results.md`) and the external
+  comparison (`docs/dstack-vs-zksecurity.md`) are for. Of 43 findings here, 2 are verified
+  true positives, 0 are known false positives, and 41 are unreviewed.
+- **The semantic rules did not run.** This is the deterministic layer only — see
+  `docs/ablation.md` for what the model layer adds.
 - Everything in the report's NOT VERIFIED section applies: no deployed configuration, no
   runtime behaviour, no hardware attacks.

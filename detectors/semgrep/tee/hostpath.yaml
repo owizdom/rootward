@@ -75,13 +75,22 @@ rules:
           - pattern: shutil.copy($SRC, ...)
           - pattern: shutil.copyfile($SRC, ...)
           - pattern: shutil.copytree($SRC, ...)
-          - pattern: open($SRC, ...)
           - pattern: open($SRC)
+          - pattern: open($SRC, "r")
+          - pattern: open($SRC, "rb")
           - pattern: Path($SRC).read_text(...)
           - pattern: Path($SRC).read_bytes()
       - metavariable-regex:
           metavariable: $SRC
           regex: (?i).*(host|shared|guest|mount|9p|vsock|incoming|upload|external|untrusted).*
+      # Write-mode opens are excluded. The rationale here is reading attacker-controlled
+      # content INTO the enclave; writing through a host-planted symlink is a real but
+      # different issue, and meta-dstack's host-side tooling supplied the false positive
+      # that made the distinction concrete (`open(.../app-compose.json, "w")`).
+      - pattern-not: open($SRC, "w")
+      - pattern-not: open($SRC, "wb")
+      - pattern-not: open($SRC, "a")
+      - pattern-not: open($SRC, "w+")
       - pattern-not-inside: |
           ...
           os.path.islink(...)

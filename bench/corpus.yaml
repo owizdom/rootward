@@ -27,6 +27,20 @@ repos:
       configuration and OS-image generation, which is adjacent to but not identical to
       this catalog's scope — expect partial overlap at best, and say so.
 
+  - name: meta-dstack
+    url: https://github.com/Dstack-TEE/meta-dstack
+    # The second repository zkSecurity audited, at the commit their report names
+    # ("meta-dstack at commit 5b63aec3"), resolved via the GitHub API; committed
+    # 2025-05-29, inside the audit window.
+    ref: 5b63aec337f19a541798970c7cf8d846171f0ca9
+    platform: dstack
+    note: >-
+      Five of the fourteen zkSecurity findings live here rather than in dstack, including
+      the only High (OVMF built with Config-A, leaving the VMM inside the TCB). The catalog
+      has no rules for OS image or firmware build configuration, so the expected result is
+      that this repository is largely unreachable — auditing it makes that gap measurable
+      instead of assumed.
+
   - name: aws-nitro-enclaves-samples
     url: https://github.com/aws-samples/aws-nitro-enclaves-workshop
     ref: main

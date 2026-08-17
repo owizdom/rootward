@@ -2,65 +2,90 @@
 
 Static auditor for Web3 protocols built on cloud TEEs — AWS Nitro Enclaves and dstack.
 
-> **Status: detection works, benchmark does not exist yet.** All 19 deterministic rules are
-> implemented and pass against fixtures (16 rule families found on the vulnerable trees, 0
-> false positives on the clean ones). That is a fixture result, not a benchmark — no
-> precision/recall number over real repositories has been measured, so no detection-rate
-> claim is made. See [Build status](#build-status).
+```
+python3 cli/audit.py ./repo                 # deterministic rules, seconds, no model calls
+python3 cli/audit.py ./repo --semantic      # + four judgment rules, adversarially verified
+```
+
+Reports a security-layer scorecard, ranked findings with `file:line` evidence, and a
+mandatory list of what the audit could not check.
 
 ## Why
 
-The [Bluethroat Labs TEE Security Handbook](https://bluethroatlabs.com/docs/executive-summary) makes
-one argument throughout: Web3 TEE protocols do not get rekt by hardware attacks. Its scope page says
-so directly — hardware attack research is out of scope because "hardware attacks are not what
-actually causes Web3 TEE protocols to get rekt." The real failures are attestation verification
-gaps, trusting the parent instance, metadata leakage, timing oracles, hardcoded credentials, and KMS
-misconfiguration. The handbook estimates most active Web3 TEE projects carry three to five of these
-at once.
+The [Bluethroat Labs TEE Security Handbook](https://bluethroatlabs.com/docs/executive-summary)
+makes one argument throughout: Web3 TEE protocols do not get rekt by hardware attacks. Its
+scope page says so directly — hardware attack research is out of scope because "hardware
+attacks are not what actually causes Web3 TEE protocols to get rekt." The real failures are
+attestation verification gaps, trusting the parent instance, metadata leakage, timing
+oracles, hardcoded credentials, and KMS misconfiguration. The handbook estimates most active
+Web3 TEE projects carry three to five of these at once.
 
-Nearly all of them are visible in a repository — in source, Dockerfiles, KMS key policies, and the
-built EIF image. That is what this tool looks for.
+Nearly all of them are visible in a repository — in source, Dockerfiles, KMS key policies,
+and the built EIF image. That is what this tool looks for.
+
+## Measured
+
+| | result | how |
+|---|---|---|
+| Mutation recall | **35/35** across 15 rules | [`docs/benchmark-results.md`](docs/benchmark-results.md) |
+| False positives on mutants | **0** | same |
+| Clean-fixture false positives | **0** on both clean trees | `bench/test_fixtures.py` |
+| Negative control (a correct validator) | **0 findings**, was 9 | [`docs/corpus-a-results.md`](docs/corpus-a-results.md) |
+| PCR measurement | matches AWS's own implementation | `cargo test --features differential` |
+| External validation | 1 re-find + 1 partial of 14 | [`docs/dstack-vs-zksecurity.md`](docs/dstack-vs-zksecurity.md) |
+
+Mutants vary the *shape* of each defect, not just the file, because a rule that recognises
+only its author's idiom scores full recall against one mutant and then misses the same bug in
+real code. Adding shape variation dropped recall from a flattering 17/17 to 32/35 and exposed
+a genuine gap in the certificate-chain rule.
+
+**The most useful thing this project produced is not a detection rate.** It is
+[`docs/when-the-verifier-is-wrong.md`](docs/when-the-verifier-is-wrong.md): the adversarial
+verification layer confidently deleted a true positive with a fluent, well-cited, and
+completely invalid cryptographic argument. It was caught only because an independent audit
+existed to grade against.
 
 ## Design
 
-**Deterministic detectors first, model second.** Of the 29 catalogued rules, 19 need no model call:
-they are parse, AST, or binary-format checks. Six are hybrid, and four require genuine judgment
-(trust-boundary reasoning, TCB bloat, metadata leakage, layer classification). Spending a model call
-on something `semgrep` decides correctly is how a tool ends up slow, expensive, and less precise
-than the thing it wrapped.
+**Deterministic detectors first, model second.** Of 31 catalogued rules, 21 need no model
+call — they are parse, AST, or binary-format checks. Six are hybrid, four require genuine
+judgment. The ablation ([`docs/ablation.md`](docs/ablation.md)) measures whether the model
+layer earns its cost per threat class, and reports the classes where it does not.
 
-**Every finding carries evidence.** A `file:line` with quoted source, or two hashes. Findings from
-the semantic layer go through an adversarial pass — an independent agent that tries to *refute*
-them — before reaching the report. Findings that survive are `CONFIRMED`; findings that cannot be
-confirmed or refuted ship as `PLAUSIBLE`, labelled as such.
+**Every finding carries evidence.** A `file:line` with quoted source, or two hashes. Semantic
+findings go through an adversarial pass — an independent agent that tries to *refute* them.
+Survivors are `CONFIRMED`; findings that cannot be confirmed or refuted ship as `PLAUSIBLE`,
+labelled; refuted ones are dropped and kept in the run log.
 
-**Every report says what it could not check.** Static analysis cannot see the KMS policy actually
-deployed in AWS, the runtime PCR values, or whether `--debug-mode` was used on the real launch. That
-list is a mandatory report section, not an omission.
+**Every report says what it could not check.** Static analysis cannot see the KMS policy
+actually deployed in AWS, the runtime PCR values, or whether `--debug-mode` was used on the
+real launch. That list is a mandatory report section, computed from what the run actually
+did rather than hand-written.
 
 ```
-catalog/    29 YAML rules, each citing its source        ← the domain knowledge
-core/       Rust: EIF parse, CPIO walk, PCR recompute, COSE/cert-chain
-detectors/  Python: semgrep TEE ruleset, KMS policy, build config, vsock
-agent/      Claude Agent SDK: the four semantic passes
-verify/     adversarial refutation
-report/     layer scorecard + findings + NOT-VERIFIED
-bench/      corpora, mutation harness, scoring
+catalog/    31 YAML rules, each citing its source        ← the domain knowledge
+core/       Rust: EIF parse, CPIO ramdisk walk, PCR recompute, secret scan
+detectors/  semgrep TEE ruleset + KMS policy, build config, vsock, streams, dstack
+agent/      Claude Agent SDK: the four semantic passes + adversarial refutation
+cli/        orchestration and the report
+bench/      fixtures, mutation harness, real-repo corpus, ablation
 ```
 
 ## Coverage
 
 Mapped to the handbook's own threat numbering. `layer` is the lowest
-[security layer](https://bluethroatlabs.com/docs/layers-of-security-for-tees) that requires the rule
-to pass.
+[security layer](https://bluethroatlabs.com/docs/layers-of-security-for-tees) that requires
+the rule to pass; failing one caps the protocol below it.
 
 | Rule | Threat | Layer | Detection |
 |---|---|---|---|
 | `BT-T00` parent instance trusted | 0 | 1 | semantic |
+| `BT-T00A` host path followed through a symlink | 0 | 1 | deterministic |
 | `BT-T01` no measurement pinning | 1 | 2 | deterministic |
 | `BT-T02` PCR0-only pin | 2 | 2 | deterministic |
 | `BT-T03` secret reaches log sink | 3 | 1 | hybrid |
 | `BT-T03B` crash dump egress | 3 | 3 | deterministic |
+| `BT-T03C` output stream exposed by configuration | 3 | 1 | deterministic |
 | `BT-T04A` host-supplied entropy | 4 | 1 | deterministic |
 | `BT-T04B` host-supplied time | 4 | 1 | deterministic |
 | `BT-T05` TCB bloat | 5 | 1 | semantic |
@@ -78,48 +103,59 @@ to pass.
 | `BT-DS01`–`DS05` | — | 2–4 | dstack: code governance, key derivation, KMS mode, RTMR policy, gateway binding |
 | `BT-LYR01` layer scorecard | — | — | semantic |
 
-**Out of scope, deliberately.** The handbook's attack-categorisation table — Spectre, Rowhammer,
-Plundervolt, EMFI, and the 2025 memory-bus attacks (WireTap, Battering RAM, TEE.fail) — is real and
-matters for architecture decisions, but none of it is statically detectable. It informs the layer
-scorecard as context and is never reported as a finding.
+Every rule cites its source, states when it is wrong (`false_positives` is a required field),
+and carries a status the validator checks against reality — a rule claiming `benchmarked`
+with no row in the benchmark results fails the build.
+
+**Out of scope, deliberately.** The handbook's attack-categorisation table — Spectre,
+Rowhammer, Plundervolt, EMFI, and the 2025 memory-bus attacks (WireTap, Battering RAM,
+TEE.fail) — is real and matters for architecture decisions, but none of it is statically
+detectable. It informs the layer scorecard as context and is never reported as a finding.
 
 Also out of scope by design: live enclaves. No AWS credentials, no attestation fetched from a
 running instance, no active probing. Repository in, report out.
 
-## Build status
+## Known gaps
 
-| Phase | | |
-|---|---|---|
-| P0 | rule catalog + schema + validator | done — 29 rules, validator enforces citations |
-| P1 | Rust core: EIF, CPIO, secret scan, PCR recompute | done — 34 tests; PCRs verified against AWS's implementation |
-| P2 | semgrep TEE ruleset + Python detectors | done — 19/19 deterministic rules, 0 FP on clean fixtures |
-| P3 | Agent SDK harness + semantic passes + adversarial verify | written, not yet run end to end |
-| P4 | benchmark: corpora, mutants, precision/recall, ablation | not started |
-| P5 | report renderer + release | report done; release pending the benchmark |
+- **No OS-image or firmware build rules.** Five of zkSecurity's fourteen dstack findings live
+  in `meta-dstack` and concern Yocto recipes and OVMF configuration, including the only High.
+  The corpus audits that repository specifically so the gap is measured rather than assumed.
+- **`BT-T08` (metadata leakage) has low static recall by construction.** Response-size and
+  timing correlation is a runtime distribution; static analysis sees the encoder.
+- **Deployment configuration is unreachable.** The KMS policy in a repository is not
+  necessarily the policy attached to the live key.
+- **`BT-T07D` and `BT-T10` are new and largely untriaged** on real code — they ship at LOW
+  confidence for exactly that reason.
+
+## Setup
 
 ```
-python3 cli/audit.py <path>              # deterministic only, no model calls
-python3 cli/audit.py <path> --semantic   # + the four judgment rules, adversarially verified
-uv run --with pyyaml bench/test_fixtures.py   # regression gate
-uv run --with pyyaml catalog/coverage.py      # what is catalogued vs implemented
+uv venv && uv pip install -e '.[all]'     # semgrep + claude-agent-sdk are optional extras
+cd core && cargo build --release --bins    # the Rust core
+.venv/bin/python bench/fixtures/build.py   # generate the binary fixtures
 ```
 
-## Benchmark
+The tool degrades rather than fails when an optional piece is missing: no semgrep means the
+code-pattern rules do not run, and the report says so in its NOT VERIFIED section.
 
-Detection rates get measured, not asserted. Three corpora: real repositories pinned by commit SHA,
-synthetic mutants with ground truth by construction (so recall is measured rather than estimated),
-and clean baselines for the false-positive rate. Reported per rule, alongside an ablation of the
-model layer against deterministic-only — if `semgrep` alone matches the full pipeline on a threat
-class, that gets published and the model call gets dropped.
+## Verification
 
-External validation: zkSecurity audited dstack in May–June 2025 and published their findings.
-Running against the pre-fix commit gives ground truth this project did not author. What it re-finds
-is a result; what it misses gets written up as a gap.
+```
+cd core && cargo test                        # 34 tests
+cargo test --features differential           # PCRs vs AWS's own implementation
+.venv/bin/python catalog/validate.py         # citations, false-positive notes, status accuracy
+.venv/bin/python bench/test_fixtures.py      # recall + zero FP on clean trees
+.venv/bin/python bench/mutate.py             # per-rule precision and recall
+.venv/bin/python bench/corpus.py             # real repos + negative control
+.venv/bin/python bench/ablation.py           # model layer vs deterministic-only
+```
 
 ## License
 
 Apache-2.0.
 
-The rule catalog is derived from the Bluethroat Labs TEE Security Handbook, which is cited per rule
-in the `source` field. It is an independent implementation, not affiliated with or endorsed by
-Bluethroat Labs.
+The rule catalog is derived from the Bluethroat Labs TEE Security Handbook, cited per rule in
+each rule's `source` field. This is an independent implementation, not affiliated with or
+endorsed by Bluethroat Labs. The dstack comparison uses
+[zkSecurity's published audit](https://phala.com/dstack/dstack-audit.pdf) as external ground
+truth; that work is theirs.
