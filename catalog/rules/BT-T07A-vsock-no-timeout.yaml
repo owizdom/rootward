@@ -22,4 +22,4 @@ false_positives: >
   flagged at each use site because the deterministic pass does not follow construction across
   functions.
 confidence: medium
-status: draft
+status: benchmarked

@@ -22,4 +22,4 @@ false_positives: >
   development-only backtrace configuration that is stripped in release builds. Build-profile
   awareness is not implemented, so debug-gated handlers are over-reported.
 confidence: medium
-status: draft
+status: benchmarked

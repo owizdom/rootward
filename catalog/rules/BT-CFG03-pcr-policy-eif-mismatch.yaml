@@ -21,4 +21,4 @@ false_positives: >
   expected rather than suspicious, which is why BT-CFG04 is a prerequisite for trusting this
   rule's output.
 confidence: high
-status: draft
+status: implemented

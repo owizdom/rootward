@@ -20,6 +20,63 @@ CATALOG = Path(__file__).parent
 RULES = CATALOG / "rules"
 
 
+def _status_errors(rules: list[dict]) -> list[str]:
+    """Check each rule's `status` against what actually exists.
+
+    Three claims, three checks:
+      implemented  → a detector references this rule id
+      benchmarked  → also appears in docs/benchmark-results.md
+      draft        → must NOT have a detector, or the field is understating the work
+
+    The benchmark file is optional: on a fresh checkout it does not exist yet, and failing
+    then would make the gate impossible to satisfy rather than informative.
+    """
+    import re as _re
+
+    sys.path.insert(0, str(CATALOG))
+    try:
+        import coverage as cov  # type: ignore
+    except Exception as exc:  # noqa: BLE001 - report, don't crash the validator
+        return [f"could not compute coverage for status check: {exc}"]
+
+    implemented: set[str] = set()
+    for source in (
+        cov.semgrep_catalog_ids(),
+        cov.python_rule_ids(),
+        cov.rust_rule_ids(),
+        cov.agent_rule_ids(),
+    ):
+        implemented |= set(source)
+
+    results = CATALOG.parent / "docs" / "benchmark-results.md"
+    measured: set[str] = set()
+    have_results = results.exists()
+    if have_results:
+        measured = set(_re.findall(r"^\| `([A-Z0-9]+)` \|", results.read_text(), _re.M))
+
+    out: list[str] = []
+    for rule in rules:
+        rid = rule.get("id")
+        status = rule.get("status", "draft")
+        if not isinstance(rid, str):
+            continue
+        family = rid.split("-")[1] if "-" in rid else ""
+
+        if status in ("implemented", "benchmarked") and rid not in implemented:
+            out.append(f"{rid}.yaml: status is {status!r} but no detector references it")
+        if status == "benchmarked" and have_results and family not in measured:
+            out.append(
+                f"{rid}.yaml: status is 'benchmarked' but {family} has no row in "
+                f"docs/benchmark-results.md"
+            )
+        if status == "draft" and rid in implemented:
+            out.append(
+                f"{rid}.yaml: status is 'draft' but a detector implements it "
+                f"(set 'implemented' or 'benchmarked')"
+            )
+    return out
+
+
 def main() -> int:
     schema = json.loads((CATALOG / "schema.json").read_text())
     validator = Draft202012Validator(schema)
@@ -58,6 +115,11 @@ def main() -> int:
             seen_ids[rule_id] = path.name
 
         rules.append(rule)
+
+    # A `status` field nobody checks drifts. Every rule in this catalog claimed `draft` for
+    # weeks while 24 of them were implemented and 15 had measured numbers — exactly the
+    # stale-metadata rot this tool exists to catch in other people's repositories.
+    errors.extend(_status_errors(rules))
 
     if errors:
         print(f"FAIL — {len(errors)} problem(s) in {len(paths)} rule(s):\n", file=sys.stderr)

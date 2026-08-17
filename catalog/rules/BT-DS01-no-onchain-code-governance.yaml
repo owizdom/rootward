@@ -22,4 +22,4 @@ false_positives: >
   Governance contract addresses may live in deployment infrastructure outside the audited
   repository. Absence in-repo is a finding worth raising but is not proof of absence in production.
 confidence: medium
-status: draft
+status: implemented

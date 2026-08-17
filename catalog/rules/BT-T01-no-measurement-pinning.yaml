@@ -28,4 +28,4 @@ false_positives: >
   registration, but a project that pins measurements in an unscanned deployment repo will still
   be flagged.
 confidence: medium
-status: draft
+status: benchmarked

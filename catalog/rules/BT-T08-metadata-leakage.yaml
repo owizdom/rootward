@@ -27,4 +27,4 @@ false_positives: >
   property that static analysis cannot observe. Expect low recall here and treat findings as
   leads for manual review rather than confirmed defects.
 confidence: low
-status: draft
+status: implemented

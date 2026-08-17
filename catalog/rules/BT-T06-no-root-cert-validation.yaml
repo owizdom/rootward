@@ -28,4 +28,4 @@ false_positives: >
   which is the common case for anyone using a maintained crate. The detector allowlists the known
   validating libraries, so a project using an unlisted or vendored one is over-reported.
 confidence: medium
-status: draft
+status: benchmarked

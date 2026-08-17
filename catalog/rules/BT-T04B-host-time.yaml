@@ -23,4 +23,4 @@ false_positives: >
   will be flagged identically to expiry checks. Triage requires deciding whether the value reaches
   an authorisation decision, which the deterministic pass cannot do alone.
 confidence: low
-status: draft
+status: benchmarked

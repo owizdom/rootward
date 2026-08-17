@@ -21,4 +21,4 @@ false_positives: >
   pre-production deployment. Report the configuration and its consequence rather than asserting
   the choice is wrong.
 confidence: high
-status: draft
+status: implemented

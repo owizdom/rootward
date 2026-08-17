@@ -29,4 +29,4 @@ false_positives: >
   full call graph, so it will over-report in codebases that centralise validation in a middleware
   layer the semantic pass does not read.
 confidence: low
-status: draft
+status: implemented

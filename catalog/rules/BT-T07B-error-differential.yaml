@@ -24,4 +24,4 @@ false_positives: >
   scoped to decrypt and authentication paths to limit this, but that scoping depends on naming
   conventions.
 confidence: medium
-status: draft
+status: benchmarked

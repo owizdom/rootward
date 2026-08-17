@@ -21,4 +21,4 @@ false_positives: >
   reproducibility either way without performing two builds. Reported as a caveat on BT-CFG03
   rather than as an independent vulnerability.
 confidence: medium
-status: draft
+status: benchmarked

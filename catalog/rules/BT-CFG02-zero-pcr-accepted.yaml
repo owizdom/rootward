@@ -20,4 +20,4 @@ false_positives: >
   check is redundant there. The rule fires only where no pin is present or the pin is loaded from
   configuration that could legitimately be zero.
 confidence: high
-status: draft
+status: benchmarked

@@ -26,4 +26,4 @@ false_positives: >
   content hash) are flagged. Constant-time comparison of a public value is harmless, so the cost of
   a false positive here is low, which is why the rule is deliberately tuned toward recall.
 confidence: high
-status: draft
+status: benchmarked

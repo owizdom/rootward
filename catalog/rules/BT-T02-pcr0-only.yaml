@@ -27,4 +27,4 @@ false_positives: >
   signal, not proof of exploitability, and the rule is correctly suppressed for single-tenant
   deployments with automated policy rotation.
 confidence: high
-status: draft
+status: benchmarked

@@ -25,4 +25,4 @@ false_positives: >
   the dangerous pattern (entropy crossing the boundary) and imprecise about generic rng calls,
   which need the file to be confirmed as enclave-side first.
 confidence: medium
-status: draft
+status: benchmarked

@@ -24,4 +24,4 @@ false_positives: >
   disable verification. Path-based test exclusion is applied but will not catch verification
   disabled behind a runtime configuration flag.
 confidence: high
-status: draft
+status: benchmarked

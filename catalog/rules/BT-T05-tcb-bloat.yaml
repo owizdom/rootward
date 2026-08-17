@@ -22,4 +22,4 @@ false_positives: >
   confidential workload genuinely needs the surface. It is scored, not asserted, and should never
   be reported as an exploitable finding.
 confidence: low
-status: draft
+status: implemented

@@ -24,4 +24,4 @@ false_positives: >
   downgraded when the flag appears only in paths clearly marked as development, but the detector
   cannot always tell a dev script from a deploy script by path alone.
 confidence: high
-status: draft
+status: benchmarked
