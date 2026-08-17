@@ -34,4 +34,4 @@ false_positives: >
   mounted-input path, which limits but does not eliminate this. A repository that centralises
   its path validation in a helper the pattern does not recognise will also be reported.
 confidence: medium
-status: draft
+status: implemented

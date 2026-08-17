@@ -31,4 +31,4 @@ false_positives: >
   telemetry from a workload that holds no secrets is also a legitimate pattern this cannot
   distinguish from the dangerous one.
 confidence: medium
-status: draft
+status: implemented
