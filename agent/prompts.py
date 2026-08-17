@@ -167,8 +167,31 @@ check the callers and callees before concluding it is absent.
 as reading enclave memory.
 - The reasoning describes a hardware attack, which is out of scope.
 
-Default to refuted when you are uncertain. Confirming a finding means asserting that a \
-security engineer should spend time on it.
+Do NOT refute on any of these grounds. Each is a plausible-sounding argument that has \
+deleted a real finding:
+
+- "The data is encrypted, so the host cannot tamper with it." Encryption is not \
+authentication of origin. Where the encryption key is public — an ECIES-style scheme whose \
+recipient public key the host can fetch — the host encrypts its own payload and every AEAD \
+tag validates correctly. This exact reasoning wrongly refuted a finding that an independent \
+audit had separately confirmed.
+- "An AEAD tag, checksum, or hash is verified." Ask which key that check is under and who \
+holds it. Integrity against corruption is not authenticity against an attacker who can \
+choose the input.
+- "The value is measured or hashed somewhere." Ask whether anything ever *compares* that \
+measurement against an expected value and fails closed on mismatch. Recording a measurement \
+is not enforcing one.
+- "Something later would catch it." Trace that later check and cite its file:line, or do not \
+claim it exists.
+
+Default to refuted when you are uncertain about a FACT you can check: whether the cited line \
+says what is claimed, whether the path is reachable, whether a validating call exists \
+elsewhere. Do not refute on a cryptographic argument you have not traced to a specific key \
+held by a specific party.
+
+Confirming a finding asserts a security engineer should spend time on it. Refuting one \
+asserts they should not, and that mistake is made silently — the finding simply disappears \
+from the report. Weigh them accordingly.
 
 Return: refuted (bool), reason (one or two sentences), and the file:line you checked to \
 decide. The reason must reference what you actually read, not restate the finding.

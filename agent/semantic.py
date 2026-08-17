@@ -175,8 +175,13 @@ async def run_pass(rule_id: str, root: Path, scope: list[str]) -> list[Finding]:
     return out
 
 
-async def refute(finding: Finding, root: Path) -> Finding:
-    """Adversarial pass. Mutates verdict in place on a copy and returns it."""
+async def refute(finding: Finding, root: Path, attempts: int = 3) -> Finding:
+    """Adversarial pass. Mutates verdict in place on a copy and returns it.
+
+    Retried, because a transient SDK error is not a verdict. On one dstack run every one of
+    16 refutations errored at once (a credential refresh mid-run) and all 16 findings shipped
+    as PLAUSIBLE — unverified output wearing a label that suggests it was checked.
+    """
     user = (
         f"Finding to refute:\n\n"
         f"  rule:      {finding.rule_id}\n"
@@ -185,15 +190,29 @@ async def refute(finding: Finding, root: Path) -> Finding:
         f"  claim:     {finding.message}\n\n"
         f"Read the cited location and the surrounding code, then decide."
     )
-    payload = await _run_json(
-        prompts.REFUTE, user, root, prompts.REFUTE_SCHEMA, REFUTER_MODEL, max_turns=20
-    )
+    payload: dict = {}
+    last_error: str | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            payload = await _run_json(
+                prompts.REFUTE, user, root, prompts.REFUTE_SCHEMA, REFUTER_MODEL, max_turns=30
+            )
+        except Exception as exc:  # noqa: BLE001 - retry, then degrade with the reason
+            last_error = f"{type(exc).__name__}: {exc}"
+            payload = {}
+        if payload:
+            break
+        if attempt < attempts:
+            await asyncio.sleep(2 * attempt)
 
     if not payload:
-        # No verdict is not a pass. An unadjudicated claim ships as PLAUSIBLE, labelled.
         finding.verdict = Verdict.PLAUSIBLE
-        finding.refutation = "adversarial pass produced no verdict"
+        finding.refutation = (
+            f"adversarial pass failed after {attempts} attempts"
+            + (f": {last_error}" if last_error else "")
+        )
         return finding
+
 
     if payload.get("refuted"):
         finding.verdict = Verdict.REFUTED

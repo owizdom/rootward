@@ -3,113 +3,120 @@
 The point of this comparison is ground truth this project did not author. zkSecurity audited
 dstack between 26 May and 13 June 2025 and published
 [the report](https://phala.com/dstack/dstack-audit.pdf). Running against the same commit
-gives a number that cannot be tuned into existence.
+produces a number that cannot be tuned into existence.
 
-**Result: 0 of 14 overlap.** Details and reasons below, because the reasons are the useful
-part.
+**Result: 1 of 14 re-found, 1 partial, 12 missed.** The reasons are the useful part, and one
+of them is a bug in this tool that nearly hid the hit.
 
 ## Setup
 
-Both sides at the same commit, taken from the report's introduction: *"The audit focused on
-parts of two public codebases: dstack at commit `be9d0476`, and meta-dstack at commit
+Both sides at the same commit, from the report's introduction: *"The audit focused on parts
+of two public codebases: dstack at commit `be9d0476`, and meta-dstack at commit
 `5b63aec3`."* The short SHA resolves to `be9d0476a63e937eda4c13659547a25088393394`
 (committed 2025-05-29, inside the audit window).
 
 ```
-.venv/bin/python bench/corpus.py --only dstack
+.venv/bin/python bench/corpus.py --only dstack              # deterministic
+.venv/bin/python cli/audit.py bench/corpus/dstack --semantic  # + judgment rules
 ```
 
-Deterministic layer only — the four semantic rules did not run.
+## The hit: #03, Env Injection via Unauthenticated Shared Files
 
-## What zkSecurity found
+zkSecurity's finding: the VMM stores five user-configurable files as CVM inputs
+(`.encrypted-env`, `.instance-info`, `.sys-config.json`, `.user-config`, `app-compose.json`)
+with *"no cryptographic integrity protection or authentication mechanism in place"*. Their
+key observation is that encrypting `.encrypted-env` does not help, because the attacker can
+fetch the application's public key from the KMS and encrypt a payload of their own.
 
-| ID | Component | Finding | Risk |
-|---|---|---|---|
-| #00 | meta-dstack/ovmf | VMM is Currently Trusted in OVMF Build | High |
-| #01 | meta-dstack recipes | Terminal Binaries Present in Production Dstack Image | Medium |
-| #02 | dstack-util system setup | Host Can Pass Symbolic Links To Shared Folder With Guest | Medium |
-| #03 | dstack-util | Env Injection via Unauthenticated Shared Files | Medium |
-| #04 | app-compose service | Pre-Launcher Code Can Be Used To Leak Secrets on Default KMS | Medium |
-| #05 | meta-dstack | qemu-guest-agent is Present in Production | Medium |
-| #06 | dcap-qvl | Incomplete TD Under Debug Checks | Medium |
-| #07 | app-compose service | Unchecked Container Image Digest | Medium |
-| #08 | guest-agent | Unrestricted Exposure of stdout/stderr From CVM Docker Containers | Low |
-| #09 | dstack-util | Incomplete Measurement of CVM Configuration Files | Low |
-| #0a | * | Underdocumented Root of Trust and Vendored Attestation Code | Low |
-| #0b | dcap-qvl | Lack of Revocation Checks in Quote Verification Library | Low |
-| #0c | meta-dstack | Lack of Documentation on Design and Hardening Decisions | Informational |
-| #0d | * | Insufficient Guidance for Secure Production Deployment of CVMs | Informational |
+`BT-T00` found this independently, in three places, each with a data-flow trace:
 
-## What this tool found
+| Location | Trace |
+|---|---|
+| `dstack-util/src/system_setup.rs:140` | `.encrypted-env` read from the host 9p share → `decrypt_env_vars` (626) → `dh_decrypt` (595) |
+| `dstack-util/src/system_setup.rs:283` | `.sys-config.json` deserialized from the host share at line 132 → `kms_urls` iterated at 350 to pick the KMS endpoint |
+| `dstack-util/src/system_setup.rs:857` | docker registry mirror taken from the same host-supplied `sys_config` |
 
-Four findings, none of them zkSecurity's.
+The 9p mount is cited directly: `mount -t 9p -o trans=virtio,version=9p2000.L,ro host-shared`
+at line 173.
 
-| Rule | Location | Assessment |
-|---|---|---|
-| `BT-T07C` | `kms/src/main_service.rs:183` | **Real, and not in the report.** `if token_hash.as_slice() != self.state.config.admin_token_hash.as_slice()` — a non-constant-time comparison on admin authentication material. |
-| `BT-T07A` | `http-client/src/hyper_vsock.rs:127` | Plausible. `VsockStream::connect(cid, port)` with no deadline set at the call site. |
-| `BT-T07A` | `rocket-vsock-listener/src/lib.rs:259` | Plausible. Same, for `VsockListener::bind`. |
-| `BT-DS04` | `kms/src/onboard_service.rs:303` | Plausible, after a fix. It originally pointed at `guest-agent/dstack.toml:17` (`quote_file = "quote.hex"`) — a TOML key matching the measured-boot pattern on the bare word "quote", reported as critical. Tightening the pattern to qualified forms (`get_quote`, `verify_quote`, `rtmr`, `mrtd`, `td_report`) and excluding configuration moved it onto real quote-handling code. |
+On re-verification the adversarial pass went further than the original finding *and* further
+than my own reading: it traced that `dh_decrypt` (`crypto.rs:15-38`) derives the AES-GCM key
+from an ephemeral public key read out of **the attacker-controlled first 32 bytes of the
+file itself**, and that the host writes that file at `vmm/src/main_service.rs:258`. That is
+zkSecurity's argument reconstructed from the code, with line numbers they did not publish.
 
-## Why the overlap is zero
+## The near-miss that mattered more than the hit
 
-Not one explanation, four — and only the last is a defect in this tool.
+The first refutation of this finding **refuted it**, with this reasoning:
 
-**1. Different repository (5 findings: #00, #01, #05, #0c, and part of #0a).** These are in
-`meta-dstack`, the Yocto layer that builds the OS image. The corpus audits `dstack` only.
-The highest-severity finding in the entire report — OVMF built with Config-A, which keeps
-the VMM inside the TCB — lives in a BitBake recipe selecting `OvmfPkgX64.dsc` over
-`IntelTdxX64.dsc`. Nothing in this catalog models firmware build configuration.
+> The claim of "decrypted without authentication" is contradicted by the callee: `dh_decrypt`
+> at `crypto.rs:31-37` uses AES-256-GCM (an AEAD) whose tag check returns `Err` on any
+> tampering.
 
-**2. Components absent at this commit (4 findings: #04, #06, #07, #0b).** `dcap-qvl` and
-`app-compose` are not directories in the dstack repository at `be9d0476` — verified, not
-assumed. Findings about a quote-verification library and a container-launch service cannot
-be found in a tree that does not contain them.
+That is fluent, cites real code, and is wrong. AEAD gives integrity, not authenticity of
+origin. When the encryption key is public — which is precisely the case zkSecurity documents
+— the attacker encrypts their own payload and the tag validates perfectly.
 
-**3. Out of catalog scope by construction (#0a, #0d).** Documentation quality and deployment
-guidance are not statically detectable, and the catalog deliberately encodes no rule for
-them.
+This is the most dangerous failure mode in the whole design. A false positive wastes an
+afternoon; a false *refutation* deletes a true finding silently, and the report never
+mentions it existed. It was caught only because the external audit gave an answer to check
+against — which is the entire argument for having an external validation target.
 
-**4. In scope and genuinely missed (3 findings: #02, #03, #08).** This is the part that
-matters:
+The refuter prompt now carries explicit guards against this class: encryption is not
+authentication, an AEAD tag is only as good as who holds the key, a recorded measurement is
+not an enforced one, and "something later catches it" requires citing the later check. With
+those guards the same finding comes back **confirmed**.
 
-- **#02 Host can pass symbolic links to the shared folder** is `BT-T00` exactly — the parent
-  supplying input that the guest trusts. Semantic rule; the run was deterministic-only.
-- **#03 Env injection via unauthenticated shared files** is `BT-T10`/`BT-T00` — parent-supplied
-  data consumed without authentication.
-- **#08 Unrestricted exposure of stdout/stderr from CVM containers** is `BT-T03` almost
-  verbatim: content crossing the enclave boundary into somewhere the operator reads. The
-  semgrep rule looks for a *secret-named value* passed to a log call. This finding is
-  architectural — the whole stream is exposed by configuration, with no offending line to
-  match. A pattern matcher cannot see it.
+## The partial: #08
 
-## What this says
+zkSecurity #08 is *Unrestricted Exposure of stdout/stderr From CVM Docker Containers* in
+`guest-agent`. `BT-T05` flagged `guest-agent/src/http_routes.rs:225` — the bollard Docker
+client and container-log relay, noting the `/logs/<container_name>` route at line 95 accepts
+eight caller-supplied query parameters.
 
-**The honest headline is that scopes barely intersect.** zkSecurity audited OS image
-generation and low-level libraries; this catalog targets application-level TEE misuse. The
-`corpus.yaml` note predicted partial overlap at best. Zero is worse than predicted, and
-three of their findings were in scope and missed.
+Same file, same code surface, different framing: reported as trusted-computing-base bloat
+rather than as boundary exposure. Worth counting as a partial hit and as evidence that
+`BT-T03` needs a companion rule for stream-level exposure — it currently matches a
+secret-named value reaching a log call, and cannot see a configuration that exposes an
+entire stream.
 
-**Three concrete gaps to close**, in priority order:
+## Why the other 12 were missed
 
-1. **Run the semantic layer on this comparison.** #02 and #03 are precisely what `BT-T00`
-   exists for, and they were never given a chance. This is the cheapest fix and the honest
-   next step before drawing any conclusion about semantic recall.
-2. **Add meta-dstack to the corpus.** Five findings including the only High are unreachable
-   without it. That also argues for a catalog rule class this project does not have: OS
-   image and firmware build configuration.
-3. **`BT-T03` is too narrow.** It matches a secret-named value reaching a log sink, and
-   misses configuration that exposes an entire output stream. Worth a companion rule for
-   stream-level exposure.
+**Different repository (5: #00, #01, #05, #0c, part of #0a).** These live in `meta-dstack`,
+the Yocto layer. The corpus audits `dstack` only. The report's only High — OVMF built with
+Config-A, leaving the VMM inside the TCB — is a BitBake recipe choosing `OvmfPkgX64.dsc`
+over `IntelTdxX64.dsc`. Nothing in this catalog models firmware build configuration.
 
-**One finding in the other direction.** `kms/src/main_service.rs:183` compares admin token
-hashes with `!=`, which is a documented timing weakness on authentication material and is
-not in the report. One unreported finding against fourteen missed is not a favourable
-trade, but it is evidence the deterministic layer sees things a manual audit did not
-prioritise.
+**Components absent at this commit (4: #04, #06, #07, #0b).** `dcap-qvl` and `app-compose`
+are not directories in the dstack tree at `be9d0476` — verified, not assumed.
 
-**And one precision bug found and fixed.** `BT-DS04` reported a critical finding on a TOML
-config key because its pattern matched the bare word "quote". Restricting it to qualified
-forms and excluding build configuration moved it onto real code. Both the fixture suite and
-the mutation benchmark stayed green through the change, and the negative control stayed at
-zero — the fix cost no recall.
+**Out of scope by construction (#0a, #0d).** Documentation quality and deployment guidance
+are not statically detectable and are deliberately uncatalogued.
+
+**In scope and genuinely missed (#02, #09).** #02 is the symlink-following `fs_err::copy` in
+`system_setup.rs`: the host replaces `app-compose.json` with a symlink to `/proc/kcore` and
+the guest copies live kernel memory into its staging directory. `BT-T00` read that function
+and did not flag it. This is a real recall gap in the semantic layer, not a scope excuse.
+
+## What this tool found that the report did not
+
+- `kms/src/main_service.rs:183` — admin token hashes compared with `!=`, a non-constant-time
+  comparison on authentication material (`BT-T07C`, deterministic).
+- `kms/src/onboard_service.rs:190` — `request.source_url` from an unauthenticated `onboard`
+  RPC, on a server mounted with no auth token and no `QuoteVerifier`, bound to `0.0.0.0:8000`
+  per `kms.toml` (`BT-T00`).
+- Four `BT-LYR01` claim-vs-code gaps, including `kms/README.md:107` stating attestation
+  verification unconditionally while `main_service.rs:569` wraps it in
+  `if self.state.config.onboard.quote_enabled {`.
+
+These are unverified beyond the adversarial pass and are offered as leads, not conclusions.
+
+## Honest summary
+
+One clear re-find, one partial, one in-scope miss, and ten unreachable for scope reasons that
+were largely predictable from `corpus.yaml`'s own note. The most valuable output was not the
+hit — it was discovering that the verification layer could confidently delete a correct
+finding, which no internal benchmark would have surfaced.
+
+Next: add `meta-dstack` to the corpus, and write a `BT-T00` sub-rule for host-supplied
+filesystem paths (symlink and path traversal) to close #02.
