@@ -1,0 +1,31 @@
+id: BT-EC06-unauthenticated-env-dump
+title: Unauthenticated HTTP route enumerates the process environment
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://github.com/Layr-Labs/eigenx-cli
+threat: 3
+layer_required: 1
+platform: [eigencompute, confidential-space]
+severity: critical
+detection: deterministic
+detector: detectors:eigencompute.check_env_dump_route
+languages: [typescript, javascript, python, go]
+rationale: >
+  On EigenCompute the environment is where KMS puts the application's secrets after
+  attestation, so an endpoint that iterates it publishes exactly the material the enclave
+  exists to protect. Debug routes of this kind are typically written to diagnose a deployment
+  problem, filtered by a prefix such as KMS or TEE that selects for the most sensitive
+  variables, and then left in place. Truncating the values is not a mitigation when they are
+  the inputs to a key derivation.
+remediation: >
+  Remove the route. If an operational view is genuinely needed, expose a fixed, audited set of
+  non-secret fields - image digest, app id, signing public key - rather than an enumeration,
+  and require authentication for anything beyond that.
+false_positives: >
+  A route that enumerates a filtered allowlist of genuinely non-secret configuration is
+  defensible, and authentication applied by framework-level middleware registered in another
+  file is invisible here. The rule checks for auth near the specific handler that reaches the
+  enumeration rather than anywhere in the file, which cuts both ways: it catches an open debug
+  route beside a guarded one, and it misses a global auth hook.
+confidence: medium
+status: implemented

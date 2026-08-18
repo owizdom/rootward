@@ -212,6 +212,48 @@ def strip_definitions(text: str) -> str:
     )
 
 
+def strip_string_literals(text: str) -> str:
+    """Blank out the contents of string literals, keeping line numbers intact.
+
+    For absence checks specifically. `code_only()` already removes comments, but a claim
+    inside a *string* survives it, and a string is not an implementation.
+
+    This is not hypothetical tidying. The Confidential Space rules were first tested against
+    a fixture carrying a `VERIFICATION_CHAIN` array — human-readable steps like "Validate the
+    TDX quote against Intel DCAP" — with no code behind any of them. That array satisfied the
+    "is verification present?" check and suppressed the finding. The fixture was modelled on
+    a real deployed app that does exactly this, so the rule for catching prose-instead-of-code
+    was being defeated by prose. Anything asking "does this repo actually do X" has to look at
+    code, and a string literal is data.
+    """
+    out = []
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch in "\"'`":
+            quote = ch
+            out.append(ch)
+            i += 1
+            while i < n:
+                c = text[i]
+                if c == "\\":            # escape: skip the next char, preserving newlines
+                    out.append(" ")
+                    if i + 1 < n:
+                        out.append("\n" if text[i + 1] == "\n" else " ")
+                    i += 2
+                    continue
+                if c == quote:
+                    out.append(quote)
+                    i += 1
+                    break
+                out.append("\n" if c == "\n" else " ")
+                i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def quote_line(lines: list[str], line_no: int, limit: int = 200) -> str:
     """One line of evidence, trimmed. Truncated rather than omitted: a minified bundle
     should still show *something* at the match site."""

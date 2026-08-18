@@ -5,7 +5,7 @@ source_secondary:
   - https://docs.aws.amazon.com/enclaves/latest/user/set-up-attestation.html
 threat: 1
 layer_required: 2
-platform: [nitro, dstack]
+platform: [nitro, dstack, confidential-space, eigencompute]
 severity: critical
 detection: deterministic
 detector: semgrep:tee/attestation-no-pcr-pin

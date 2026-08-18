@@ -1,0 +1,22 @@
+# EigenCompute deployment manifest. Nested schema.
+[app]
+name = "example-clean"
+description = "Reference app wired the way the platform intends"
+
+[runtime]
+shape = "g1-standard-4t"
+healthcheck = "/healthz"
+
+# Logs cross to the operator. This app handles a wallet, so they stay off.
+log_visibility = "off"
+
+[attestation]
+mode = "kms-jwt"
+rebind_seconds = 3600
+
+# Every host the workload is allowed to reach, enumerated.
+[egress]
+allow = [
+  "confidentialcomputing.googleapis.com",
+  "example-price-feed.invalid",
+]

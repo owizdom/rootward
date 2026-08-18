@@ -1,0 +1,34 @@
+id: BT-CS01-attestation-token-unverified
+title: Confidential Space attestation token decoded but never verified
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://cloud.google.com/confidential-computing/confidential-space/docs/validate-attestation-tokens
+threat: 6
+layer_required: 2
+platform: [confidential-space, eigencompute]
+severity: critical
+detection: deterministic
+detector: detectors:confspace.check_token_verification
+languages: [typescript, javascript, python, go, rust]
+rationale: >
+  A Confidential Space attestation is a JWT signed by Google's attestation verifier. Its
+  payload is base64, not ciphertext, so decoding it is a formatting operation that any party
+  can perform on any string of the right shape. The security property comes entirely from
+  checking the signature against Google's published JWKS. Code that splits the token on '.',
+  base64-decodes the middle segment and reads claims out of it obtains attacker-controlled
+  data wearing the costume of a hardware attestation, and reads as verification in review
+  because the variable is called a token and the fields are called claims.
+remediation: >
+  Verify the signature before reading any claim: fetch Google's JWKS from
+  confidentialcomputing.googleapis.com and validate with a real JOSE implementation (jose's
+  jwtVerify, PyJWT with a PyJWKClient, or the equivalent), asserting the issuer and the
+  audience at the same time. Treat a verification failure as fatal rather than as a reason to
+  fall back to the decoded payload.
+false_positives: >
+  A repository that receives an already-verified token from a trusted in-process library, or
+  one whose verification lives in a separate module this file delegates to, will look bare
+  here. The rule only fires when a token is obtained in the same file and no verification call
+  appears anywhere in it, and test files and type declarations are excluded, but a project
+  that splits fetch and verify across modules is a legitimate miss in the other direction.
+confidence: high
+status: implemented

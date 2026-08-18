@@ -1,0 +1,31 @@
+id: BT-CS03-attestation-fail-open
+title: Attestation failure is caught and the workload starts anyway
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://cloud.google.com/confidential-computing/confidential-space/docs/validate-attestation-tokens
+threat: 0
+layer_required: 2
+platform: [confidential-space, eigencompute]
+severity: high
+detection: deterministic
+detector: detectors:confspace.check_fail_open
+languages: [typescript, javascript, python, go, rust]
+rationale: >
+  An enclave that cannot prove what it is running is indistinguishable from one running
+  something else. A catch block that logs a warning and continues therefore starts the
+  workload - and releases whatever the workload holds - in precisely the case the attestation
+  existed to rule out. The pattern is common because it is the behaviour that keeps a service
+  up during a platform outage, and the cost of that availability is that the security control
+  becomes advisory.
+remediation: >
+  Make attestation failure fatal on the startup path: throw, exit non-zero, or return an error
+  that propagates to process exit. If a degraded mode is genuinely required, gate it on an
+  explicit operator decision that is auditable, and never on the absence of an environment
+  variable the same process can set.
+false_positives: >
+  A retry wrapper that catches a transient fetch failure, logs it, and then re-raises after
+  exhausting its attempts is correct and may match on the intermediate catch. Health endpoints
+  and diagnostic paths that report attestation status without gating anything on it are also
+  legitimate. Read the catch block before acting on this finding.
+confidence: medium
+status: implemented

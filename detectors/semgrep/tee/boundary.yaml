@@ -154,6 +154,11 @@ rules:
       - metavariable-regex:
           metavariable: $VAL
           regex: (?i).*(secret|private_key|privkey|plaintext|decrypted|seed|mnemonic|passwd|password|credential|session_key|shared_key|api_key|token).*
+      - metavariable-regex:
+          metavariable: $VAL
+          # ...but not a fingerprint/digest/hash OF one: that is the non-secret
+          # value a correct implementation logs in the secret's place.
+          regex: (?i)^(?!.*(fingerprint|digest|hash|checksum|redacted|masked|truncated|preview)).*$
 
   - id: tee-secret-to-log-sink-python
     languages: [python]
@@ -174,6 +179,11 @@ rules:
       - metavariable-regex:
           metavariable: $VAL
           regex: (?i).*(secret|private_key|privkey|plaintext|decrypted|seed|mnemonic|passwd|password|credential|session_key|shared_key|api_key|token).*
+      - metavariable-regex:
+          metavariable: $VAL
+          # ...but not a fingerprint/digest/hash OF one: that is the non-secret
+          # value a correct implementation logs in the secret's place.
+          regex: (?i)^(?!.*(fingerprint|digest|hash|checksum|redacted|masked|truncated|preview)).*$
 
   - id: tee-secret-to-log-sink-js
     languages: [javascript, typescript]
@@ -192,6 +202,11 @@ rules:
       - metavariable-regex:
           metavariable: $VAL
           regex: (?i).*(secret|privateKey|privKey|plaintext|decrypted|seed|mnemonic|passwd|password|credential|sessionKey|sharedKey|apiKey|token).*
+      - metavariable-regex:
+          metavariable: $VAL
+          # ...but not a fingerprint/digest/hash OF one: that is the non-secret
+          # value a correct implementation logs in the secret's place.
+          regex: (?i)^(?!.*(fingerprint|digest|hash|checksum|redacted|masked|truncated|preview)).*$
 
   - id: tee-secret-to-log-sink-go
     languages: [go]
@@ -213,6 +228,11 @@ rules:
       - metavariable-regex:
           metavariable: $VAL
           regex: (?i).*(secret|privateKey|privKey|plaintext|decrypted|seed|mnemonic|passwd|password|credential|sessionKey|sharedKey|apiKey|token).*
+      - metavariable-regex:
+          metavariable: $VAL
+          # ...but not a fingerprint/digest/hash OF one: that is the non-secret
+          # value a correct implementation logs in the secret's place.
+          regex: (?i)^(?!.*(fingerprint|digest|hash|checksum|redacted|masked|truncated|preview)).*$
 
   # ---------------------------------------------------------------- BT-T03B ---
   - id: tee-crash-dump-egress-rust

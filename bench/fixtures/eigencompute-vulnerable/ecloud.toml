@@ -1,0 +1,16 @@
+# EigenCompute deployment manifest. Flat schema.
+name = "example-vulnerable"
+environment = "sepolia"
+instance_type = "g1-standard-4t"
+dockerfile = "Dockerfile"
+
+# Everything this app prints is readable by the operator.
+log_visibility = "public"
+resource_usage_monitoring = "enable"
+
+[runtime]
+app_port = 3001
+hostname = "0.0.0.0"
+
+[wallet]
+source = "TEE_GENERATED"

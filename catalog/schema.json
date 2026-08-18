@@ -19,7 +19,7 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^BT-(T[0-9]{2}[A-Z]?|CFG[0-9]{2}|DS[0-9]{2}|LYR[0-9]{2})-[a-z0-9-]+$",
+      "pattern": "^BT-(T[0-9]{2}[A-Z]?|CFG[0-9]{2}|DS[0-9]{2}|CS[0-9]{2}|EC[0-9]{2}|LYR[0-9]{2})-[a-z0-9-]+$",
       "description": "BT-T## threat rules, BT-CFG## build/deploy config, BT-DS## dstack-specific, BT-LYR## layer scoring."
     },
     "title": { "type": "string", "minLength": 10 },

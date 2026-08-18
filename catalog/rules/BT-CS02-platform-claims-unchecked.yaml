@@ -1,0 +1,32 @@
+id: BT-CS02-platform-claims-unchecked
+title: Attestation verified but the platform claims are never compared
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://cloud.google.com/confidential-computing/confidential-space/docs/reference/token-claims
+threat: 1
+layer_required: 2
+platform: [confidential-space, eigencompute]
+severity: high
+detection: deterministic
+detector: detectors:confspace.check_platform_claims
+languages: [typescript, javascript, python, go, rust]
+rationale: >
+  A valid signature proves Google issued the token. It does not prove the workload runs on
+  Intel TDX, that secure boot was enabled, that the platform TCB is current, or that the token
+  was minted for this audience rather than replayed from another service. Each of those is a
+  separate claim - hwmodel, swname, secboot, tcbstatus, aud, iss - and each has to be compared
+  against an expected value. A correctly signed token from a debug VM with secure boot off
+  satisfies the signature check and asserts, in plain text, that it is a debug VM with secure
+  boot off.
+remediation: >
+  After verifying the signature, assert hwmodel is INTEL_TDX, swname is CONFIDENTIAL_SPACE,
+  secboot is true, and tcbstatus indicates an up-to-date TCB. Pass the expected issuer and
+  audience to the verification call so both are enforced rather than read. Fail closed on any
+  mismatch.
+false_positives: >
+  Claim checks performed in a shared helper in another module are invisible to a file-scoped
+  check, so a project with a central token validator will show gaps in the file that fetches.
+  The rule reports which specific claims it could not find rather than a bare verdict, so a
+  reader can confirm against their own validator quickly.
+confidence: medium
+status: implemented

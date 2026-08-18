@@ -1,0 +1,30 @@
+id: BT-EC04-check-silently-disabled
+title: Security check disables itself or degrades to a weaker one
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://github.com/Layr-Labs/eigenx-cli
+threat: 1
+layer_required: 2
+platform: [eigencompute, confidential-space]
+severity: high
+detection: deterministic
+detector: detectors:eigencompute.check_disabled_checks
+languages: [typescript, javascript, python, go, rust]
+rationale: >
+  Two shapes, one failure. A verification function that returns successfully when its expected
+  value is unset turns a missing pin into a pass, so a deployment that forgot to configure the
+  pin is indistinguishable from one that satisfied it. A signer whose catch block returns a
+  plain hash produces something well-formed that takes no key, so every consumer accepts
+  forged input. Both are silent: the degraded path returns the same shape as the healthy one,
+  and no log line distinguishes them.
+remediation: >
+  Make absent configuration fatal at startup rather than permissive at use. Where a check
+  cannot run, propagate that as an error to the caller instead of a success value. Never let a
+  signing path have a fallback that produces output - if signing fails, there is no signature.
+false_positives: >
+  An early return on missing configuration is correct in an optional feature that grants no
+  authority, and hashing inside a catch block is fine when the result is used for logging or
+  deduplication rather than as a signature. The rule requires signing vocabulary near the
+  fallback to reduce that, but a caching layer around a signer could still match.
+confidence: medium
+status: implemented

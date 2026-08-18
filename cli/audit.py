@@ -35,7 +35,9 @@ sys.path.insert(0, str(ROOT / "detectors"))
 
 import attestation  # noqa: E402
 import buildconfig  # noqa: E402
+import confspace as confspace_rules  # noqa: E402
 import dstack as dstack_rules  # noqa: E402
+import eigencompute as eigencompute_rules  # noqa: E402
 import kms_policy  # noqa: E402
 import platform_detect  # noqa: E402
 import streams as stream_rules  # noqa: E402
@@ -523,6 +525,8 @@ def main() -> int:
     findings += vsock_rules.run(root)
     findings += stream_rules.run(root)
     findings += dstack_rules.run(root, platform)
+    findings += confspace_rules.run(root, platform)
+    findings += eigencompute_rules.run(root, platform)
 
     refuted: list[Finding] = []
     if args.semantic:

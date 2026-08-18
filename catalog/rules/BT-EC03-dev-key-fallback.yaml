@@ -1,0 +1,33 @@
+id: BT-EC03-dev-key-fallback
+title: Development key or weak default reachable when the environment is unset
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://github.com/Layr-Labs/eigenx-cli
+threat: 9
+layer_required: 1
+platform: [eigencompute]
+severity: critical
+detection: deterministic
+detector: detectors:eigencompute.check_dev_key_fallback
+languages: [typescript, javascript, python, go, rust]
+rationale: >
+  On EigenCompute the environment arrives from KMS after the image digest has been attested,
+  so the branch that handles a missing key is exactly the branch that runs when attestation
+  did not happen - and a fallback handles it by running on a key committed to the source tree.
+  Published test keys such as the standard Anvil accounts are the worst case, since every
+  attacker already has them, but an all-zero sealing key or a hardcoded development mnemonic
+  fails the same way. The Rust secret scanner deliberately reports well-known test vectors at
+  info severity because in a fixture they are harmless; the finding here is different, and it
+  is about reachability.
+remediation: >
+  Fail closed when key material is absent: raise, exit, and refuse to serve. On this platform
+  an unset MNEMONIC means the KMS did not release secrets to this image, which is a condition
+  to stop on rather than to work around. Where a local development key is genuinely needed,
+  gate it behind an explicit environment check and make its identity visibly different.
+false_positives: >
+  Test helpers, local compose files and example scripts legitimately default to well-known
+  keys, and paths under a test directory are excluded for that reason. A default that is a
+  file path or URL is configuration rather than key material and is excluded explicitly, but
+  an unusual variable naming scheme could still produce a hit on ordinary configuration.
+confidence: high
+status: implemented

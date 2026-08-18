@@ -1,0 +1,35 @@
+id: BT-EC01-key-from-public-input
+title: Signing key derived from material an observer can read
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://github.com/Layr-Labs/eigenx-cli
+threat: 4
+layer_required: 1
+platform: [eigencompute]
+severity: critical
+detection: deterministic
+detector: detectors:eigencompute.check_public_key_derivation
+languages: [typescript, javascript, python, go, rust]
+rationale: >
+  Key derivation preserves secrecy; it does not create it. HKDF or HMAC over a public key, an
+  instance identifier, an image digest or a hostname is a deterministic public function, so
+  every party who can read that input and this repository - which carries the salt and info
+  constants - computes the same private key. The failure is worse than a hardcoded secret
+  because it is camouflaged: the code uses the full vocabulary of correct key management, and
+  a reviewer checking that HKDF is used at all will pass it. Where the derived key controls a
+  wallet, and the input is published on an HTTP route or recorded on chain, the funds are
+  spendable by anyone who reads the input.
+remediation: >
+  Derive only from secret keying material - the KMS-delivered MNEMONIC on this platform, or
+  entropy generated inside the enclave and sealed. Public values belong in the salt or info
+  parameters, where they bind a derivation to a context without being the thing that makes it
+  secret. If the intent is a stable per-enclave identity rather than a secret, derive a public
+  identifier and never call it a key.
+false_positives: >
+  Hashing a public value is correct and common for non-secret outputs: TLS certificate pinning
+  hashes a peer's SubjectPublicKeyInfo, and content addressing hashes public data. The rule
+  only fires when the derived value flows into something used as a private key, signer or
+  wallet, but an unusual naming convention around key material could still make a fingerprint
+  look like a key.
+confidence: high
+status: implemented

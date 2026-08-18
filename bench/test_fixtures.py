@@ -52,6 +52,43 @@ EXPECTED: dict[str, dict] = {
         "must_find": {"DS01", "DS02", "DS03", "DS04", "DS05"},
     },
     "dstack-clean": {"platform": "dstack", "must_find": set(), "expect_zero": True},
+    "eigencompute-vulnerable": {
+        "platform": "eigencompute",
+        "must_find": {
+            "CS01", "CS02", "CS03",   # token unverified, claims unchecked, fail-open
+            "EC01",                    # key derived from a public value
+            "EC02",                    # enclave state from an environment variable
+            "EC03", "EC04",            # dev-key fallback, check silently disabled
+            "EC05", "EC06",            # secret in argv, unauthenticated env dump
+            "EC07", "EC08",            # runs as root, no egress allowlist
+            "T01",                     # image digest read, pinned to nothing
+            "T03", "T09B",             # mnemonic logged, secrets committed
+        },
+        "max_layer": 0,
+    },
+    "eigencompute-clean": {
+        "platform": "eigencompute",
+        "must_find": set(),
+        "expect_zero": True,
+    },
+}
+
+# Rules belonging to another platform's profile. A rule that fires here is not merely noisy:
+# it means platform gating failed, and the reader of a Nitro report is being shown dstack
+# findings (or vice versa). Checked in both directions.
+FOREIGN: dict[str, set[str]] = {
+    "vulnerable": {"DS01", "DS02", "DS03", "DS04", "DS05", "CS01", "CS02", "CS03",
+                   "EC01", "EC02", "EC03", "EC04", "EC05", "EC06", "EC07", "EC08"},
+    "clean": {"DS01", "DS02", "DS03", "DS04", "DS05", "CS01", "CS02", "CS03",
+              "EC01", "EC02", "EC03", "EC04", "EC05", "EC06", "EC07", "EC08"},
+    "dstack-vulnerable": {"CS01", "CS02", "CS03", "EC01", "EC02", "EC03", "EC04",
+                          "EC05", "EC06", "EC07", "EC08", "CFG01", "CFG02", "CFG03"},
+    "dstack-clean": {"CS01", "CS02", "CS03", "EC01", "EC02", "EC03", "EC04",
+                     "EC05", "EC06", "EC07", "EC08"},
+    "eigencompute-vulnerable": {"DS01", "DS02", "DS03", "DS04", "DS05",
+                                "T02", "T06", "T09A", "CFG01", "CFG02", "CFG03"},
+    "eigencompute-clean": {"DS01", "DS02", "DS03", "DS04", "DS05",
+                           "T02", "T06", "T09A", "CFG01", "CFG02", "CFG03"},
 }
 
 
@@ -95,6 +132,13 @@ def main() -> int:
         missing = spec["must_find"] - found
         if missing:
             failures.append(f"{name}: MISSED {sorted(missing)}")
+
+        leaked = FOREIGN.get(name, set()) & found
+        if leaked:
+            failures.append(
+                f"{name}: PLATFORM LEAK {sorted(leaked)} — these belong to another "
+                f"platform's profile and must not fire on a {spec['platform']} repo"
+            )
 
         if spec.get("expect_zero") and result["findings"]:
             for f in result["findings"]:

@@ -1,0 +1,30 @@
+id: BT-EC02-env-presence-as-attestation
+title: Enclave state asserted from the presence of an environment variable
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://github.com/Layr-Labs/eigenx-cli
+threat: 0
+layer_required: 1
+platform: [eigencompute]
+severity: high
+detection: deterministic
+detector: detectors:eigencompute.check_env_as_attestation
+languages: [typescript, javascript, python, go, rust]
+rationale: >
+  Setting a boolean such as teeActive from the presence of EIGENCOMPUTE_INSTANCE_ID or
+  KMS_SERVER_URL treats a host-supplied string as proof about the host. The environment is
+  provided by the platform the enclave is supposed to be proving itself to, and can be set to
+  any value on an ordinary VM, so the check answers the question its author intended only when
+  the answer does not matter. Every branch downstream inherits the mistake, and in practice
+  those branches are the ones that decide whether to derive keys and sign.
+remediation: >
+  Determine enclave state from a verified attestation token and nothing else. Environment
+  variables are fine for configuration and routing; they cannot establish that the process is
+  inside a TEE. Where a local development mode is needed, make it explicit and make its output
+  distinguishable to a remote verifier rather than byte-identical to the attested path.
+false_positives: >
+  Using such a variable purely for logging, metrics labelling or choosing an endpoint is
+  harmless and may match. The finding is about what the resulting flag then gates, which this
+  rule cannot see, so a hit on a value used only for telemetry is a legitimate false positive.
+confidence: high
+status: implemented

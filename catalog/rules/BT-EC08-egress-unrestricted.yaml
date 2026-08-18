@@ -1,0 +1,30 @@
+id: BT-EC08-egress-unrestricted
+title: Deployment manifest does not restrict outbound traffic
+source: https://bluethroatlabs.com/docs/layers-of-security-for-tees
+source_secondary:
+  - https://github.com/Layr-Labs/eigenx-cli
+threat: 3
+layer_required: 3
+platform: [eigencompute]
+severity: medium
+detection: deterministic
+detector: detectors:eigencompute.check_egress
+languages: [toml]
+rationale: >
+  Unlike a Nitro enclave, a Confidential Space workload has an ordinary network stack. An
+  enclave with unrestricted egress can therefore send anything it holds anywhere, which turns
+  any code execution or dependency compromise into direct exfiltration of the wallet seed. An
+  allowlist naming the hosts the application genuinely needs does not prevent the compromise
+  but bounds what it can do with it, and it makes the set of external dependencies explicit
+  and reviewable.
+remediation: >
+  Declare an egress allowlist in ecloud.toml enumerating every host the workload contacts, and
+  keep it in sync with the code. A host the application calls that is absent from the list is
+  either a missing entry or an undeclared dependency, and both are worth knowing.
+false_positives: >
+  Egress restrictions may be applied at the network or organisation level rather than in the
+  manifest, in which case a manifest with no egress block is not the whole picture. A manifest
+  is also not the deployment: every field it carries can be overridden by a flag on ecloud app
+  deploy, so a clean manifest is weak evidence in the other direction.
+confidence: medium
+status: implemented

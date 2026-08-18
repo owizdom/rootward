@@ -1,0 +1,30 @@
+id: BT-EC07-container-runs-as-root
+title: EigenCompute image overrides the platform privilege drop
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://github.com/Layr-Labs/eigenx-cli
+threat: 5
+layer_required: 1
+platform: [eigencompute]
+severity: medium
+detection: deterministic
+detector: detectors:eigencompute.check_container_user
+languages: [dockerfile]
+rationale: >
+  The EigenCompute entrypoint deliberately drops privileges after sourcing the KMS-delivered
+  environment and deleting it from disk. Declaring USER root removes the second half of that
+  sequence, so the application process retains full capability inside the container it shares
+  with the KMS client and the pinned signing public key. This is a platform-specific finding
+  rather than general container lint: the mitigation being defeated is one the platform went
+  out of its way to provide.
+remediation: >
+  Leave the image's non-root user in place and let the entrypoint drop to it. Where root is
+  needed for setup, do that work in an earlier build stage rather than in the final USER
+  directive.
+false_positives: >
+  An image that genuinely needs root for a runtime capability - binding a low port, or
+  managing its own network namespace - has a real reason, and the finding is then an accepted
+  risk rather than a defect. Build stages that switch to root and back are matched only on the
+  final directive, but a multi-stage file with an unusual layout could still report.
+confidence: high
+status: implemented
