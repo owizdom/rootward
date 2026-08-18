@@ -52,7 +52,7 @@
     "platform": {
       "type": "array",
       "minItems": 1,
-      "items": { "enum": ["nitro", "dstack", "sgx", "tdx", "sev-snp", "generic"] }
+      "items": { "enum": ["nitro", "dstack", "confidential-space", "eigencompute", "sgx", "tdx", "sev-snp", "generic"] }
     },
     "severity": { "enum": ["critical", "high", "medium", "low", "info"] },
 

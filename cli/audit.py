@@ -256,7 +256,11 @@ def semantic_scope(root: Path, findings: list[Finding], limit: int = 60) -> list
 
 
 # ------------------------------------------------------------ scorecard ---
-def layer_scorecard(catalog: dict[str, dict], findings: list[Finding]) -> dict:
+def layer_scorecard(
+    catalog: dict[str, dict],
+    findings: list[Finding],
+    platform: platform_detect.Platform | None = None,
+) -> dict:
     """Effective layer = highest L such that every rule required at or below L passes.
 
     A single failing prerequisite caps the protocol there, which is the point: the
@@ -264,11 +268,24 @@ def layer_scorecard(catalog: dict[str, dict], findings: list[Finding]) -> dict:
     """
     failed = {f.rule_id for f in findings if f.severity in (Severity.CRITICAL, Severity.HIGH)}
 
+    # Only rules that could apply to this deployment count toward the layer requirements.
+    # Without this, adding a platform inflates every other platform's verifiable ceiling:
+    # the EigenCompute rules sit at layers 1-2, so a Nitro repo would suddenly "reach" a
+    # layer on the strength of rules that can never fire on it. That is the overclaiming
+    # the ceiling exists to prevent, arriving through the back door.
+    applicable = set(platform.names()) if platform is not None else None
+
+    def _applies(rule: dict) -> bool:
+        if applicable is None:
+            return True
+        platforms = set(rule.get("platform") or ["generic"])
+        return bool(platforms & applicable) or "generic" in platforms
+
     per_layer: dict[int, dict] = {}
     for level in range(0, 7):
         required = [
             rid for rid, r in catalog.items()
-            if r.get("layer_required") == level and r["severity"] != "info"
+            if r.get("layer_required") == level and r["severity"] != "info" and _applies(r)
         ]
         broken = sorted(set(required) & failed)
         per_layer[level] = {
@@ -527,7 +544,7 @@ def main() -> int:
         )
 
     findings = sort_for_report(dedupe(findings))
-    scorecard = layer_scorecard(catalog, findings)
+    scorecard = layer_scorecard(catalog, findings, platform)
 
     result = {
         "root": str(root),
