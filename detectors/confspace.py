@@ -53,6 +53,19 @@ TOKEN_SOURCE = re.compile(
     r")"
 )
 
+# Libraries whose job is to verify. Delegating to one is how this is supposed to be done,
+# so a file that uses the platform SDK has not skipped verification -- it has performed it
+# somewhere this detector cannot see, which is a different thing. The Nitro side of this
+# catalog already learned the lesson: `attestation.py` keeps a KNOWN_VALIDATOR allowlist
+# because flagging Evervault's validator for delegating to its own audited crate was one of
+# the nine false positives on that negative control.
+KNOWN_VALIDATOR = re.compile(
+    r"(?i)("
+    r"@layr-labs/ecloud-sdk|\bAttestClient\b|\bJwtProvider\b"
+    r"|go-tpm-tools/verifier|confidential-space/.*verifier"
+    r")"
+)
+
 # Verification against a key. Any one of these means the signature is actually checked.
 TOKEN_VERIFIED = re.compile(
     r"(?i)("
@@ -126,7 +139,19 @@ FATAL = re.compile(
 SOFT_FAILURE = re.compile(
     r"(?i)(console\.(warn|error|log)|logger?\.(warn|warning|error)|print\s*\(|fmt\.Print|log\.Print)"
 )
-DEGRADED = re.compile(r"(?i)\b(degraded|unavailable|fallback|fall_?back|continue|non-?blocking|best[_-]?effort)\b")
+DEGRADED = re.compile(
+    r"(?i)\b(degraded|unavailable|fall_?back|non-?blocking|best[_-]?effort)\b"
+)
+# Fabricating an attestation-shaped result out of nothing, so callers cannot tell the
+# difference between "attested" and "we gave up".
+FABRICATED = re.compile(
+    r"(?i)(=\s*\{[^}]{0,200}(unavailable|\"\"|''|null|undefined|false)"
+    r"|return\s*\{[^}]{0,200}(unavailable|\"\"|''|null|undefined|false))"
+)
+# Returning the value from before is a cache-refresh policy: the attestation that is served
+# was verified when it was fetched. Serving it stale forever is worth knowing about, but it
+# is not the failure this rule describes, and reporting it here buries the one that is.
+SERVES_CACHED = re.compile(r"(?i)return\s+(cached\w*|prev\w*|existing\w*|last\w*|current\w*)\s*;")
 
 
 def _iter_code(root: Path):
@@ -164,7 +189,7 @@ def check_token_verification(root: Path) -> list[Finding]:
     for path, raw, code, impl in _iter_code(root):
         if not TOKEN_SOURCE.search(code):
             continue
-        if TOKEN_VERIFIED.search(impl):
+        if TOKEN_VERIFIED.search(impl) or KNOWN_VALIDATOR.search(impl):
             continue
         rel = str(path.relative_to(root))
         lines = read_lines(path)
@@ -306,7 +331,13 @@ def check_fail_open(root: Path) -> list[Finding]:
                 continue
             if FATAL.search(body):
                 continue
-            if not (DEGRADED.search(body) or "return" in body):
+            fabricates = bool(DEGRADED.search(body) or FABRICATED.search(body))
+            # Order matters. A block that builds an empty attestation object and then
+            # returns the variable it just assigned is fabricating, not serving a cache --
+            # checking "returns something cached" first swallows exactly that shape.
+            if not fabricates:
+                continue
+            if SERVES_CACHED.search(body) and not FABRICATED.search(body):
                 continue
             line = code.count("\n", 0, m.start()) + 1
             rel = str(path.relative_to(root))

@@ -113,12 +113,25 @@ WELL_KNOWN_KEY = re.compile(
     r")"
 )
 # A key-shaped default reached with ||, ??, or `or`.
-WEAK_DEFAULT = re.compile(
-    r"(?i)(process\.env[\.\[][\"']?(\w*(?:KEY|MNEMONIC|SEED|SECRET|TOKEN)\w*)[\"']?\]?"
-    r"|os\.environ(?:\.get)?[\.\(\[][\"'](\w*(?:KEY|MNEMONIC|SEED|SECRET|TOKEN)\w*)[\"'])"
-    r"\s*(?:\|\||\?\?|,|\bor\b)\s*"
-    r"([\"'`][^\"'`\n]{4,}[\"'`]|[\"']0[\"']\s*\.\s*repeat|Buffer\.alloc)",
+#
+# Scoped to material that grants signing, spending or sealing authority rather than to any
+# name containing KEY or TOKEN. The looser version reported `TOKEN_BUDGET_PER_AGENT ||
+# "50000"` -- a number -- and `NASA_API_KEY || "DEMO_KEY"`, a documented public placeholder,
+# both at critical severity. Neither is an enclave key, and a critical finding that is
+# obviously wrong costs more than the one it sits next to.
+KEY_MATERIAL_NAME = (
+    r"(?:MNEMONIC|SEED_?PHRASE|\w*SEED|PRIV(?:ATE)?_?KEY|SIGNING_?KEY|SEAL_?KEY"
+    r"|SECRET_?KEY|MASTER_?KEY|ROOT_?KEY|WALLET_?KEY|ADMIN_?(?:KEY|TOKEN|SECRET)"
+    r"|SESSION_?SECRET|JWT_?SECRET|ENCRYPTION_?KEY)"
 )
+WEAK_DEFAULT = re.compile(
+    r"(?i)(process\.env[\.\[][\"\']?(\w*" + KEY_MATERIAL_NAME + r"\w*)[\"\']?\]?"
+    r"|os\.environ(?:\.get)?[\.\(\[][\"\'](\w*" + KEY_MATERIAL_NAME + r"\w*)[\"\'])"
+    r"\s*(?:\|\||\?\?|,|\bor\b)\s*"
+    r"([\"\'`][^\"\'`\n]{4,}[\"\'`]|[\"\']0[\"\']\s*\.\s*repeat|Buffer\.alloc)",
+)
+# A numeric default is a quantity, never a credential.
+NUMERIC_DEFAULT = re.compile(r"^[\"\'`]?\d+[\"\'`]?$")
 PROD_GUARD = re.compile(r"(?i)(NODE_ENV|ECLOUD_ENVIRONMENT|APP_ENV|is_?prod|production)")
 
 # A default that is a path, a URL, or a filename is configuration. `KMS_SIGNING_KEY_FILE`
@@ -226,35 +239,87 @@ def _enclosing_span(text: str, pos: int) -> str:
     return text[max(0, start): pos + 200]
 
 
+# The data actually fed to a digest chain: `createHash(alg).update(X)`, possibly chained.
+UPDATE_ARG = re.compile(r"\.update\s*\(\s*([^)]{0,120})\)")
+# Positional-argument KDFs. The keying material is a fixed position, not anywhere nearby.
+POSITIONAL_KDF = re.compile(
+    r"(?i)\b(hkdfSync|hkdf|pbkdf2Sync|pbkdf2|scryptSync|scrypt)\s*\(([^;]{0,220})\)"
+)
+CHAIN_KDF = re.compile(r"(?i)\b(createHash|createHmac)\s*\(([^)]{0,80})\)((?:\s*\.\w+\s*\([^)]{0,120}\))*)")
+
+# The enclosing function has to be in the business of producing a key. Without this, every
+# sha256 of a payload in a file that also mentions signing reads as a key derivation.
+DERIVES_KEY_FN = re.compile(
+    r"(?i)\b(?:function|def|fn|const|let)\s+(\w*(?:derive\w*key|key\w*deriv|wallet\w*key"
+    r"|key\w*from|signing\w*key|seed\w*from|derive\w*wallet|derive\w*signer)\w*)"
+)
+# ...or the value is returned in the shape of a private key.
+RETURNS_KEY_SHAPE = re.compile(
+    r"(?i)return\s+[\"\'`]0x[\"\'`]\s*\+|return\s+[\"\'`]?0x\$\{|privateKeyToAccount\s*\(|"
+    r"new\s+Wallet\s*\(|Wallet\.from\w*\s*\(|createPrivateKey\s*\("
+)
+
+
+def _kdf_inputs(impl: str, at: int) -> list[str]:
+    """The arguments a KDF call actually consumes, not identifiers that happen to be near it.
+
+    This distinction is the whole rule. Searching a window around the call reported three
+    false positives for every true one on real code: a generic `sha256Hex(bytes)` helper in
+    a file that elsewhere mentions a public key, a content hash computed next to an object
+    literal containing one, and a sign-to-hash fallback whose enclosing function takes a
+    public key parameter it never hashes.
+    """
+    inputs: list[str] = []
+    m = CHAIN_KDF.match(impl, at)
+    if m:
+        # createHmac's second argument is the key; the chained .update() calls are the data.
+        args = [a.strip() for a in m.group(2).split(",")]
+        if m.group(1).lower() == "createhmac" and len(args) > 1:
+            inputs.append(args[1])
+        inputs += [g.strip() for g in UPDATE_ARG.findall(m.group(3) or "")]
+        return inputs
+    m = POSITIONAL_KDF.match(impl, at)
+    if m:
+        args = [a.strip() for a in m.group(2).split(",")]
+        # hkdf(digest, ikm, salt, info, len) / pbkdf2(password, salt, ...)
+        inputs.append(args[1] if m.group(1).lower().startswith("hkdf") and len(args) > 1
+                      else args[0] if args else "")
+        return [i for i in inputs if i]
+    return inputs
+
+
 def check_public_key_derivation(root: Path) -> list[Finding]:
     """BT-EC01 — a key is derived from material an observer can read.
 
     The headline rule. A KDF is only as secret as its input: HKDF over a public key is a
     deterministic public function, so every party who can read that public key computes the
     same "private" key. This is worse than a hardcoded secret, because it looks like key
-    derivation in review and carries the vocabulary of one — salt, info, HMAC, extract-and-
-    expand — while providing none of the property.
+    derivation in review and carries the vocabulary of one -- salt, info, HMAC, extract-and-
+    expand -- while providing none of the property.
     """
     out: list[Finding] = []
     for path, raw, code, impl in _iter_code(root):
         lines = read_lines(path)
         rel = str(path.relative_to(root))
-        for m in KDF_CALL.finditer(impl):
-            args = m.group(m.lastindex) or ""
-            # The call chain matters: `createHash(alg).update(x)` puts the input after the
-            # closing paren, so read a little past the call too.
-            window = impl[m.start(): m.start() + 260]
-            if not PUBLIC_INPUT.search(window):
+        for m in re.finditer(r"(?i)\b(createHash|createHmac|hkdfSync|hkdf|pbkdf2Sync|pbkdf2"
+                             r"|scryptSync|scrypt)\s*\(", impl):
+            inputs = _kdf_inputs(impl, m.start())
+            if not inputs:
                 continue
-            if SECRET_INPUT.search(window.split("(", 1)[-1][:160]):
+            public = next((i for i in inputs if PUBLIC_INPUT.search(i)), None)
+            if not public:
                 continue
-            # Is the output actually used as a key? Computing sha256 of a peer certificate
-            # for TLS pinning hits every pattern above and is correct.
-            context = impl[max(0, m.start() - 200): m.start() + 700]
-            if not KEY_PRODUCED.search(context):
+            if any(SECRET_INPUT.search(i) for i in inputs):
                 continue
+
+            # Is this function in the business of producing a key? Hashing a public value is
+            # correct and routine for fingerprints, pins and content addresses.
+            scope = impl[max(0, m.start() - 400): m.start() + 500]
+            if not (DERIVES_KEY_FN.search(scope) or RETURNS_KEY_SHAPE.search(scope)):
+                continue
+
             line = _line(impl, m.start())
-            public_bit = PUBLIC_INPUT.search(window)
+            hit = PUBLIC_INPUT.search(public)
             out.append(
                 Finding(
                     rule_id="BT-EC01-key-from-public-input",
@@ -262,18 +327,18 @@ def check_public_key_derivation(root: Path) -> list[Finding]:
                     line=line,
                     evidence=quote_line(lines, line),
                     message=(
-                        f"A signing key is derived from `{public_bit.group(0)}`, a value that "
-                        "is not secret. Key derivation does not create secrecy; it only "
-                        "preserves it. Every party who can read this input runs the same "
-                        "function with the same salt and info constants — both of which are "
-                        "in this repository — and obtains the same private key. If the input "
-                        "is reachable over the network or recorded on chain, the wallet this "
-                        "key controls is spendable by anyone who looks."
+                        f"A signing key is derived from `{hit.group(0)}`, a value that is not "
+                        "secret. Key derivation does not create secrecy; it only preserves "
+                        "it. Every party who can read this input runs the same function with "
+                        "the same salt and info constants -- both of which are in this "
+                        "repository -- and obtains the same private key. If the input is "
+                        "reachable over the network or recorded on chain, the wallet this key "
+                        "controls is spendable by anyone who looks."
                     ),
                     severity=Severity.CRITICAL,
                     confidence=Confidence.HIGH,
                     detector="detectors:eigencompute.check_public_key_derivation",
-                    metadata={"derived_from": public_bit.group(0)},
+                    metadata={"derived_from": hit.group(0), "kdf_inputs": inputs},
                 )
             )
     return out
@@ -328,6 +393,8 @@ def check_dev_key_fallback(root: Path) -> list[Finding]:
             var_name = m.group(2) or m.group(3) or ""
             default = (m.group(4) or "").strip()
             if PATHY_NAME.search(var_name) or NOT_A_SECRET_DEFAULT.search(default):
+                continue
+            if NUMERIC_DEFAULT.match(default):
                 continue
             block = code[max(0, m.start() - 300): m.start() + 300]
             if PROD_GUARD.search(block):
