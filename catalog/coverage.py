@@ -4,7 +4,7 @@
 Run: uv run --with pyyaml catalog/coverage.py
 
 A catalogued rule with no working detector is a rule the tool does not check. Keeping that
-gap measured and printed is the difference between "29 rules" meaning coverage and meaning
+gap measured and printed is the difference between "42 rules" meaning coverage and meaning
 intent — and a security tool that overstates its coverage is worse than one with an honest
 hole, because someone will rely on it.
 

@@ -1,7 +1,7 @@
 [project]
 name = "tee-audit"
 version = "0.1.0"
-description = "Static auditor for Web3 protocols on cloud TEEs (AWS Nitro Enclaves, dstack)"
+description = "Static auditor for Web3 protocols on cloud TEEs (AWS Nitro Enclaves, dstack, EigenCompute / GCP Confidential Space)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
@@ -17,14 +17,22 @@ dependencies = [
 # Python analyzers rather than failing when semgrep is unavailable.
 semgrep = ["semgrep>=1.100"]
 
-# The four judgment rules. Optional because 19 of 29 rules never need a model call, and
+# The four judgment rules. Optional because 32 of 42 rules never need a model call, and
 # nobody should pay for inference to run a parser.
 semantic = ["claude-agent-sdk>=0.1"]
 
 all = ["semgrep>=1.100", "claude-agent-sdk>=0.1"]
 
-[project.scripts]
-tee-audit = "cli.audit:main"
+# No [project.scripts] and no [build-system], deliberately.
+#
+# This project is run from a clone, not installed. cli/audit.py resolves catalog/rules/,
+# detectors/semgrep/tee/ and core/target/release/tee-audit-core relative to __file__, so an
+# installed copy in site-packages would find none of them. A `tee-audit` console script was
+# declared here for a while and never worked: `package = false` means uv skips building the
+# project entirely, so the entry point was silently never created.
+#
+# This file exists to declare dependencies for `uv pip install -r`, and to configure ruff.
+# The supported invocation is `python cli/audit.py <path>`.
 
 [tool.uv]
 # Resolve once into .venv rather than re-resolving on every `uv run --with` invocation.

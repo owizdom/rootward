@@ -1,6 +1,6 @@
 # Rule catalog
 
-29 rules. Each is one YAML file whose name equals its `id`, so any finding in a report can be traced
+42 rules. Each is one YAML file whose name equals its `id`, so any finding in a report can be traced
 to its rule with `cat catalog/rules/<id>.yaml`.
 
 Validate with:
@@ -36,7 +36,7 @@ false-positive rate the benchmark exists to measure.
 Divergence between the two is itself a result worth publishing.
 
 **`detection`** — `deterministic` (parse/AST/grep, no model call), `semantic` (needs judgment), or
-`hybrid` (deterministic prefilter, semantic adjudication). Current split: 19 / 4 / 6.
+`hybrid` (deterministic prefilter, semantic adjudication). Current split: 32 deterministic / 6 hybrid / 4 semantic.
 
 ## Deliberately not encoded
 

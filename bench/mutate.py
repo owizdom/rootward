@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Mutation harness — measured recall instead of estimated recall.
 
-    .venv/bin/python bench/mutate.py [--repo PATH] [--json]
+    .venv/bin/python bench/mutate.py [--base NAME] [--json]
 
 Takes a clean tree, injects exactly one catalogued defect, runs the full auditor, and asks
 whether that specific rule fired. Ground truth is exact by construction: the harness planted

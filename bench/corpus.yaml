@@ -43,7 +43,10 @@ repos:
 
   - name: aws-nitro-enclaves-samples
     url: https://github.com/aws-samples/aws-nitro-enclaves-workshop
-    ref: main
+    # Pinned so a corpus result is reproducible. Floating on `main` meant the
+    # numbers in docs/corpus-a-results.md could drift under an unrelated upstream
+    # commit, which is the same defect this tool reports as BT-CFG04.
+    ref: 93b0851e44d7e31c4b5b527a49be975e4211730f  # 2025-12-03
     platform: nitro
     note: >-
       AWS's own sample code. Findings here are worth reading twice: sample code trades
@@ -52,7 +55,10 @@ repos:
 
   - name: aws-nitro-enclaves-sdk-c
     url: https://github.com/aws/aws-nitro-enclaves-sdk-c
-    ref: main
+    # Pinned so a corpus result is reproducible. Floating on `main` meant the
+    # numbers in docs/corpus-a-results.md could drift under an unrelated upstream
+    # commit, which is the same defect this tool reports as BT-CFG04.
+    ref: cd61b6187c8b20867ba4368d1ae62c5790c0269a  # 2026-03-31
     platform: nitro
     note: >-
       Reference implementation of the KMS attestation flow. A well-maintained repository
@@ -61,7 +67,10 @@ repos:
 
   - name: attestation-doc-validation
     url: https://github.com/evervault/attestation-doc-validation
-    ref: main
+    # Pinned so a corpus result is reproducible. Floating on `main` meant the
+    # numbers in docs/corpus-a-results.md could drift under an unrelated upstream
+    # commit, which is the same defect this tool reports as BT-CFG04.
+    ref: 494131dcbe48bac4c1ea42eded7a0b0ad91010c1  # 2026-08-14
     platform: nitro
     note: >-
       A correct attestation validator. BT-T06 must NOT fire here; if it does, the

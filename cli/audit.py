@@ -108,9 +108,34 @@ def run_semgrep(root: Path, semgrep_bin: str) -> tuple[list[Finding], list[str]]
              "--metrics=off", "--quiet", "--no-git-ignore", str(root)],
             capture_output=True, text=True, timeout=900,
         )
-        payload = json.loads(proc.stdout or "{}")
-    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+    except (OSError, subprocess.SubprocessError) as exc:
         return [], [f"semgrep failed to run ({exc}); code-pattern rules did not run"]
+
+    # A non-zero exit with empty stdout used to parse as `{}` -- no results, no errors, and
+    # no warning. The report then said nothing about semgrep at all, which reads as "the
+    # code-pattern rules ran and found nothing" when in fact they never ran. An OOM kill, a
+    # rule-parse failure, or an unwritable cache directory all land here, and each one
+    # silently removed real findings. semgrep exits 1 when it has findings, so only >1 is a
+    # failure.
+    if proc.returncode > 1:
+        detail = " ".join((proc.stderr or "").split())[:200] or f"exit {proc.returncode}"
+        return [], [
+            f"semgrep exited {proc.returncode} ({detail}); code-pattern rules did not run"
+        ]
+
+    try:
+        payload = json.loads(proc.stdout or "{}")
+    except ValueError as exc:
+        detail = " ".join((proc.stderr or "").split())[:160]
+        return [], [
+            f"semgrep produced unreadable output ({exc}); "
+            f"code-pattern rules did not run{'. stderr: ' + detail if detail else ''}"
+        ]
+
+    # Exit 0 with no stdout at all is not a clean run either -- semgrep always emits a JSON
+    # envelope when it completes.
+    if not (proc.stdout or "").strip():
+        return [], ["semgrep produced no output; code-pattern rules did not run"]
 
     findings, warnings = [], []
     for err in payload.get("errors", []):
@@ -302,6 +327,18 @@ def layer_scorecard(
     # actually speak to, and the gap is reported rather than silently rounded up.
     ceiling = max((l for l in range(1, 7) if per_layer[l]["required_rules"] > 0), default=0)
 
+    # No platform means no applicable rules, so every layer "passes" vacuously and an empty
+    # directory was being awarded the tool's maximum score. Nothing was checked, so there is
+    # nothing to pass: the score is withheld rather than inferred from silence.
+    if platform is not None and not platform.any:
+        return {
+            "effective_layer": None,
+            "verifiable_ceiling": ceiling,
+            "per_layer": per_layer,
+            "blocking_rules": [],
+            "assessed": False,
+        }
+
     effective = 0
     for level in range(1, ceiling + 1):
         if all(per_layer[l]["passes"] for l in range(1, level + 1)):
@@ -320,6 +357,7 @@ def layer_scorecard(
         "verifiable_ceiling": ceiling,
         "per_layer": per_layer,
         "blocking_rules": blockers,
+        "assessed": True,
     }
 
 
@@ -427,7 +465,20 @@ def not_verified(
             "finding above."
         )
     if core is None:
-        items.append("The Rust core was not built, so no binary-format analysis ran at all.")
+        items.append(
+            "The Rust core was not built, so no binary-format analysis ran at all — and "
+            "note that this also disables BT-T09B: Dockerfile, .env and build-context "
+            "secret scanning delegates to the same binary, so plain-text secrets in those "
+            "files were NOT checked either. Build it (cd core && cargo build --release "
+            "--bins) and re-run."
+        )
+    if getattr(platform, "truncated", False):
+        items.append(
+            "The repository was larger than the platform-detection file cap, so the scan "
+            "stopped before walking the whole tree. A platform signal past that point was "
+            "not seen, and platform detection gates most of the rule set — treat both the "
+            "detected platform and the findings below as incomplete."
+        )
     if not platform.any:
         items.append(
             "No TEE platform indicators were found in this repository. Either it does not "
@@ -445,6 +496,18 @@ def not_verified(
 
 
 # ------------------------------------------------------------- rendering ---
+def _severity_breakdown(findings: list[dict]) -> str:
+    """`20` alone makes a reader count criticals by hand."""
+    if not findings:
+        return ""
+    counts: dict[str, int] = {}
+    for f in findings:
+        counts[f["severity"]] = counts.get(f["severity"], 0) + 1
+    order = ["critical", "high", "medium", "low", "info"]
+    parts = [f"{counts[s]} {s}" for s in order if counts.get(s)]
+    return f"  ({', '.join(parts)})" if parts else ""
+
+
 def render_markdown(result: dict) -> str:
     sc = result["scorecard"]
     lines = [
@@ -452,17 +515,32 @@ def render_markdown(result: dict) -> str:
         "",
         f"**Target:** `{result['root']}`  ",
         f"**Platform detected:** {result['platform']['summary']}  ",
-        f"**Findings:** {len(result['findings'])}",
+        f"**Findings:** {len(result['findings'])}{_severity_breakdown(result['findings'])}",
         "",
         "## 1. Layer scorecard",
         "",
-        f"**Effective layer: {sc['effective_layer']}** "
-        f"of a verifiable ceiling of {sc['verifiable_ceiling']} "
-        f"(the handbook's ladder runs to 6 — see "
-        f"[security layers](https://bluethroatlabs.com/docs/layers-of-security-for-tees))",
-        "",
     ]
-    if sc["verifiable_ceiling"] < 6:
+
+    scored = sc.get("assessed", True)
+    if not scored:
+        # Nothing applicable ran, so there is no score to give. Printing a number here was
+        # awarding an empty directory the tool's own maximum.
+        lines += [
+            "**Not assessed.** No TEE platform was detected, so no platform rules applied "
+            "and no layer can be scored. This is not a passing result — it means the audit "
+            "found nothing to audit. Check that you pointed at the right directory, and "
+            "read the NOT VERIFIED section below.",
+            "",
+        ]
+    else:
+        lines += [
+            f"**Effective layer: {sc['effective_layer']}** "
+            f"of a verifiable ceiling of {sc['verifiable_ceiling']} "
+            f"(the handbook's ladder runs to 6 — see "
+            f"[security layers](https://bluethroatlabs.com/docs/layers-of-security-for-tees))",
+            "",
+        ]
+    if scored and sc["verifiable_ceiling"] < 6:
         lines += [
             f"> Layers {sc['verifiable_ceiling'] + 1}-6 carry no rules in this catalog, so "
             f"they are unassessed rather than passed. A score of "
@@ -470,14 +548,14 @@ def render_markdown(result: dict) -> str:
             f"is not a claim about Layer 6.",
             "",
         ]
-    if sc["blocking_rules"]:
+    if scored and sc["blocking_rules"]:
         lines += [
             "Capped by:",
             "",
             *[f"- `{r}`" for r in sc["blocking_rules"]],
             "",
         ]
-    if sc["effective_layer"] <= 1:
+    if scored and sc["effective_layer"] <= 1:
         lines += [
             "> The handbook states Layer 1 — TEE with no verified attestation — must not "
             "be used in production.",
@@ -487,7 +565,11 @@ def render_markdown(result: dict) -> str:
     lines += ["| Layer | Required rules | Status |", "|---|---|---|"]
     for level in range(1, 7):
         info = sc["per_layer"][level]
-        if info["required_rules"] == 0:
+        if not scored:
+            # A layer whose rules never ran did not pass them. Saying "pass" here is the
+            # same vacuous-truth mistake as awarding a score.
+            status = "not assessed (no platform detected)"
+        elif info["required_rules"] == 0:
             status = "unassessed (no rules)"
         elif info["passes"]:
             status = "pass"
@@ -498,6 +580,7 @@ def render_markdown(result: dict) -> str:
     lines += ["", "## 2. Findings", ""]
     if not result["findings"]:
         lines.append("None from the detectors that ran. See section 3 for what did not run.")
+        lines.append("")
     for f in result["findings"]:
         lines += [
             f"### `{f['rule_id']}` — {f['severity']}",
@@ -519,16 +602,50 @@ def render_markdown(result: dict) -> str:
 
 # ------------------------------------------------------------------ main ---
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Static auditor for cloud TEE protocols")
-    ap.add_argument("path")
-    ap.add_argument("--format", choices=["md", "json"], default="md")
-    ap.add_argument("--semgrep", default="semgrep")
+    ap = argparse.ArgumentParser(
+        prog="tee-audit",
+        description="Static auditor for Web3 protocols on cloud TEEs — AWS Nitro Enclaves, "
+                    "dstack, and EigenCompute / GCP Confidential Space.",
+        epilog=(
+            "examples:\n"
+            "  python cli/audit.py ./my-enclave-app\n"
+            "  python cli/audit.py ./repo --fail-on high        # CI gate\n"
+            "  python cli/audit.py ./repo --format json > report.json\n"
+            "  python cli/audit.py ./repo --semantic            # + judgment rules, costs money\n"
+            "\n"
+            "exit codes:\n"
+            "  0  audit ran; nothing at or above --fail-on\n"
+            "  1  audit could NOT run (bad path, missing dependency) — never treat as a pass\n"
+            "  2  audit ran and found something at or above --fail-on\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    ap.add_argument(
+        "path",
+        help="path to the repository to audit (a directory, not a file). Read-only: nothing "
+             "in it is executed, imported, or modified.",
+    )
+    ap.add_argument(
+        "--format", choices=["md", "json"], default="md",
+        help="md (default) is the human report; json carries the same data plus refuted "
+             "findings, for tooling.",
+    )
+    ap.add_argument(
+        "--semgrep", default="semgrep",
+        help="path to the semgrep binary (default: found on PATH). semgrep is optional — "
+             "without it the code-pattern rules are skipped and the report says so.",
+    )
+    ap.add_argument(
+        "--fail-on", choices=["critical", "high", "medium", "low", "never"], default="never",
+        help="exit 2 when a finding at this severity or above is reported. Default 'never' "
+             "keeps exit 0 for interactive use; set it to gate CI.",
+    )
     ap.add_argument(
         "--semantic",
         action="store_true",
-        help="run the four judgment rules (BT-T00/T05/T08/LYR01) through the Claude Agent "
-             "SDK, each finding adversarially verified. Costs model calls and minutes; the "
-             "deterministic layer is complete without it.",
+        help="run the five judgment rules (BT-T00/T05/T08/CFG05/LYR01) through the Claude "
+             "Agent SDK, each finding adversarially verified. Costs model calls and "
+             "minutes; the deterministic layer is complete without it.",
     )
     ap.add_argument(
         "--no-verify",
@@ -539,8 +656,12 @@ def main() -> int:
     args = ap.parse_args()
 
     root = Path(args.path).resolve()
+    if not root.exists():
+        print(f"tee-audit: no such path: {root}", file=sys.stderr)
+        return 1
     if not root.is_dir():
-        print(json.dumps({"error": f"{root} is not a directory"}))
+        print(f"tee-audit: {root} is a file; point at the repository directory that "
+              f"contains it", file=sys.stderr)
         return 1
 
     catalog = load_catalog()
@@ -583,7 +704,7 @@ def main() -> int:
     else:
         warnings.append(
             "semantic rules (BT-T00 trust boundary, BT-T05 TCB bloat, BT-T08 metadata "
-            "leakage, BT-LYR01 layer claims) did not run; pass --semantic to enable them"
+            "leakage, BT-CFG05 key rotation, BT-LYR01 layer claims) did not run; pass --semantic to enable them"
         )
 
     findings = sort_for_report(dedupe(findings))
@@ -604,6 +725,14 @@ def main() -> int:
     }
 
     print(json.dumps(result, indent=2) if args.format == "json" else render_markdown(result))
+
+    # Exit 2 for "found something", never 1 — 1 is reserved for "could not run". A CI gate
+    # that cannot tell a crashed scanner from a clean repository is worse than no gate, and
+    # collapsing both into 1 is how that happens.
+    if args.fail_on != "never":
+        threshold = Severity(args.fail_on).rank
+        if any(f.severity.rank <= threshold for f in findings):
+            return 2
     return 0
 
 

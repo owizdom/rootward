@@ -29,7 +29,11 @@ DETECT_THRESHOLD = 2  # one strong signal, or two independent weak ones
 
 NITRO_SIGNALS: list[tuple[str, re.Pattern, int]] = [
     ("nitro-cli invocation", re.compile(r"\bnitro-cli\b"), STRONG),
-    ("NSM API", re.compile(r"(?i)\b(nsm_?api|/dev/nsm|nitro_enclaves_nsm)"), STRONG),
+    # The leading \b applied to the whole group, and there is no word boundary before the
+    # "/" in "/dev/nsm", so that alternative never matched anything a real repo contains --
+    # a STRONG signal (enough on its own to identify Nitro) that was silently dead. Each
+    # alternative now carries its own anchoring.
+    ("NSM API", re.compile(r"(?i)(\bnsm_?api\b|/dev/nsm\b|\bnitro_enclaves_nsm\b)"), STRONG),
     ("KMS attestation condition", re.compile(r"kms:RecipientAttestation"), STRONG),
     ("nitro enclaves SDK", re.compile(r"(?i)aws[-_]nitro[-_]enclaves"), STRONG),
     ("EIF reference", re.compile(r"(?i)\b(\.eif\b|enclave[_-]?image[_-]?file)"), WEAK),
@@ -114,6 +118,15 @@ class Platform:
     scores: dict[str, int] = field(default_factory=dict)
     """Accumulated weight per platform, so a reader can see how close a call it was."""
 
+    truncated: bool = False
+    """True when the file cap was hit before the tree was fully walked.
+
+    This has to be reported. Detection drives rule gating, so a signal missed past the
+    cap disables most of the rule set -- and the report then shows a clean result with a
+    high layer score, which is the most dangerous output this tool can produce. A
+    monorepo or a tree with a large generated directory reaches the cap easily.
+    """
+
     @property
     def any(self) -> bool:
         return self.nitro or self.dstack or self.confidential_space or self.eigencompute
@@ -152,6 +165,7 @@ def detect(root: Path, max_files: int = 4000) -> Platform:
 
     for path in root.rglob("*"):
         if seen >= max_files:
+            result.truncated = True
             break
         if not path.is_file():
             continue

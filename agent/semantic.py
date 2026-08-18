@@ -8,7 +8,7 @@ whose only job is to refute it.
 Two design commitments:
 
 **Opt-in.** The deterministic layer is the tool; this is an addition to it. Model calls cost
-money and take minutes, and 19 of 29 rules never need one. `audit.py` runs without this
+money and take minutes, and 32 of 42 rules never need one. `audit.py` runs without this
 unless asked.
 
 **Nothing ships unverified.** A semantic finding arrives as a claim. It becomes CONFIRMED

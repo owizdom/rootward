@@ -97,8 +97,8 @@ substituted image.
 ## Tests
 
 ```
-cargo test                          # 32 tests, ~13s cold
-cargo test --features differential  # 33 tests, + cross-check against the official AWS crate
+cargo test                          # 35 tests, ~13s cold
+cargo test --features differential  # 36 tests, + cross-check against the official AWS crate
 ```
 
 The differential feature needs rustc 1.94.1 (an AWS SDK transitive requirement) even though

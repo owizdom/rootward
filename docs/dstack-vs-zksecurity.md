@@ -76,14 +76,18 @@ eight caller-supplied query parameters.
 
 Same file, same code surface, different framing: reported as trusted-computing-base bloat
 rather than as boundary exposure. Worth counting as a partial hit and as evidence that
-`BT-T03` needs a companion rule for stream-level exposure — it currently matches a
-secret-named value reaching a log call, and cannot see a configuration that exposes an
-entire stream.
+`BT-T03` needs a companion rule for stream-level exposure — it matched a secret-named
+value reaching a log call, and could not see a configuration that exposes an entire stream.
+
+**Since shipped:** that companion rule is `BT-T03C-stream-exposure`, and it now fires on
+this repository three times.
 
 ## Why the other 12 were missed
 
 **Different repository (5: #00, #01, #05, #0c, part of #0a).** These live in `meta-dstack`,
-the Yocto layer. The corpus audits `dstack` only. The report's only High — OVMF built with
+the Yocto layer, which the corpus did not audit at the time of this comparison. It does
+now, pinned at the same commit zkSecurity read, and returns one finding — which measures the
+gap rather than closing it. The report's only High — OVMF built with
 Config-A, leaving the VMM inside the TCB — is a BitBake recipe choosing `OvmfPkgX64.dsc`
 over `IntelTdxX64.dsc`. Nothing in this catalog models firmware build configuration.
 
@@ -118,5 +122,11 @@ were largely predictable from `corpus.yaml`'s own note. The most valuable output
 hit — it was discovering that the verification layer could confidently delete a correct
 finding, which no internal benchmark would have surfaced.
 
-Next: add `meta-dstack` to the corpus, and write a `BT-T00` sub-rule for host-supplied
-filesystem paths (symlink and path traversal) to close #02.
+**Both follow-ups from this comparison have since shipped:** `meta-dstack` is in
+`bench/corpus.yaml` pinned at `5b63aec3`, and `BT-T00A-host-path-symlink` was written for
+host-supplied filesystem paths and now fires on this repository. Whether it lands on the
+same call site zkSecurity identified has not been verified line-for-line and is not claimed.
+
+What remains open is the rule class this comparison exposed and nothing has closed: OS
+image and firmware build configuration, which is where five of the fourteen findings live,
+including the only High.

@@ -4,9 +4,12 @@ Static auditor for Web3 protocols built on cloud TEEs — AWS Nitro Enclaves, ds
 EigenCompute / Google Cloud Confidential Space.
 
 ```
-python3 cli/audit.py ./repo                 # deterministic rules, seconds, no model calls
-python3 cli/audit.py ./repo --semantic      # + four judgment rules, adversarially verified
+.venv/bin/python cli/audit.py ./repo              # deterministic rules, seconds, no model calls
+.venv/bin/python cli/audit.py ./repo --semantic   # + five judgment passes, adversarially verified
 ```
+
+Run it from a clone — see [Setup](#setup). There is no `pip install`: the tool resolves its
+rule catalog, its semgrep ruleset and its Rust binary relative to its own location.
 
 Reports a security-layer scorecard, ranked findings with `file:line` evidence, and a
 mandatory list of what the audit could not check.
@@ -38,7 +41,8 @@ failure the handbook does not name — a key derived from a public value, which 
 | Mutation recall | **55/55** across 26 rules | [`docs/benchmark-results.md`](docs/benchmark-results.md) |
 | False positives on mutants | **0** | same |
 | Clean-fixture false positives | **0** on all three clean trees | `bench/test_fixtures.py` |
-| Negative controls (two correct implementations) | **0 findings** each, were 9 and 4 | [`docs/corpus-a-results.md`](docs/corpus-a-results.md) |
+| Negative control (Nitro) | **0 findings**, was 9 | [`docs/corpus-a-results.md`](docs/corpus-a-results.md) |
+| Negative control (EigenCompute) | **4 rules asserted silent**, all 4 once fired | same |
 | Corpus | 11 pinned repositories, 3 platforms | [`docs/corpus-a-results.md`](docs/corpus-a-results.md) |
 | PCR measurement | matches AWS's own implementation | `cargo test --features differential` |
 | External validation | 1 re-find + 1 partial of 14 | [`docs/dstack-vs-zksecurity.md`](docs/dstack-vs-zksecurity.md) |
@@ -66,9 +70,10 @@ result is blunt: **on every threat class both layers implement, the model layer 
 the deterministic layer missed.** Zero, across all 20 passes. Deterministic runs finish in
 2–4 seconds; the same audits with `--semantic` take 6–14 minutes and cost real money.
 
-So `--semantic` is worth paying for exactly four rules — the ones no pattern matcher can
-implement (T00 trust boundary, T05 TCB bloat, T08 metadata leakage, LYR01 claim-vs-code) —
-and is wasted everywhere else. That is the recommendation the tool makes about itself.
+So `--semantic` is worth paying for exactly the rules no pattern matcher can implement —
+T00 trust boundary, T05 TCB bloat, T08 metadata leakage, LYR01 claim-vs-code, plus a
+semantic pass for the hybrid CFG05 key rotation, five passes in all — and is wasted
+everywhere else. That is the recommendation the tool makes about itself.
 
 **Every finding carries evidence.** A `file:line` with quoted source, or two hashes. Semantic
 findings go through an adversarial pass — an independent agent that tries to *refute* them.
@@ -85,7 +90,7 @@ catalog/    42 YAML rules, each citing its source        ← the domain knowledg
 core/       Rust: EIF parse, CPIO ramdisk walk, PCR recompute, secret scan
 detectors/  semgrep TEE ruleset + KMS policy, build config, vsock, streams,
             dstack, confidential-space, eigencompute
-agent/      Claude Agent SDK: the four semantic passes + adversarial refutation
+agent/      Claude Agent SDK: the five judgment passes + adversarial refutation
 cli/        orchestration and the report
 bench/      fixtures, mutation harness, real-repo corpus, ablation
 ```
@@ -173,26 +178,42 @@ running instance, no active probing. Repository in, report out.
 
 ## Setup
 
+```sh
+git clone https://github.com/owizdom/tee-audit && cd tee-audit
+
+uv venv                                          # or: python3 -m venv .venv
+uv pip install pyyaml jsonschema semgrep         # semgrep is optional but recommended
+
+(cd core && cargo build --release --bins)        # the Rust core
+.venv/bin/python bench/fixtures/build.py         # generate the binary fixtures
 ```
-uv venv && uv pip install -e '.[all]'     # semgrep + claude-agent-sdk are optional extras
-cd core && cargo build --release --bins    # the Rust core
-.venv/bin/python bench/fixtures/build.py   # generate the binary fixtures
-```
+
+Order matters: `bench/fixtures/build.py` measures the built EIF to derive the clean fixture's
+KMS policy, so the Rust core has to exist first. It exits loudly rather than silently
+skipping if you get that wrong.
+
+Add `claude-agent-sdk` only if you want `--semantic`; 32 of 42 rules never make a model call.
 
 The tool degrades rather than fails when an optional piece is missing: no semgrep means the
 code-pattern rules do not run, and the report says so in its NOT VERIFIED section.
 
+**Requirements:** Python 3.11+, Rust 1.88+ (1.94.1+ only for the optional differential test).
+
 ## Verification
 
-```
-cd core && cargo test                        # 34 tests
-cargo test --features differential           # PCRs vs AWS's own implementation
+```sh
+(cd core && cargo test)                      # 35 tests
+(cd core && cargo test --features differential)   # PCRs vs AWS's own implementation
 .venv/bin/python catalog/validate.py         # citations, false-positive notes, status accuracy
-.venv/bin/python bench/test_fixtures.py      # recall + zero FP on clean trees
+.venv/bin/python catalog/coverage.py         # every detector maps to a catalogued rule
+.venv/bin/python bench/test_fixtures.py      # recall + zero FP on all clean trees
 .venv/bin/python bench/mutate.py             # per-rule precision and recall
-.venv/bin/python bench/corpus.py             # real repos + negative control
-.venv/bin/python bench/ablation.py           # model layer vs deterministic-only
+.venv/bin/python bench/corpus.py             # real repos + negative controls (clones, needs network)
+.venv/bin/python bench/ablation.py           # model layer vs deterministic-only (costs money)
 ```
+
+The first six are what CI gates on. `corpus.py` clones eleven repositories and `ablation.py`
+makes model calls, so neither runs in CI.
 
 ## License
 

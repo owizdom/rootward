@@ -10,9 +10,9 @@ Deterministic layer only (no model calls). Reproduce with:
 |---|---|---|---|---|---|
 | dstack | `be9d0476a63e` | dstack | 0/4 | 14 | T07D×4, T03C×3, T07A×2, T10×2, DS04×1, T00A×1, T07C×1 |
 | meta-dstack | `5b63aec337f1` | dstack | 1/4 | 1 | DS01×1 |
-| aws-nitro-enclaves-workshop | `main` | nitro | 0/3 | 19 | CFG04×7, T07D×5, T07A×4, T01×2, T03×1 |
-| aws-nitro-enclaves-sdk-c | `main` | nitro | 3/3 | 9 | CFG04×7, CFG01×2 |
-| attestation-doc-validation | `main` | nitro | 3/3 | **0** | — |
+| aws-nitro-enclaves-samples | `93b0851e44d7` | nitro | 0/3 | 19 | CFG04×7, T07D×5, T07A×4, T01×2, T03×1 |
+| aws-nitro-enclaves-sdk-c | `cd61b6187c8b` | nitro | 3/3 | 9 | CFG04×7, CFG01×2 |
+| attestation-doc-validation | `494131dcbe48` | nitro | 3/3 | **0** | — |
 | vanta | `e8d274f60526` | eigencompute | 0/3 | 23 | T03×9, T10×6, T07C×5, CS02×2, T04B×1 |
 | bobIsAlive | `7de5b965e95a` | eigencompute | 0/3 | 13 | EC02×2, T03×3, EC01×1, EC04×1, EC07×1, EC08×1, CS01×1, CS02×1, T07C×1, CFG04×1 |
 | eigenbox | `cefb8782a1fc` | eigencompute | 3/3 | **0** | — |
@@ -88,7 +88,7 @@ recall stayed at 100% — the precision was not bought with recall.
 
 ## Corpus findings by rule, and what they are worth
 
-**`CFG04` (build determinism) dominates by count** — 14 of 43 findings across two repos. It
+**`CFG04` (build determinism) dominates by count** — 21 of 102 findings across six repos. It
 is the lowest-severity rule in the catalog and fires on any floating base image or unpinned
 package. Accurate, and worth reading last.
 
