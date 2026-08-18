@@ -139,8 +139,16 @@ async def _run_json(system_prompt: str, user_prompt: str, cwd: Path, schema: dic
     return {}
 
 
-async def run_pass(rule_id: str, root: Path, scope: list[str]) -> list[Finding]:
-    """One semantic rule over a scoped file list."""
+async def run_pass(rule_id: str, root: Path, scope: list[str], attempts: int = 3) -> list[Finding]:
+    """One semantic rule over a scoped file list.
+
+    Retried, for the same reason `refute` is: a transient SDK error is not a result. A full
+    ablation across five repositories had 5 of 20 passes die with "Claude Code returned an
+    error result", including the BT-T00 pass on dstack — the one rule that re-found an
+    external auditor's finding. Those passes were correctly reported as failed rather than
+    empty, but a failed pass still costs the run its coverage, and retrying is cheap next to
+    re-running the whole audit.
+    """
     instruction = prompts.PASSES[rule_id]
     system = f"{prompts.THREAT_MODEL}\n\n{instruction}"
 
@@ -153,7 +161,22 @@ async def run_pass(rule_id: str, root: Path, scope: list[str]) -> list[Finding]:
         f"Return findings in the required schema. An empty list is a valid and common result."
     )
 
-    payload = await _run_json(system, user, root, prompts.FINDING_SCHEMA, FINDER_MODEL)
+    payload: dict = {}
+    last_error: str | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            payload = await _run_json(system, user, root, prompts.FINDING_SCHEMA, FINDER_MODEL)
+        except Exception as exc:  # noqa: BLE001 - retry, then let the caller report it
+            last_error = f"{type(exc).__name__}: {exc}"
+            payload = {}
+        # An empty findings list is a legitimate result, so only a hard failure retries.
+        if payload:
+            break
+        if attempt < attempts:
+            await asyncio.sleep(3 * attempt)
+
+    if not payload and last_error:
+        raise RuntimeError(f"{rule_id} failed after {attempts} attempts: {last_error}")
 
     out: list[Finding] = []
     for raw in payload.get("findings", []):
