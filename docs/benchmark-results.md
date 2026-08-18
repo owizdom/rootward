@@ -9,9 +9,9 @@ in a Nitro tree, and a mutant that finds none of its target text reports
 clean run. Every mutant names the tree it belongs to.
 
 - base tree `bench/fixtures/clean`: 35 mutants
-- base tree `bench/fixtures/eigencompute-clean`: 20 mutants
-- mutants: 55 applied, 0 inapplicable
-- **recall 55/55 (100%)**
+- base tree `bench/fixtures/eigencompute-clean`: 36 mutants
+- mutants: 71 applied, 0 inapplicable
+- **recall 71/71 (100%)**
 - **false positives: 0**
 
 `precision` counts a rule firing on a mutant that planted a *different* defect as a
@@ -22,18 +22,18 @@ false positive — that finding did not exist on the clean tree, so the rule own
 | `CFG01` | nitro | 2/2 | 100% | 2 | 0 | enclave launched in debug mode; debug mode passed through a shell variable |
 | `CFG02` | nitro | 2/2 | 100% | 2 | 0 | all-zero PCR rejection removed; zero-PCR check made unreachable |
 | `CFG04` | nitro | 2/2 | 100% | 2 | 0 | base image unpinned; package versions unpinned |
-| `CS01` | eigencompute | 2/2 | 100% | 2 | 0 | signature verification replaced by a base64 decode; jwks verification swapped for decodeJwt |
-| `CS02` | eigencompute | 1/1 | 100% | 1 | 0 | hardware model check removed |
-| `CS03` | eigencompute | 1/1 | 100% | 1 | 0 | attestation failure caught and boot continues |
+| `CS01` | eigencompute | 3/3 | 100% | 3 | 0 | signature verification replaced by a base64 decode; jwks verification swapped for decodeJwt; verification call renamed to a local stub |
+| `CS02` | eigencompute | 3/3 | 100% | 3 | 0 | hardware model check removed; secure-boot assertion removed on its own; claims read and logged but never compared |
+| `CS03` | eigencompute | 3/3 | 100% | 3 | 0 | attestation failure caught and boot continues; failure swallowed by a .catch() returning a fabricated result; non-ok fetch logged and execution continues |
 | `EC01` | eigencompute | 3/3 | 100% | 3 | 0 | hkdf keyed on the KMS public key; signing seed derived from the instance id; wallet key derived from the image digest |
-| `EC02` | eigencompute | 2/2 | 100% | 2 | 0 | enclave state read off an environment variable; attestation skipped when a platform variable is present |
+| `EC02` | eigencompute | 3/3 | 100% | 3 | 0 | enclave state read off an environment variable; attestation skipped when a platform variable is present; enclave state from KMS_SERVER_URL presence |
 | `EC03` | eigencompute | 3/3 | 100% | 3 | 0 | mnemonic falls back to a published test phrase; sealing key defaults to all zeroes; admin token defaults to a hardcoded literal |
-| `EC04` | eigencompute | 2/2 | 100% | 2 | 0 | missing pin turns the check into a pass; signature check degrades to a hash on error |
-| `EC05` | eigencompute | 2/2 | 100% | 2 | 0 | deployer key moved onto the command line; api key passed as an argument |
-| `EC06` | eigencompute | 1/1 | 100% | 1 | 0 | unauthenticated route enumerating the environment |
-| `EC07` | eigencompute | 1/1 | 100% | 1 | 0 | privilege drop overridden to root |
-| `EC08` | eigencompute | 1/1 | 100% | 1 | 0 | egress allowlist widened to a wildcard |
-| `T01` | eigencompute, nitro | 3/3 | 100% | 3 | 0 | attestation condition removed from the KMS policy; attestation conditions swapped for unrelated keys; image digest read but never compared |
+| `EC04` | eigencompute | 3/3 | 100% | 3 | 0 | missing pin turns the check into a pass; signature check degrades to a hash on error; verify function returns early when the pin is unset |
+| `EC05` | eigencompute | 3/3 | 100% | 3 | 0 | deployer key moved onto the command line; api key passed as an argument; mnemonic passed as an argument |
+| `EC06` | eigencompute | 3/3 | 100% | 3 | 0 | unauthenticated route enumerating the environment; whole environment serialised by an open route; env leaked through an otherwise innocuous health route |
+| `EC07` | eigencompute | 3/3 | 100% | 3 | 0 | privilege drop overridden to root; privilege drop overridden with a numeric uid; privilege drop removed along with its rationale |
+| `EC08` | eigencompute | 3/3 | 100% | 3 | 0 | egress allowlist widened to a wildcard; egress allowlist emptied; egress block deleted from the nested schema |
+| `T01` | eigencompute, nitro | 5/5 | 100% | 5 | 0 | attestation condition removed from the KMS policy; attestation conditions swapped for unrelated keys; image digest read but never compared; app id read and logged but never compared; digest checked for presence rather than against a pin |
 | `T02` | nitro | 1/1 | 100% | 1 | 0 | pins collapsed onto PCR0 only |
 | `T03` | nitro | 3/3 | 100% | 3 | 0 | secret written to a log sink; secret interpolated into eprintln; secret passed to console.log |
 | `T03B` | nitro | 2/2 | 100% | 2 | 0 | traceback printed across the boundary; stack dump added to a panic path |

@@ -581,6 +581,169 @@ MUTATIONS: list[Mutation] = [
         ),
     ),
 
+    # --- second and third shapes, so no new rule rests on a single mutant --------------
+    # A rule that recognises only its author's idiom scores full recall against one mutant
+    # and then misses the same defect written any other way. These vary the form.
+
+    Mutation(
+        "CS02", "src/attest.ts",
+        '  if (payload.secboot !== true) {\n'
+        '    throw new Error("secure boot was not asserted");\n  }',
+        "",
+        "secure-boot assertion removed on its own",
+        base="eigencompute-clean",
+    ),
+    Mutation(
+        "CS02", "src/attest.ts",
+        '  const tcb = String(payload.tcbstatus ?? payload.tcb_status ?? "");\n'
+        '  if (tcb !== "OK" && tcb !== "UpToDate") {\n'
+        "    throw new Error(`TCB is not up to date: ${tcb}`);\n  }",
+        '  const tcb = String(payload.tcbstatus ?? payload.tcb_status ?? "");\n'
+        "  console.log(`tcb status: ${tcb}`);",
+        "claims read and logged but never compared",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "CS03", "src/attest.ts",
+        "  const verified = await verifyAttestationToken(nonce);",
+        "  let verified = await verifyAttestationToken(nonce).catch(() => {\n"
+        '    console.warn("attestation unavailable, degraded");\n'
+        '    return { imageDigest: "", appId: "", issuedAt: 0 };\n  });',
+        "failure swallowed by a .catch() returning a fabricated result",
+        base="eigencompute-clean",
+    ),
+    Mutation(
+        "CS03", "src/attest.ts",
+        "  if (!res.ok) {\n    throw new Error(`attestation fetch failed with ${res.status}`);\n  }",
+        "  if (!res.ok) {\n"
+        '    console.warn(`attestation fetch failed with ${res.status}, continuing`);\n'
+        '    return { imageDigest: "", appId: "", issuedAt: 0 };\n  }',
+        "non-ok fetch logged and execution continues",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "CS01", "src/attest.ts",
+        "  const { payload } = await jwtVerify(token, JWKS, {",
+        "  const { payload } = await fakeVerify(token, {",
+        "verification call renamed to a local stub",
+        base="eigencompute-clean",
+        also_expects=("CS02",),
+        extra_edits=(
+            ("const JWKS = createRemoteJWKSet(",
+             "async function fakeVerify(t: string, _o: unknown) {\n"
+             "  return { payload: JSON.parse(Buffer.from(t.split('.')[1], 'base64').toString()) };\n}\n"
+             "const JWKS = createRemoteJWKSet("),
+        ),
+    ),
+
+    Mutation(
+        "EC02", "src/wallet.ts",
+        "export function bootstrap(): void {",
+        "export const inTee = Boolean(process.env.KMS_SERVER_URL);\n\n"
+        "export function bootstrap(): void {",
+        "enclave state from KMS_SERVER_URL presence",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "EC04", "src/attest.ts",
+        "export async function requireAttestation(nonce: string): Promise<Verified> {",
+        "export function checkPin(expectedDigest?: string): void {\n"
+        "  if (!expectedDigest) return;\n"
+        "  if (expectedDigest !== EXPECTED_IMAGE_DIGEST) throw new Error('pin mismatch');\n}\n\n"
+        "export async function requireAttestation(nonce: string): Promise<Verified> {",
+        "verify function returns early when the pin is unset",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "EC05", "deploy.sh",
+        '  --repo "https://github.com/example/clean-app" \\',
+        '  --repo "https://github.com/example/clean-app" \\\n'
+        '  --mnemonic "$APP_MNEMONIC" \\',
+        "mnemonic passed as an argument",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "EC06", "src/routes.ts",
+        'app.get("/identity", (_req, res) => {',
+        'app.get("/debug/config", (_req, res) => {\n'
+        "  res.json(Object.fromEntries(Object.entries(process.env)));\n});\n\n"
+        'app.get("/identity", (_req, res) => {',
+        "whole environment serialised by an open route",
+        base="eigencompute-clean",
+    ),
+    Mutation(
+        "EC06", "src/routes.ts",
+        'app.get("/healthz", (_req, res) => {\n  res.json({ ok: true });\n});',
+        'app.get("/healthz", (_req, res) => {\n'
+        "  const env: Record<string, string> = {};\n"
+        "  for (const k of Object.keys(process.env)) {\n"
+        '    if (k.startsWith("EIGEN") || k.startsWith("KMS")) env[k] = String(process.env[k]);\n'
+        "  }\n  res.json({ ok: true, env });\n});",
+        "env leaked through an otherwise innocuous health route",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "EC07", "Dockerfile", "USER node", "USER 0",
+        "privilege drop overridden with a numeric uid",
+        base="eigencompute-clean",
+    ),
+    Mutation(
+        "EC07", "Dockerfile",
+        "# The platform entrypoint drops privileges after sourcing KMS-delivered secrets.\n"
+        "# Staying non-root keeps that mitigation intact.\nUSER node\n",
+        "USER root\n",
+        "privilege drop removed along with its rationale",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "EC08", "ecloud.toml",
+        '[egress]\nallow = [\n  "confidentialcomputing.googleapis.com",\n'
+        '  "example-price-feed.invalid",\n]',
+        "[egress]\nallow = []",
+        "egress allowlist emptied",
+        base="eigencompute-clean",
+    ),
+    Mutation(
+        "EC08", "ecloud.toml",
+        '\n# Every host the workload is allowed to reach, enumerated.\n[egress]\n'
+        'allow = [\n  "confidentialcomputing.googleapis.com",\n'
+        '  "example-price-feed.invalid",\n]\n',
+        "\n",
+        "egress block deleted from the nested schema",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "T01", "src/attest.ts",
+        '  const appId = String(payload.app_id ?? "");\n'
+        "  if (appId !== EXPECTED_APP_ID) {\n"
+        '    throw new Error("app id does not match the pinned app id; refusing to start");\n  }',
+        '  const appId = String(payload.app_id ?? "");\n'
+        "  console.log(`app id: ${appId}`);",
+        "app id read and logged but never compared",
+        base="eigencompute-clean",
+        extra_edits=(('const EXPECTED_APP_ID = process.env.EXPECTED_APP_ID ?? "";',
+                      'const EXPECTED_APP_ID = "";'),),
+    ),
+    Mutation(
+        "T01", "src/attest.ts",
+        "  if (imageDigest !== EXPECTED_IMAGE_DIGEST) {\n"
+        '    throw new Error("image digest does not match the pinned digest; refusing to start");\n  }',
+        "  if (imageDigest.length === 0) {\n"
+        '    throw new Error("no image digest in the token");\n  }',
+        "digest checked for presence rather than against a pin",
+        base="eigencompute-clean",
+        extra_edits=(('const EXPECTED_IMAGE_DIGEST = process.env.EXPECTED_IMAGE_DIGEST ?? "";',
+                      'const EXPECTED_IMAGE_DIGEST = "";'),),
+    ),
+
 ]
 
 

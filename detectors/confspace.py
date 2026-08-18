@@ -235,7 +235,23 @@ def check_platform_claims(root: Path) -> list[Finding]:
     for path, raw, code, impl in _iter_code(root):
         if not TOKEN_SOURCE.search(code):
             continue
-        missing = [name for name, pat in PLATFORM_CLAIMS.items() if not pat.search(impl)]
+        def _claim_checked(pat: re.Pattern) -> bool:
+            """A claim counts as checked only if a comparison sits near *that* claim.
+
+            Scoped per claim rather than per file. The file-wide version passed any claim
+            that was read at all, so the shape where a token's tcbstatus is pulled out and
+            logged -- while the code proceeds regardless -- read as a full set of checks.
+            """
+            for m in pat.finditer(impl):
+                window = impl[max(0, m.start() - 60): m.start() + 200]
+                if CLAIM_COMPARED.search(window):
+                    return True
+            return False
+
+        missing = [
+            name for name, pat in PLATFORM_CLAIMS.items()
+            if not pat.search(impl) or not _claim_checked(pat)
+        ]
         # A file that reads some claims but compares none is the interesting case; a file
         # that reads none is already covered by CS01's "never verified".
         read_any = len(missing) < len(PLATFORM_CLAIMS)
@@ -330,10 +346,19 @@ def check_fail_open(root: Path) -> list[Finding]:
             continue
         # Look at catch/except blocks that mention the soft-failure shape.
         for m in re.finditer(
-            r"(?is)(catch\s*(\([^)]*\))?\s*\{|except[^\n:]*:|if\s+err\s*!=\s*nil\s*\{)(.{0,400})",
+            r"(?is)("
+            # block-syntax catch, Python except, Go error check
+            r"catch\s*(?:\([^)]*\))?\s*\{"
+            r"|except[^\n:]*:"
+            r"|if\s+err\s*!=\s*nil\s*\{"
+            # promise-style .catch(cb) -- the same swallow, written as a callback
+            r"|\.catch\s*\(\s*(?:\([^)]*\)|\w+)?\s*=>\s*\{?"
+            # a guard that notices the failure and carries on regardless
+            r"|if\s*\(\s*!\s*\w+\.(?:ok|success|valid)\s*\)\s*\{"
+            r")(.{0,400})",
             code,
         ):
-            body = m.group(3)
+            body = m.group(m.lastindex)
             if not SOFT_FAILURE.search(body):
                 continue
             if FATAL.search(body):
