@@ -33,6 +33,7 @@ and the built EIF image. That is what this tool looks for.
 | Negative control (a correct validator) | **0 findings**, was 9 | [`docs/corpus-a-results.md`](docs/corpus-a-results.md) |
 | PCR measurement | matches AWS's own implementation | `cargo test --features differential` |
 | External validation | 1 re-find + 1 partial of 14 | [`docs/dstack-vs-zksecurity.md`](docs/dstack-vs-zksecurity.md) |
+| Model layer vs deterministic | **0 added findings** on shared classes | [`docs/ablation.md`](docs/ablation.md) |
 
 Mutants vary the *shape* of each defect, not just the file, because a rule that recognises
 only its author's idiom scores full recall against one mutant and then misses the same bug in
@@ -49,8 +50,16 @@ existed to grade against.
 
 **Deterministic detectors first, model second.** Of 31 catalogued rules, 21 need no model
 call — they are parse, AST, or binary-format checks. Six are hybrid, four require genuine
-judgment. The ablation ([`docs/ablation.md`](docs/ablation.md)) measures whether the model
-layer earns its cost per threat class, and reports the classes where it does not.
+judgment.
+
+The [ablation](docs/ablation.md) measured that split across five real repositories, and the
+result is blunt: **on every threat class both layers implement, the model layer found nothing
+the deterministic layer missed.** Zero, across all 20 passes. Deterministic runs finish in
+2–4 seconds; the same audits with `--semantic` take 6–14 minutes and cost real money.
+
+So `--semantic` is worth paying for exactly four rules — the ones no pattern matcher can
+implement (T00 trust boundary, T05 TCB bloat, T08 metadata leakage, LYR01 claim-vs-code) —
+and is wasted everywhere else. That is the recommendation the tool makes about itself.
 
 **Every finding carries evidence.** A `file:line` with quoted source, or two hashes. Semantic
 findings go through an adversarial pass — an independent agent that tries to *refute* them.

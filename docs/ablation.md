@@ -7,19 +7,99 @@ diffed by threat class.
 The deterministic layer runs in seconds and costs nothing. Anything the model layer
 adds has to be worth minutes and dollars, which is the actual decision a user makes.
 
-## attestation-doc-validation
+| repo | deterministic | semantic | refuted | wall-clock |
+|---|---|---|---|---|
+| dstack | 14 | 28 | 2 | 4.2s → 848.7s |
+| meta-dstack | 1 | 7 | 0 | 2.5s → 583.0s |
+| aws-nitro-enclaves-samples | 19 | 23 | 2 | 2.5s → 377.4s |
+| aws-nitro-enclaves-sdk-c | 9 | 15 | 4 | 2.5s → 581.2s |
+| attestation-doc-validation | 0 | 4 | 2 | 2.4s → 788.5s |
 
-- deterministic: 0 findings in 2.3s
-- with semantic: 6 findings in 357.3s
-- refuted and dropped by the adversarial pass: 0
-- semantic verdicts: confirmed 6
+## dstack
+
+- deterministic: 14 findings in 4.2s
+- with semantic: 28 findings in 848.7s
+- refuted and dropped by the adversarial pass: 2
+- semantic verdicts: confirmed 8, plausible 6
 
 | threat class | deterministic | semantic | unique to semantic |
 |---|---|---|---|
+| `DS04` | 1 | 1 | 0 |
+| `LYR01` *(semantic-only rule)* | 0 | 2 | 2 |
+| `T00` *(semantic-only rule)* | 0 | 2 | 2 |
+| `T00A` | 1 | 1 | 0 |
+| `T03C` | 3 | 3 | 0 |
+| `T05` *(semantic-only rule)* | 0 | 7 | 7 |
+| `T07A` | 2 | 2 | 0 |
+| `T07C` | 1 | 1 | 0 |
+| `T07D` | 4 | 4 | 0 |
+| `T08` *(semantic-only rule)* | 0 | 3 | 3 |
+| `T10` | 2 | 2 | 0 |
+
+## meta-dstack
+
+- deterministic: 1 findings in 2.5s
+- with semantic: 7 findings in 583.0s
+- refuted and dropped by the adversarial pass: 0
+- semantic verdicts: confirmed 5, plausible 1
+- every refutation ran and none succeeded: the verifier checked all 6 findings and let them stand
+
+| threat class | deterministic | semantic | unique to semantic |
+|---|---|---|---|
+| `DS01` | 1 | 1 | 0 |
 | `LYR01` *(semantic-only rule)* | 0 | 3 | 3 |
-| `T00` *(semantic-only rule)* | 0 | 3 | 3 |
+| `T05` *(semantic-only rule)* | 0 | 3 | 3 |
+
+## aws-nitro-enclaves-samples
+
+- deterministic: 19 findings in 2.5s
+- with semantic: 23 findings in 377.4s
+- refuted and dropped by the adversarial pass: 2
+- semantic verdicts: confirmed 3, plausible 1
+
+| threat class | deterministic | semantic | unique to semantic |
+|---|---|---|---|
+| `CFG04` | 7 | 7 | 0 |
+| `T00` *(semantic-only rule)* | 0 | 1 | 1 |
+| `T01` | 2 | 2 | 0 |
+| `T03` | 1 | 1 | 0 |
+| `T05` *(semantic-only rule)* | 0 | 3 | 3 |
+| `T07A` | 4 | 4 | 0 |
+| `T07D` | 5 | 5 | 0 |
+
+## aws-nitro-enclaves-sdk-c
+
+- deterministic: 9 findings in 2.5s
+- with semantic: 15 findings in 581.2s
+- refuted and dropped by the adversarial pass: 4
+- semantic verdicts: confirmed 4, plausible 2
+
+| threat class | deterministic | semantic | unique to semantic |
+|---|---|---|---|
+| `CFG01` | 2 | 2 | 0 |
+| `CFG04` | 7 | 7 | 0 |
+| `T00` *(semantic-only rule)* | 0 | 2 | 2 |
+| `T05` *(semantic-only rule)* | 0 | 2 | 2 |
+| `T08` *(semantic-only rule)* | 0 | 2 | 2 |
+
+## attestation-doc-validation
+
+- deterministic: 0 findings in 2.4s
+- with semantic: 4 findings in 788.5s
+- refuted and dropped by the adversarial pass: 2
+- semantic verdicts: confirmed 4
+
+| threat class | deterministic | semantic | unique to semantic |
+|---|---|---|---|
+| `LYR01` *(semantic-only rule)* | 0 | 2 | 2 |
+| `T00` *(semantic-only rule)* | 0 | 2 | 2 |
 
 ## Reading
+
+All 20 semantic passes completed on this run. An earlier run had 5 of 20 die with a
+transient SDK error — reported as failed rather than empty, but still costing the run its
+coverage — which is why the finder passes retry. The comparison below is on complete data.
+
 
 On every threat class that **both** layers implement, the model layer found
 nothing the deterministic layer missed. That is the honest result: for those

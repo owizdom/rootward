@@ -126,7 +126,15 @@ def render(results: list[dict]) -> str:
         "The deterministic layer runs in seconds and costs nothing. Anything the model layer",
         "adds has to be worth minutes and dollars, which is the actual decision a user makes.",
         "",
+        "| repo | deterministic | semantic | refuted | wall-clock |",
+        "|---|---|---|---|---|",
     ]
+    for r in results:
+        lines.append(
+            f"| {r['repo']} | {r['deterministic_findings']} | {r['semantic_findings']} | "
+            f"{r['refuted']} | {r['deterministic_seconds']}s → {r['semantic_seconds']}s |"
+        )
+    lines.append("")
 
     for r in results:
         lines += [
