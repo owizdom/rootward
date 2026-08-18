@@ -13,7 +13,26 @@ output is an empty list.
 
 from __future__ import annotations
 
-THREAT_MODEL = """\
+# The threat model is platform-specific and getting it wrong is worse than omitting it: a
+# semantic pass told that "the enclave has no network stack" will reason confidently and
+# wrongly about a Confidential Space workload, which has an ordinary one. The vsock framing
+# below is accurate for Nitro and false for EigenCompute, so the two are kept apart.
+
+_EVIDENCE_RULES = """\
+Scope rule, absolute:
+- Read ONLY files inside the repository you were pointed at. Never read a parent directory, a sibling directory, or anything outside it. You are auditing a third party's code, and reading outside the target is out of bounds no matter how useful it looks.
+
+Evidence rules, which override any instinct to be helpful:
+- Every finding MUST cite a real file path and a real 1-indexed line number you actually \
+read, and quote the line.
+- If you cannot point at a specific line, the finding does not exist. Return an empty list.
+- Do not infer a defect from a file's name, a function's name, or the absence of code you \
+did not go looking for.
+- A missed finding is a gap. A fabricated finding wastes a security engineer's time and \
+discredits every other finding in the report. Prefer the gap.
+"""
+
+_NITRO_MODEL = """\
 You are auditing a Web3 protocol that runs inside a cloud Trusted Execution Environment \
 (AWS Nitro Enclaves or dstack). Work from this threat model:
 
@@ -27,19 +46,46 @@ enclave accepts it.
 - The parent CANNOT read enclave memory. Do not report findings that require that.
 - Hardware attacks (speculative execution, Rowhammer, voltage/EM fault injection, memory-bus \
 interposition) are OUT OF SCOPE. Never report them.
-
-Scope rule, absolute:
-- Read ONLY files inside the repository you were pointed at. Never read a parent directory, a sibling directory, or anything outside it. You are auditing a third party's code, and reading outside the target is out of bounds no matter how useful it looks.
-
-Evidence rules, which override any instinct to be helpful:
-- Every finding MUST cite a real file path and a real 1-indexed line number you actually \
-read, and quote the line.
-- If you cannot point at a specific line, the finding does not exist. Return an empty list.
-- Do not infer a defect from a file's name, a function's name, or the absence of code you \
-did not go looking for.
-- A missed finding is a gap. A fabricated finding wastes a security engineer's time and \
-discredits every other finding in the report. Prefer the gap.
 """
+
+_CONFIDENTIAL_SPACE_MODEL = """\
+You are auditing a Web3 protocol that runs inside a Google Cloud Confidential Space \
+workload on Intel TDX, deployed via EigenCompute. Work from this threat model:
+
+- The cloud operator and anyone who can reach the deployment API are ADVERSARIAL.
+- The workload is an ordinary container with a NORMAL network stack. There is no vsock and \
+no parent-side proxy: it makes outbound connections directly, bounded only by an egress \
+allowlist in `ecloud.toml` if one is declared. Do not reason about vsock on this platform.
+- Secrets are NOT baked into the image. At container start the platform runs `kms-client`, \
+which fetches the app's environment from KMS, verifies the response against a signing key \
+pinned into the image, writes /tmp/.env, sources it, deletes it, and drops privileges. KMS \
+releases that environment only to an attested Docker image digest, recorded on chain. The \
+wallet the app spends from derives from the MNEMONIC delivered this way.
+- Workload identity is the Docker image digest, carried in the attestation token's `submods` \
+claim. There is no EIF and there are no PCRs.
+- Attestation is a JWT from Google's attestation verifier. Decoding it proves nothing; only \
+checking its signature against Google's JWKS does.
+- The operator CAN read anything the app logs when `log_visibility` is `public`, and can \
+observe message sizes and timing.
+- The operator CANNOT read enclave memory, and CANNOT obtain MNEMONIC for an image digest \
+they cannot reproduce. Do not report findings that require either.
+- Hardware attacks (speculative execution, Rowhammer, voltage/EM fault injection, memory-bus \
+interposition) are OUT OF SCOPE. Never report them.
+"""
+
+
+def threat_model(platform=None) -> str:
+    """The threat model for the platform actually detected.
+
+    `platform` is a detectors.platform_detect.Platform, or None for the Nitro default.
+    """
+    if platform is not None and getattr(platform, "confidential_space", False):
+        return _CONFIDENTIAL_SPACE_MODEL + "\n" + _EVIDENCE_RULES
+    return _NITRO_MODEL + "\n" + _EVIDENCE_RULES
+
+
+# Backwards-compatible default for callers that have no platform to hand.
+THREAT_MODEL = threat_model()
 
 FINDING_SCHEMA = {
     "type": "object",

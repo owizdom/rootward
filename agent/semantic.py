@@ -139,7 +139,13 @@ async def _run_json(system_prompt: str, user_prompt: str, cwd: Path, schema: dic
     return {}
 
 
-async def run_pass(rule_id: str, root: Path, scope: list[str], attempts: int = 3) -> list[Finding]:
+async def run_pass(
+    rule_id: str,
+    root: Path,
+    scope: list[str],
+    attempts: int = 3,
+    platform=None,
+) -> list[Finding]:
     """One semantic rule over a scoped file list.
 
     Retried, for the same reason `refute` is: a transient SDK error is not a result. A full
@@ -150,7 +156,11 @@ async def run_pass(rule_id: str, root: Path, scope: list[str], attempts: int = 3
     re-running the whole audit.
     """
     instruction = prompts.PASSES[rule_id]
-    system = f"{prompts.THREAT_MODEL}\n\n{instruction}"
+    # The threat model has to match the platform. Telling a Confidential Space audit that
+    # every byte crosses a vsock channel the parent controls produces fluent, confident,
+    # wrong findings -- the exact failure mode this project documented in
+    # docs/when-the-verifier-is-wrong.md, arriving through the system prompt instead.
+    system = f"{prompts.threat_model(platform)}\n\n{instruction}"
 
     listing = "\n".join(f"- {p}" for p in scope[:200])
     user = (
@@ -199,7 +209,7 @@ async def run_pass(rule_id: str, root: Path, scope: list[str], attempts: int = 3
     return out
 
 
-async def refute(finding: Finding, root: Path, attempts: int = 3) -> Finding:
+async def refute(finding: Finding, root: Path, attempts: int = 3, platform=None) -> Finding:
     """Adversarial pass. Mutates verdict in place on a copy and returns it.
 
     Retried, because a transient SDK error is not a verdict. On one dstack run every one of
@@ -251,7 +261,8 @@ async def refute(finding: Finding, root: Path, attempts: int = 3) -> Finding:
 
 
 async def run_semantic(root: Path, scope: list[str], rules: list[str] | None = None,
-                       verify: bool = True) -> tuple[list[Finding], list[Finding], list[str]]:
+                       verify: bool = True,
+                       platform=None) -> tuple[list[Finding], list[Finding], list[str]]:
     """Run the semantic passes and the adversarial check.
 
     Returns (kept, dropped, warnings). `dropped` holds refuted findings so the run log can
@@ -267,7 +278,7 @@ async def run_semantic(root: Path, scope: list[str], rules: list[str] | None = N
         return [], [], [str(exc)]
 
     results = await asyncio.gather(
-        *(run_pass(rule, root, scope) for rule in selected), return_exceptions=True
+        *(run_pass(rule, root, scope, platform=platform) for rule in selected), return_exceptions=True
     )
 
     candidates: list[Finding] = []
@@ -281,7 +292,7 @@ async def run_semantic(root: Path, scope: list[str], rules: list[str] | None = N
         return candidates, [], warnings
 
     verified = await asyncio.gather(
-        *(refute(f, root) for f in candidates), return_exceptions=True
+        *(refute(f, root, platform=platform) for f in candidates), return_exceptions=True
     )
 
     kept, dropped = [], []

@@ -360,15 +360,26 @@ def not_verified(
         items.append("catalog coverage could not be computed")
 
     # Deployment reality is out of reach by design.
-    items.append(
-        "Deployed configuration was not inspected. The KMS key policy in this repository "
-        "is not necessarily the policy attached to the live key, and --debug-mode absent "
-        "from a script is not proof of how the enclave was actually launched."
-    )
+    if platform.eigencompute:
+        items.append(
+            "Deployed configuration was not inspected. ecloud.toml in this repository is "
+            "not necessarily the manifest of the live deployment: log_visibility, the "
+            "instance type and the egress allowlist can each be overridden by a flag on "
+            "`ecloud compute app deploy`, so a clean manifest here is weak evidence."
+        )
+    else:
+        items.append(
+            "Deployed configuration was not inspected. The KMS key policy in this "
+            "repository is not necessarily the policy attached to the live key, and "
+            "--debug-mode absent from a script is not proof of how the enclave was "
+            "actually launched."
+        )
+    measurement = "no PCR values were read live" if not platform.confidential_space \
+        else "no live measurement was read"
     items.append(
         "Runtime behaviour was not observed: no attestation document was fetched from a "
-        "running enclave, no PCR values were read live, and no timing or response-size "
-        "distributions were measured (which is why BT-T08 metadata leakage has low recall)."
+        f"running enclave, {measurement}, and no timing or response-size distributions "
+        "were measured (which is why BT-T08 metadata leakage has low recall)."
     )
 
     if platform.nitro:
@@ -381,11 +392,39 @@ def not_verified(
             "An EIF is signed, so a PCR8 exists. Computing it requires X.509 parsing that "
             "this tool deliberately omits, so PCR8 was not verified."
         )
-    if not eif_reports:
+    if not eif_reports and platform.nitro:
         items.append(
             "No built .eif was found, so ramdisk secret scanning (BT-T09A) and the "
             "PCR-to-policy comparison (BT-CFG03) did not run. Build the image and re-run "
             "to cover them."
+        )
+    if platform.confidential_space:
+        items.append(
+            "No attestation token was fetched. The hwmodel, swname, secboot, tcbstatus and "
+            "submods claims a running instance would emit were not observed: this audit can "
+            "say whether the code checks them, never what they contain."
+        )
+    if platform.eigencompute:
+        items.append(
+            "This platform has no EIF and no PCRs, so the Rust core's image, ramdisk and "
+            "measurement analysis (BT-T09A, BT-CFG02, BT-CFG03) is structurally "
+            "inapplicable and did not run. Workload identity here is the Docker image "
+            "digest carried in the attestation token and recorded on chain."
+        )
+        items.append(
+            "The image digest recorded on chain for this app was not fetched. Whether the "
+            "digest that KMS releases MNEMONIC to matches the image this repository builds "
+            "is a deployment fact, checkable at verify.eigencloud.xyz, not a repository one."
+        )
+        items.append(
+            "The pinned kms-signing-public-key.pem ships in the platform base image rather "
+            "than in this repository, so this audit cannot confirm that the key the running "
+            "kms-client pins is the key of the KMS that released this app's secrets."
+        )
+        items.append(
+            "The wallet derived from MNEMONIC was not inspected on chain. Whether it holds "
+            "funds, and how much, is what decides the severity of every key-handling "
+            "finding above."
         )
     if core is None:
         items.append("The Rust core was not built, so no binary-format analysis ran at all.")
@@ -537,7 +576,7 @@ def main() -> int:
 
         scope = semantic_scope(root, findings)
         kept, refuted, sem_warnings = asyncio.run(
-            run_semantic(root, scope, verify=not args.no_verify)
+            run_semantic(root, scope, verify=not args.no_verify, platform=platform)
         )
         findings += kept
         warnings += sem_warnings
