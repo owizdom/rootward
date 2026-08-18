@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
 import re
 import shutil
 import subprocess
@@ -496,6 +497,102 @@ def not_verified(
 
 
 # ------------------------------------------------------------- rendering ---
+SARIF_LEVEL = {
+    "critical": "error",
+    "high": "error",
+    "medium": "warning",
+    "low": "note",
+    "info": "note",
+}
+
+
+def render_sarif(result: dict, catalog: dict[str, dict]) -> str:
+    """SARIF 2.1.0, for GitHub code scanning.
+
+    Severity maps to SARIF's three levels, so critical and high both become `error` — the
+    distinction survives in the rule metadata and the message rather than being lost.
+    """
+    used: dict[str, dict] = {}
+    for f in result["findings"]:
+        rid = f["rule_id"]
+        if rid in used:
+            continue
+        rule = catalog.get(rid, {})
+        used[rid] = {
+            "id": rid,
+            "name": rid,
+            "shortDescription": {"text": rule.get("title", rid)},
+            "fullDescription": {"text": " ".join((rule.get("rationale") or "").split())},
+            "help": {
+                "text": " ".join((rule.get("remediation") or "").split()),
+                "markdown": (
+                    f"**{rule.get('title', rid)}**\n\n"
+                    f"{' '.join((rule.get('rationale') or '').split())}\n\n"
+                    f"**Remediation.** {' '.join((rule.get('remediation') or '').split())}\n\n"
+                    f"**When this rule is wrong.** "
+                    f"{' '.join((rule.get('false_positives') or '').split())}"
+                ),
+            },
+            "defaultConfiguration": {
+                "level": SARIF_LEVEL.get(rule.get("severity", "medium"), "warning")
+            },
+            "properties": {
+                "tags": ["security", "tee"] + [f"platform:{p}" for p in rule.get("platform", [])],
+                "problem.severity": rule.get("severity", "medium"),
+                "security-severity": {
+                    "critical": "9.0", "high": "7.5", "medium": "5.0",
+                    "low": "3.0", "info": "1.0",
+                }.get(rule.get("severity", "medium"), "5.0"),
+            },
+        }
+        if rule.get("source"):
+            used[rid]["helpUri"] = rule["source"]
+
+    results = []
+    for f in result["findings"]:
+        # An EIF-internal path ("app.eif!app/.env") has no line in the checked-out tree, so
+        # it is reported against the image file itself with the inner path in the message.
+        path = f["file"].split("!", 1)[0]
+        results.append({
+            "ruleId": f["rule_id"],
+            "level": SARIF_LEVEL.get(f["severity"], "warning"),
+            "message": {"text": " ".join(f["message"].split())},
+            "locations": [{
+                "physicalLocation": {
+                    "artifactLocation": {"uri": path, "uriBaseId": "%SRCROOT%"},
+                    "region": {"startLine": max(1, f["line"])},
+                }
+            }],
+            "partialFingerprints": {
+                "teeAuditFinding/v1": hashlib.sha256(
+                    f"{f['rule_id']}|{f['file']}|{f['evidence']}".encode()
+                ).hexdigest()[:16]
+            },
+        })
+
+    return json.dumps({
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {"driver": {
+                "name": "tee-audit",
+                "informationUri": "https://github.com/owizdom/tee-audit",
+                "rules": list(used.values()),
+            }},
+            "results": results,
+            # What the audit could not check, carried across so it is visible in the scan
+            # rather than lost when only findings are uploaded.
+            "invocations": [{
+                "executionSuccessful": True,
+                "toolExecutionNotifications": [
+                    {"level": "note", "message": {"text": n}}
+                    for n in result.get("not_verified", [])
+                ],
+            }],
+        }],
+    }, indent=2)
+
+
 def _severity_breakdown(findings: list[dict]) -> str:
     """`20` alone makes a reader count criticals by hand."""
     if not findings:
@@ -626,9 +723,10 @@ def main() -> int:
              "in it is executed, imported, or modified.",
     )
     ap.add_argument(
-        "--format", choices=["md", "json"], default="md",
+        "--format", choices=["md", "json", "sarif"], default="md",
         help="md (default) is the human report; json carries the same data plus refuted "
-             "findings, for tooling.",
+             "findings; sarif is for GitHub code scanning, which annotates the offending "
+             "line in a pull-request diff.",
     )
     ap.add_argument(
         "--semgrep", default="semgrep",
@@ -724,7 +822,12 @@ def main() -> int:
         ),
     }
 
-    print(json.dumps(result, indent=2) if args.format == "json" else render_markdown(result))
+    if args.format == "json":
+        print(json.dumps(result, indent=2))
+    elif args.format == "sarif":
+        print(render_sarif(result, catalog))
+    else:
+        print(render_markdown(result))
 
     # Exit 2 for "found something", never 1 — 1 is reserved for "could not run". A CI gate
     # that cannot tell a crashed scanner from a clean repository is worse than no gate, and

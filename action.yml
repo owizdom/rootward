@@ -1,0 +1,132 @@
+name: "tee-audit"
+description: "Audit a Web3 TEE protocol (AWS Nitro Enclaves, dstack, EigenCompute) for the failure modes that actually get them rekt"
+author: "owizdom"
+
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  path:
+    description: "Directory to audit, relative to the workspace."
+    required: false
+    default: "."
+  fail-on:
+    description: >
+      Fail the job when a finding at this severity or above is reported:
+      critical, high, medium, low, or never. Default 'high'.
+    required: false
+    default: "high"
+  format:
+    description: "Report format written to the log: md, json, or sarif."
+    required: false
+    default: "md"
+  sarif-file:
+    description: >
+      Also write SARIF here, for actions/upload-sarif. Set empty to skip.
+      Requires `security-events: write` on the job to upload.
+    required: false
+    default: "tee-audit.sarif"
+  semgrep:
+    description: "Install and use semgrep. Without it the code-pattern rules do not run."
+    required: false
+    default: "true"
+
+outputs:
+  findings:
+    description: "Total number of findings reported."
+    value: ${{ steps.audit.outputs.findings }}
+  exit-code:
+    description: "0 clean, 1 could not run, 2 findings at or above fail-on."
+    value: ${{ steps.audit.outputs.exit-code }}
+  sarif:
+    description: "Path to the SARIF file, if one was written."
+    value: ${{ steps.audit.outputs.sarif }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check out tee-audit
+      uses: actions/checkout@v4
+      with:
+        repository: owizdom/tee-audit
+        ref: ${{ github.action_ref || 'main' }}
+        path: .tee-audit
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: .tee-audit/core
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        python -m pip install --quiet --upgrade pip
+        python -m pip install --quiet pyyaml jsonschema
+        if [ "${{ inputs.semgrep }}" = "true" ]; then
+          python -m pip install --quiet semgrep
+        fi
+
+    # The Rust core is what reads the built enclave image and scans Dockerfiles and .env
+    # files. Without it BT-T09A and BT-T09B do not run at all, so it is built rather than
+    # treated as optional.
+    - name: Build the core
+      shell: bash
+      working-directory: .tee-audit/core
+      run: cargo build --release --bins
+
+    - name: Audit
+      id: audit
+      shell: bash
+      run: |
+        set +e
+        TARGET="$(cd "${{ inputs.path }}" && pwd)"
+        cd .tee-audit
+
+        python cli/audit.py "$TARGET" \
+          --format "${{ inputs.format }}" \
+          --fail-on "${{ inputs.fail-on }}" | tee "$RUNNER_TEMP/report.out"
+        CODE=${PIPESTATUS[0]}
+
+        # A second pass for machine-readable output. The audit is read-only and takes
+        # seconds, so re-running is cheaper than teeing two formats out of one process.
+        python cli/audit.py "$TARGET" --format json > "$RUNNER_TEMP/report.json" 2>/dev/null
+        COUNT=$(python -c "import json;print(len(json.load(open('$RUNNER_TEMP/report.json'))['findings']))" 2>/dev/null || echo 0)
+
+        SARIF=""
+        if [ -n "${{ inputs.sarif-file }}" ]; then
+          SARIF="$GITHUB_WORKSPACE/${{ inputs.sarif-file }}"
+          python cli/audit.py "$TARGET" --format sarif > "$SARIF" 2>/dev/null
+        fi
+
+        echo "findings=$COUNT"   >> "$GITHUB_OUTPUT"
+        echo "exit-code=$CODE"   >> "$GITHUB_OUTPUT"
+        echo "sarif=$SARIF"      >> "$GITHUB_OUTPUT"
+
+        {
+          echo "## tee-audit"
+          echo
+          if [ "$CODE" = "1" ]; then
+            echo "The audit could **not run**. This is not a pass — see the log."
+          elif [ "$CODE" = "2" ]; then
+            echo "$COUNT findings, at or above \`${{ inputs.fail-on }}\`."
+          else
+            echo "$COUNT findings, none at or above \`${{ inputs.fail-on }}\`."
+          fi
+          echo
+          echo "<details><summary>Full report</summary>"
+          echo
+          echo '```'
+          cat "$RUNNER_TEMP/report.out"
+          echo '```'
+          echo
+          echo "</details>"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        # Exit 1 means the audit could not run. Never let that pass as clean — a gate that
+        # cannot tell a broken scanner from a clean repository is worse than no gate.
+        exit $CODE

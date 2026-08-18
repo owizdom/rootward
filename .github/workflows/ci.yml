@@ -87,3 +87,82 @@ jobs:
         env:
           PATH: ${{ github.workspace }}/.venv/bin:/usr/local/bin:/usr/bin:/bin
         run: .venv/bin/python bench/mutate.py
+
+  # The Action is a published interface. If nobody runs it, it breaks silently and the
+  # first person to find out is a stranger who added it to their pipeline.
+  action:
+    name: action + exit contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+      - uses: astral-sh/setup-uv@v5
+
+      - name: build core
+        working-directory: core
+        run: cargo build --release --bins
+
+      - run: uv venv && uv pip install pyyaml jsonschema semgrep
+
+      - name: build binary fixtures
+        run: .venv/bin/python bench/fixtures/build.py
+
+      # The exit contract is what every CI gate built on this tool depends on, so it is
+      # asserted rather than assumed: 2 means findings, 0 means clean, 1 means the audit
+      # could not run and must never read as a pass.
+      - name: exit 2 on a repo with findings
+        env:
+          PATH: ${{ github.workspace }}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+        run: |
+          set +e
+          .venv/bin/python cli/audit.py bench/fixtures/eigencompute-vulnerable \
+            --fail-on high > /dev/null
+          code=$?
+          [ "$code" = "2" ] || { echo "expected exit 2, got $code"; exit 1; }
+
+      - name: exit 0 on a clean repo
+        env:
+          PATH: ${{ github.workspace }}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+        run: |
+          set +e
+          .venv/bin/python cli/audit.py bench/fixtures/eigencompute-clean \
+            --fail-on high > /dev/null
+          code=$?
+          [ "$code" = "0" ] || { echo "expected exit 0, got $code"; exit 1; }
+
+      - name: exit 1 when the audit cannot run
+        run: |
+          set +e
+          .venv/bin/python cli/audit.py /does/not/exist --fail-on high > /dev/null 2>&1
+          code=$?
+          [ "$code" = "1" ] || { echo "expected exit 1, got $code"; exit 1; }
+
+      - name: SARIF validates against the 2.1.0 schema
+        env:
+          PATH: ${{ github.workspace }}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+        run: |
+          .venv/bin/python cli/audit.py bench/fixtures/eigencompute-vulnerable \
+            --format sarif > /tmp/out.sarif
+          curl -sSL -o /tmp/sarif-schema.json https://json.schemastore.org/sarif-2.1.0.json
+          .venv/bin/python - <<'PY'
+          import json, jsonschema
+          schema = json.load(open("/tmp/sarif-schema.json"))
+          doc = json.load(open("/tmp/out.sarif"))
+          errs = list(jsonschema.Draft7Validator(schema).iter_errors(doc))
+          if errs:
+              for e in errs[:5]:
+                  print(list(e.path), "->", e.message[:200])
+              raise SystemExit(1)
+          print(f"SARIF ok: {len(doc['runs'][0]['results'])} results")
+          PY
+
+      # Dogfood: the tool audits its own fixture tree through the published Action.
+      - name: the Action itself runs
+        uses: ./
+        with:
+          path: bench/fixtures/eigencompute-clean
+          fail-on: high
+          sarif-file: ""

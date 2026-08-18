@@ -176,6 +176,43 @@ running instance, no active probing. Repository in, report out.
   Rust core does not run there. Workload identity is the image digest in the attestation
   token, and comparing it to the digest recorded on chain needs the network.
 
+## Use it in CI
+
+```yaml
+- uses: owizdom/tee-audit@main
+  with:
+    path: .
+    fail-on: high
+```
+
+Findings land inline on the pull-request diff via SARIF, so a hardcoded mnemonic shows up as
+a review comment on the offending line rather than in a log nobody opens:
+
+```yaml
+permissions:
+  security-events: write
+steps:
+  - uses: actions/checkout@v4
+  - uses: owizdom/tee-audit@main
+    id: audit
+    with: { path: ., fail-on: high }
+  - uses: github/codeql-action/upload-sarif@v3
+    if: always()
+    with: { sarif_file: ${{ steps.audit.outputs.sarif }} }
+```
+
+**Exit codes**, because a gate that cannot tell a broken scanner from a clean repository is
+worse than no gate:
+
+| exit | meaning |
+|---|---|
+| 0 | the audit ran and found nothing at or above `--fail-on` |
+| 1 | the audit **could not run** — bad path, missing dependency. Never a pass. |
+| 2 | the audit ran and found something at or above `--fail-on` |
+
+`--fail-on` defaults to `never` on the CLI (so interactive use stays exit 0) and to `high` in
+the Action.
+
 ## Setup
 
 ```sh
