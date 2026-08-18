@@ -1,0 +1,37 @@
+name: Missed detection
+description: A real defect the tool did not report
+labels: ["missed-detection"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A missed finding is a gap worth closing. If it maps to a threat in the
+        [Bluethroat handbook](https://bluethroatlabs.com/docs/executive-summary), say which.
+
+        **Please redact any real secret.**
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: nitro | dstack | eigencompute | other
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: The code that should have been flagged
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: What an attacker gets
+      description: The concrete consequence — what they read, forge, or spend.
+    validations:
+      required: true
+  - type: input
+    id: rule
+    attributes:
+      label: Existing rule this belongs to, if any
+      description: Leave blank if it needs a new rule.

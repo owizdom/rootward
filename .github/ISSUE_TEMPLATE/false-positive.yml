@@ -1,0 +1,44 @@
+name: False positive
+description: A rule fired on code that is correct
+labels: ["false-positive"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These get priority. Five separate false-positive classes have been fixed because
+        someone reported one, and each made the tool better in a way adding rules would not.
+
+        **Please redact any real secret** before pasting — reports quote raw source lines.
+  - type: input
+    id: rule
+    attributes:
+      label: Rule id
+      description: From the report, e.g. BT-EC01-key-from-public-input
+      placeholder: BT-XXNN-...
+    validations:
+      required: true
+  - type: input
+    id: location
+    attributes:
+      label: Where it fired
+      description: The file:line from the report. A link is ideal if the code is public.
+      placeholder: src/wallet.ts:42
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: The code it fired on
+      description: The smallest snippet that still triggers it.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this code is correct
+      description: >
+        What makes this a safe pattern? This is the part that turns a report into a fix —
+        it usually becomes the rule's `false_positives` note.
+    validations:
+      required: true

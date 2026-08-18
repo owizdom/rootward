@@ -1,0 +1,36 @@
+name: New rule proposal
+description: A TEE failure mode this catalog does not cover
+labels: ["new-rule"]
+body:
+  - type: textarea
+    id: failure
+    attributes:
+      label: The failure mode
+      description: What goes wrong, and why it is not obvious in review.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Source
+      description: >
+        Every rule cites one — a handbook section, a published audit, a CVE, a postmortem.
+        Must be an https URI.
+    validations:
+      required: true
+  - type: textarea
+    id: detection
+    attributes:
+      label: How it could be detected statically
+      description: What pattern, absence, or config would a detector key on?
+    validations:
+      required: true
+  - type: textarea
+    id: fps
+    attributes:
+      label: When would this rule be wrong?
+      description: >
+        Required for every rule in this catalog, and the question worth answering first.
+        A rule whose author cannot say when it misfires has not been thought through.
+    validations:
+      required: true
