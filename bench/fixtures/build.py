@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import gzip
 import struct
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -107,10 +108,26 @@ def _write_clean_policy() -> None:
     import json
     import subprocess
 
-    core = HERE.parent.parent / "core" / "target" / "debug" / "tee-audit-core"
-    if not core.exists():
-        print("note: core binary not built, leaving clean policy as-is")
-        return
+    # Release first, then debug — the same order audit.py uses. Hardcoding `debug` meant CI,
+    # which builds `--release`, silently skipped this step: the clean fixture kept its
+    # placeholder PCRs, they did not match the generated EIF, BT-CFG03 fired on the clean
+    # tree, and the fixture gate failed with a false positive that never reproduced locally.
+    root = HERE.parent.parent / "core" / "target"
+    core = next(
+        (p for p in (root / "release" / "tee-audit-core", root / "debug" / "tee-audit-core")
+         if p.exists()),
+        None,
+    )
+    if core is None:
+        # Loud, because a silent skip here produces a fixture tree that fails its own gate.
+        print(
+            "ERROR: core binary not found in target/release or target/debug.\n"
+            "       Build it first (cd core && cargo build --release --bins), or the clean\n"
+            "       fixture's KMS policy will not match its EIF and BT-CFG03 will fire on\n"
+            "       the clean tree.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
     out = subprocess.run(
         [str(core), "measure", str(HERE / "clean" / "app.eif")],

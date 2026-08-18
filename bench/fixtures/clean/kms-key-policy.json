@@ -14,7 +14,7 @@
       "Resource": "*",
       "Condition": {
         "StringEqualsIgnoreCase": {
-          "kms:RecipientAttestation:PCR1": "c036dddaef9181d9c94a8652cca5e06694da935fd4abac69dade120710b9aa6a3c9eae73fd4d2e14f64295af7e98c5ee",
+          "kms:RecipientAttestation:PCR1": "8335597a7a1dca1af251ff893d7269249b6de262c29d0b0dbc58552fee10c64b9ef834e1cd0d509fba4ce007ba700957",
           "kms:RecipientAttestation:PCR2": "21b9efbc184807662e966d34f390821309eeac6802309798826296bf3e8bec7c10edb30948c90ba67310f7b964fc500a"
         }
       }
