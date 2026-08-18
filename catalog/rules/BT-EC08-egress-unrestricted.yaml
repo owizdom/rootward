@@ -27,4 +27,4 @@ false_positives: >
   is also not the deployment: every field it carries can be overridden by a flag on ecloud app
   deploy, so a clean manifest is weak evidence in the other direction.
 confidence: medium
-status: implemented
+status: benchmarked

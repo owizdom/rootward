@@ -29,4 +29,4 @@ false_positives: >
   The rule reports which specific claims it could not find rather than a bare verdict, so a
   reader can confirm against their own validator quickly.
 confidence: medium
-status: implemented
+status: benchmarked

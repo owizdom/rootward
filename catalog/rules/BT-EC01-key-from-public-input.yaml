@@ -32,4 +32,4 @@ false_positives: >
   wallet, but an unusual naming convention around key material could still make a fingerprint
   look like a key.
 confidence: high
-status: implemented
+status: benchmarked

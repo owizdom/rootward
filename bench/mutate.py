@@ -60,6 +60,26 @@ class Mutation:
     replace: str
     note: str
 
+    also_expects: tuple[str, ...] = ()
+    """Other rule families this mutant legitimately trips.
+
+    Some defects cannot be planted in isolation. Replacing a `jwtVerify(token, JWKS,
+    {issuer, audience})` call with a bare base64 decode removes the signature check (CS01)
+    *and* the audience and issuer checks (CS02), because they were arguments to the call
+    that was deleted. Both findings are correct. Counting the second as collateral would
+    report a precision loss for a rule that behaved exactly right, so the co-occurrence is
+    declared here and excluded from the false-positive tally rather than tuned away.
+    """
+
+    base: str = "clean"
+    """Which fixture tree under bench/fixtures/ this defect is planted in.
+
+    Platform-specific rules can only be planted in a tree of that platform: an EigenCompute
+    mutant applied to the Nitro tree finds none of its target text, reports `inapplicable`,
+    and is then dropped from scoring — a permanent recall hole that looks like a clean run.
+    Every mutant names its tree so that cannot happen silently.
+    """
+
     extra_edits: tuple[tuple[str, str], ...] = ()
     """Further (find, replace) pairs applied in order after the first.
 
@@ -361,6 +381,206 @@ MUTATIONS: list[Mutation] = [
         ),
         regex=True,
     ),
+    # ---------------------------------------------------------------- EigenCompute ---
+    # Planted in the eigencompute-clean tree. Shapes vary the *form* of each defect rather
+    # than the file, because a rule that only recognises the idiom its author wrote scores
+    # full recall against one mutant and then misses the same bug in real code.
+
+    Mutation(
+        "EC01", "src/wallet.ts",
+        'hkdfSync("sha256", ikm, Buffer.from(salt, "utf8"), Buffer.from(info, "utf8"), length)',
+        'hkdfSync("sha256", Buffer.from(kmsPublicKey), Buffer.from(salt, "utf8"), Buffer.from(info, "utf8"), length)',
+        "hkdf keyed on the KMS public key",
+        base="eigencompute-clean",
+        extra_edits=(("export function deriveKey(",
+                      "const kmsPublicKey = process.env.KMS_PUBLIC_KEY ?? \"\";\nexport function deriveKey("),),
+    ),
+    Mutation(
+        "EC01", "src/wallet.ts",
+        'const seed = deriveKey(ikm, "example-clean/v1/signing", "ed25519-seed", 32);',
+        'const seed = Buffer.from(createHmac("sha256", "v1").update(String(process.env.EIGENCOMPUTE_INSTANCE_ID)).digest());',
+        "signing seed derived from the instance id",
+        base="eigencompute-clean",
+    ),
+    Mutation(
+        "EC01", "src/wallet.ts",
+        "export function initSigning(ikm: Buffer): void {",
+        'export function deriveWalletKey(imageDigest: string): string {\n'
+        '  return "0x" + createHmac("sha256", "wallet-v1").update(imageDigest).digest("hex");\n}\n\n'
+        "export function initSigning(ikm: Buffer): void {",
+        "wallet key derived from the image digest",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "EC02", "src/attest.ts",
+        "export async function requireAttestation(nonce: string): Promise<Verified> {",
+        "export const teeActive = !!process.env.EIGENCOMPUTE_INSTANCE_ID;\n\n"
+        "export async function requireAttestation(nonce: string): Promise<Verified> {",
+        "enclave state read off an environment variable",
+        base="eigencompute-clean",
+    ),
+    Mutation(
+        "EC02", "src/attest.ts",
+        "  if (!EXPECTED_IMAGE_DIGEST || !EXPECTED_APP_ID) {",
+        "  if (process.env.KMS_SERVER_URL) {\n    return { imageDigest: \"\", appId: \"\", issuedAt: 0 };\n  }\n"
+        "  if (!EXPECTED_IMAGE_DIGEST || !EXPECTED_APP_ID) {",
+        "attestation skipped when a platform variable is present",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "EC03", "src/wallet.ts",
+        'const raw = process.env["MNEMONIC"];',
+        'const raw = process.env["MNEMONIC"] || "abandon abandon abandon abandon abandon abandon";',
+        "mnemonic falls back to a published test phrase",
+        base="eigencompute-clean",
+    ),
+    Mutation(
+        "EC03", "src/wallet.ts",
+        "const usedPairs = new Set<string>();",
+        'const SEAL_KEY = process.env.SEAL_KEY || "0".repeat(64);\nconst usedPairs = new Set<string>();',
+        "sealing key defaults to all zeroes",
+        base="eigencompute-clean",
+    ),
+    Mutation(
+        "EC03", "src/routes.ts",
+        'const ADMIN_TOKEN = process.env["ADMIN_TOKEN"] ?? "";',
+        'const ADMIN_TOKEN = process.env["ADMIN_TOKEN"] ?? "changeme-admin-token";',
+        "admin token defaults to a hardcoded literal",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "EC04", "src/attest.ts",
+        "  if (!EXPECTED_IMAGE_DIGEST || !EXPECTED_APP_ID) {\n"
+        "    throw new Error(\"refusing to start: expected image digest and app id are not pinned\");\n  }",
+        "  if (!EXPECTED_IMAGE_DIGEST) {\n    return { imageDigest: \"\", appId: \"\", issuedAt: 0 };\n  }",
+        "missing pin turns the check into a pass",
+        base="eigencompute-clean",
+    ),
+    Mutation(
+        "EC04", "src/kms.ts",
+        "  if (!verifier(payload.value, payload.signature)) {\n    throw new Error(\"signature did not verify\");\n  }",
+        "  try {\n    if (!verifier(payload.value, payload.signature)) {\n"
+        "      throw new Error(\"signature did not verify\");\n    }\n"
+        "  } catch {\n    return createHash(\"sha256\").update(payload.value).digest(\"hex\");\n  }",
+        "signature check degrades to a hash on error",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "EC05", "deploy.sh",
+        "  --env-file .env.tee \\",
+        '  --private-key "$ECLOUD_PRIVATE_KEY" \\\n  --env-file .env.tee \\',
+        "deployer key moved onto the command line",
+        base="eigencompute-clean",
+    ),
+    Mutation(
+        "EC05", "deploy.sh",
+        "  --log-visibility off",
+        '  --log-visibility off --api-key "$SOME_API_KEY"',
+        "api key passed as an argument",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "EC06", "src/routes.ts",
+        'app.get("/healthz", (_req, res) => {\n  res.json({ ok: true });\n});',
+        'app.get("/debug/env", (_req, res) => {\n'
+        "  const out: Record<string, string> = {};\n"
+        "  for (const [k, v] of Object.entries(process.env)) {\n"
+        "    if (k.startsWith(\"KMS\") || k.startsWith(\"TEE\")) out[k] = String(v);\n  }\n"
+        "  res.json(out);\n});",
+        "unauthenticated route enumerating the environment",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "EC07", "Dockerfile", "USER node", "USER root",
+        "privilege drop overridden to root",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "EC08", "ecloud.toml",
+        '[egress]\nallow = [\n  "confidentialcomputing.googleapis.com",\n  "example-price-feed.invalid",\n]',
+        '[egress]\nallow = ["*"]',
+        "egress allowlist widened to a wildcard",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "CS01", "src/attest.ts",
+        "  const { payload } = await jwtVerify(token, JWKS, {\n"
+        "    issuer: \"https://confidentialcomputing.googleapis.com\",\n"
+        "    audience: AUDIENCE,\n    clockTolerance: 30,\n  });",
+        "  const payload = JSON.parse(Buffer.from(token.split(\".\")[1], \"base64\").toString());",
+        "signature verification replaced by a base64 decode",
+        base="eigencompute-clean",
+        also_expects=("CS02",),
+    ),
+    Mutation(
+        "CS01", "src/attest.ts",
+        "import { createRemoteJWKSet, jwtVerify } from \"jose\";",
+        "import { decodeJwt } from \"jose\";",
+        "jwks verification swapped for decodeJwt",
+        base="eigencompute-clean",
+        also_expects=("CS02",),
+        extra_edits=(
+            ("  const { payload } = await jwtVerify(token, JWKS, {\n"
+             "    issuer: \"https://confidentialcomputing.googleapis.com\",\n"
+             "    audience: AUDIENCE,\n    clockTolerance: 30,\n  });",
+             "  const payload = decodeJwt(token);"),
+            ("const JWKS = createRemoteJWKSet(\n"
+             "  new URL(\"https://confidentialcomputing.googleapis.com/.well-known/jwks.json\"),\n);",
+             ""),
+        ),
+    ),
+
+    Mutation(
+        "CS02", "src/attest.ts",
+        '  if (payload.hwmodel !== "INTEL_TDX") {\n'
+        "    throw new Error(`unexpected hardware model: ${String(payload.hwmodel)}`);\n  }",
+        "",
+        "hardware model check removed",
+        base="eigencompute-clean",
+        extra_edits=(
+            ('  if (payload.swname !== "CONFIDENTIAL_SPACE") {\n'
+             "    throw new Error(`unexpected software stack: ${String(payload.swname)}`);\n  }", ""),
+            ("  if (payload.secboot !== true) {\n"
+             "    throw new Error(\"secure boot was not asserted\");\n  }", ""),
+            ('  const tcb = String(payload.tcbstatus ?? payload.tcb_status ?? "");\n'
+             '  if (tcb !== "OK" && tcb !== "UpToDate") {\n'
+             "    throw new Error(`TCB is not up to date: ${tcb}`);\n  }", ""),
+        ),
+    ),
+
+    Mutation(
+        "CS03", "src/attest.ts",
+        "export async function requireAttestation(nonce: string): Promise<Verified> {\n"
+        "  const verified = await verifyAttestationToken(nonce);",
+        "export async function requireAttestation(nonce: string): Promise<Verified> {\n"
+        "  let verified: Verified;\n  try {\n    verified = await verifyAttestationToken(nonce);\n"
+        "  } catch (err) {\n    console.warn(\"attestation unavailable, continuing\");\n"
+        "    verified = { imageDigest: \"\", appId: \"\", issuedAt: 0 };\n    return verified;\n  }",
+        "attestation failure caught and boot continues",
+        base="eigencompute-clean",
+    ),
+
+    Mutation(
+        "T01", "src/attest.ts",
+        "  if (imageDigest !== EXPECTED_IMAGE_DIGEST) {\n"
+        "    throw new Error(\"image digest does not match the pinned digest; refusing to start\");\n  }",
+        "",
+        "image digest read but never compared",
+        base="eigencompute-clean",
+        extra_edits=(
+            ('const EXPECTED_IMAGE_DIGEST = process.env.EXPECTED_IMAGE_DIGEST ?? "";',
+             'const EXPECTED_IMAGE_DIGEST = "";'),
+        ),
+    ),
+
 ]
 
 
@@ -380,28 +600,41 @@ def families(result: dict) -> set[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--repo", default=str(DEFAULT_BASE), help="clean tree to mutate")
+    ap.add_argument("--base", default=None,
+                    help="run only mutants for this fixture tree (default: all)")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--markdown", metavar="PATH",
                     help="also write the per-rule table to a markdown file")
     args = ap.parse_args()
 
-    base = Path(args.repo).resolve()
-    if not base.is_dir():
-        print(f"no such directory: {base}", file=sys.stderr)
+    mutations = [m for m in MUTATIONS if args.base is None or m.base == args.base]
+    if not mutations:
+        print(f"no mutants for base {args.base!r}", file=sys.stderr)
         return 1
 
-    baseline = audit(base)
-    baseline_families = families(baseline)
-    if baseline_families:
-        print(
-            f"warning: baseline is not clean, it reports {sorted(baseline_families)}. "
-            "Collateral counts are measured against it, not against zero.\n",
-            file=sys.stderr,
-        )
+    # One baseline per tree, computed once. Collateral is measured against the tree a
+    # mutant was actually planted in, never against another platform's tree.
+    bases: dict[str, Path] = {}
+    baselines: dict[str, set[str]] = {}
+    for name in sorted({m.base for m in mutations}):
+        tree = (ROOT / "bench" / "fixtures" / name).resolve()
+        if not tree.is_dir():
+            print(f"no such fixture tree: {tree}", file=sys.stderr)
+            return 1
+        bases[name] = tree
+        fams = families(audit(tree))
+        baselines[name] = fams
+        if fams:
+            print(
+                f"warning: baseline {name} is not clean, it reports {sorted(fams)}. "
+                "Collateral counts are measured against it, not against zero.\n",
+                file=sys.stderr,
+            )
 
     rows = []
-    for i, mut in enumerate(MUTATIONS):
+    for i, mut in enumerate(mutations):
+        base = bases[mut.base]
+        baseline_families = baselines[mut.base]
         with tempfile.TemporaryDirectory(prefix="tee-audit-mutant-") as tmp:
             work = Path(tmp) / "repo"
             shutil.copytree(base, work)
@@ -409,13 +642,16 @@ def main() -> int:
             if not mut.apply(work):
                 rows.append({
                     "rule": mut.rule_family, "target": mut.target, "note": mut.note,
+                    "base": mut.base,
                     "status": "inapplicable", "detected": False, "collateral": [],
                 })
                 continue
 
             result = audit(work)
             found = families(result)
-            collateral = sorted(found - baseline_families - {mut.rule_family})
+            collateral = sorted(
+                found - baseline_families - {mut.rule_family} - set(mut.also_expects)
+            )
             rows.append({
                 "rule": mut.rule_family,
                 "target": mut.target,
@@ -423,15 +659,16 @@ def main() -> int:
                 "status": "ok",
                 "detected": mut.rule_family in found,
                 "collateral": collateral,
+                "base": mut.base,
                 "layer": result["scorecard"]["effective_layer"],
             })
 
     applied = [r for r in rows if r["status"] == "ok"]
-    scores = score(rows, baseline_families)
+    scores = score(rows, set())
 
     if args.json:
         print(json.dumps({
-            "baseline_findings": len(baseline["findings"]),
+            "bases": {name: sorted(fams) for name, fams in baselines.items()},
             "mutations": rows,
             "per_rule": scores,
             "recall": (sum(s["tp"] for s in scores.values())
@@ -439,8 +676,11 @@ def main() -> int:
         }, indent=2))
         return 0 if all(s["tp"] == s["planted"] for s in scores.values()) else 1
 
-    print(f"base tree: {base}")
-    print(f"baseline findings: {len(baseline['findings'])}\n")
+    for name in sorted(bases):
+        n = len([r for r in rows if r.get("base") == name])
+        print(f"base tree: {name}  ({n} mutants, baseline "
+              f"{sorted(baselines[name]) or 'clean'})")
+    print()
 
     print(f"{'rule':8} {'recall':>10} {'precision':>11} {'planted':>8} {'fp':>4}  shapes")
     print("-" * 96)
@@ -473,13 +713,13 @@ def main() -> int:
     if args.markdown:
         out = Path(args.markdown)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(render_markdown(scores, rows, base), encoding="utf-8")
+        out.write_text(render_markdown(scores, rows, bases), encoding="utf-8")
         print(f"\nwrote {out}")
 
     return 0 if total_tp == total_planted else 1
 
 
-def score(rows: list[dict], baseline_families: set[str]) -> dict[str, dict]:
+def score(rows: list[dict], _unused: set[str] | None = None) -> dict[str, dict]:
     """Per-rule precision and recall.
 
     recall    = detections ÷ mutants planting that rule
@@ -520,7 +760,7 @@ def score(rows: list[dict], baseline_families: set[str]) -> dict[str, dict]:
     return out
 
 
-def render_markdown(scores: dict[str, dict], rows: list[dict], base: Path) -> str:
+def render_markdown(scores: dict[str, dict], rows: list[dict], bases: dict) -> str:
     total_tp = sum(s["tp"] for s in scores.values())
     total_planted = sum(s["planted"] for s in scores.values())
     total_fp = sum(s["fp"] for s in scores.values())
@@ -531,7 +771,16 @@ def render_markdown(scores: dict[str, dict], rows: list[dict], base: Path) -> st
         "Generated by `bench/mutate.py`. Ground truth is exact by construction: the harness",
         "plants one catalogued defect in a clean tree and asks whether that rule fires.",
         "",
-        f"- base tree: `{base.relative_to(ROOT) if base.is_relative_to(ROOT) else base}`",
+        "Mutants are planted per platform: a rule gated on EigenCompute cannot be exercised",
+        "in a Nitro tree, and a mutant that finds none of its target text reports",
+        "`inapplicable` and is then dropped from scoring — a recall hole that reads as a",
+        "clean run. Every mutant names the tree it belongs to.",
+        "",
+    ] + [
+        f"- base tree `bench/fixtures/{name}`: "
+        f"{len([r for r in rows if r.get('base') == name])} mutants"
+        for name in sorted(bases)
+    ] + [
         f"- mutants: {len([r for r in rows if r['status'] == 'ok'])} applied, "
         f"{len([r for r in rows if r['status'] != 'ok'])} inapplicable",
         f"- **recall {total_tp}/{total_planted}"
@@ -541,15 +790,21 @@ def render_markdown(scores: dict[str, dict], rows: list[dict], base: Path) -> st
         "`precision` counts a rule firing on a mutant that planted a *different* defect as a",
         "false positive — that finding did not exist on the clean tree, so the rule owns it.",
         "",
-        "| rule | recall | precision | mutants | FP | defect shapes tested |",
-        "|---|---|---|---|---|---|",
+        "| rule | platform | recall | precision | mutants | FP | defect shapes tested |",
+        "|---|---|---|---|---|---|---|",
     ]
+    rule_base = {}
+    for r in rows:
+        rule_base.setdefault(r["rule"], set()).add(
+            "eigencompute" if r.get("base", "clean").startswith("eigencompute") else "nitro"
+        )
     for rule in sorted(scores):
         s = scores[rule]
         rec = f"{s['tp']}/{s['planted']}"
         prec = "n/a" if (s["tp"] + s["fp"]) == 0 else f"{100 * s['precision']:.0f}%"
+        plat = ", ".join(sorted(rule_base.get(rule, {"nitro"})))
         lines.append(
-            f"| `{rule}` | {rec} | {prec} | {s['planted']} | {s['fp']} | "
+            f"| `{rule}` | {plat} | {rec} | {prec} | {s['planted']} | {s['fp']} | "
             f"{'; '.join(s['shapes'])} |"
         )
 

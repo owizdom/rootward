@@ -31,4 +31,4 @@ false_positives: >
   appears anywhere in it, and test files and type declarations are excluded, but a project
   that splits fetch and verify across modules is a legitimate miss in the other direction.
 confidence: high
-status: implemented
+status: benchmarked

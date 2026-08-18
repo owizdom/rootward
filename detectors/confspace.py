@@ -70,7 +70,7 @@ KNOWN_VALIDATOR = re.compile(
 TOKEN_VERIFIED = re.compile(
     r"(?i)("
     r"\bjwtVerify\s*\(|\bjwt\.verify\s*\(|\bjws\.verify\s*\("
-    r"|createRemoteJWKSet|\bJWKS?\b\s*[,)]|PyJWKClient|get_signing_key_from_jwt"
+    r"|PyJWKClient\s*\([^)]*\)\s*\.\s*get_signing_key|get_signing_key_from_jwt\s*\("
     r"|\bjwt\.decode\s*\([^)]*verify\s*=\s*True"
     r"|\bVerifyWithKeySet\b|\bjwt\.Parse\s*\("
     r"|verify_?(token|jwt|attestation|quote)\s*\("
@@ -117,15 +117,22 @@ IDENTITY_CHECKS = {
     "image digest": (
         re.compile(r"(?i)(\bsubmods\b|image_?digest)"),
         re.compile(
-            r"(?i)(EXPECTED_(IMAGE_)?DIGEST|PINNED_?DIGEST|allowed_?digests?"
-            r"|image_?digest\s*(===?|!==?)|(===?|!==?)\s*\w*image_?digest)"
+            r"(?i)("
+            r"\w*(?:EXPECTED|PINNED|ALLOWED)\w*DIGEST\w*\s*(?:===?|!==?|\.(?:includes|has)\b)"
+            r"|(?:===?|!==?)\s*\w*(?:EXPECTED|PINNED|ALLOWED)\w*DIGEST"
+            r"|image_?digest\s*(?:===?|!==?)|(?:===?|!==?)\s*\w*image_?digest"
+            r"|allowed_?digests?\s*\.\s*(?:includes|has|contains)"
+            r")"
         ),
     ),
     "app id": (
         re.compile(r"(?i)\bapp_?id\b"),
         re.compile(
-            r"(?i)(EXPECTED_APP_ID|PINNED_?APP_ID"
-            r"|app_?id\s*(===?|!==?)|(===?|!==?)\s*\w*app_?id)"
+            r"(?i)("
+            r"\w*(?:EXPECTED|PINNED)\w*APP_?ID\w*\s*(?:===?|!==?)"
+            r"|(?:===?|!==?)\s*\w*(?:EXPECTED|PINNED)\w*APP_?ID"
+            r"|app_?id\s*(?:===?|!==?)|(?:===?|!==?)\s*\w*app_?id"
+            r")"
         ),
     ),
 }

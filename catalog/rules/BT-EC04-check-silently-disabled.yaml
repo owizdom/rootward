@@ -27,4 +27,4 @@ false_positives: >
   deduplication rather than as a signature. The rule requires signing vocabulary near the
   fallback to reduce that, but a caching layer around a signer could still match.
 confidence: medium
-status: implemented
+status: benchmarked

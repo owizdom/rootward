@@ -28,4 +28,4 @@ false_positives: >
   enumeration rather than anywhere in the file, which cuts both ways: it catches an open debug
   route beside a guarded one, and it misses a global auth hook.
 confidence: medium
-status: implemented
+status: benchmarked

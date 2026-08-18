@@ -30,4 +30,4 @@ false_positives: >
   file path or URL is configuration rather than key material and is excluded explicitly, but
   an unusual variable naming scheme could still produce a hit on ordinary configuration.
 confidence: high
-status: implemented
+status: benchmarked

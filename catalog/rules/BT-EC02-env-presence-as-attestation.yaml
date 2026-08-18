@@ -27,4 +27,4 @@ false_positives: >
   harmless and may match. The finding is about what the resulting flag then gates, which this
   rule cannot see, so a hit on a value used only for telemetry is a legitimate false positive.
 confidence: high
-status: implemented
+status: benchmarked

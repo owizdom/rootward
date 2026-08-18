@@ -27,4 +27,4 @@ false_positives: >
   risk rather than a defect. Build stages that switch to root and back are matched only on the
   final directive, but a multi-stage file with an unusual layout could still report.
 confidence: high
-status: implemented
+status: benchmarked

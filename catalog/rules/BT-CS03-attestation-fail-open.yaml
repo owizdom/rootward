@@ -28,4 +28,4 @@ false_positives: >
   and diagnostic paths that report attestation status without gating anything on it are also
   legitimate. Read the catch block before acting on this finding.
 confidence: medium
-status: implemented
+status: benchmarked

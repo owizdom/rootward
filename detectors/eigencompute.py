@@ -532,10 +532,13 @@ def check_env_dump_route(root: Path) -> list[Finding]:
         # Which route reaches the enumeration matters. A file with one authenticated route
         # and one open debug route has auth "present", and checking file-wide would let the
         # open one through -- which is the arrangement this rule exists to find.
-        enumerating_fn = _enclosing_span(impl, m.start())
         reachable_unguarded = False
-        for r in routes:
-            span = impl[r.start(): r.start() + 600]
+        # A route's body ends where the next route begins. A fixed-width window bleeds into
+        # the neighbouring registration, so an open debug route sitting directly above a
+        # guarded one inherits that route's auth and is reported as protected.
+        bounds = [r.start() for r in routes] + [len(impl)]
+        for idx, r in enumerate(routes):
+            span = impl[r.start(): min(bounds[idx + 1], r.start() + 1200)]
             if AUTH_PRESENT.search(span):
                 continue
             # The handler either enumerates inline or calls the helper that does.
