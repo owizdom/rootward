@@ -53,6 +53,8 @@ not have is worse than one with an honest gap.
 1. Copy the closest existing rule; keep the id scheme (`BT-T##`, `BT-CFG##`, `BT-DS##`, `BT-LYR##`).
 2. Cite a real source. If it is defensible outside the handbook, cite that too.
 3. Write `false_positives` honestly, before writing the detector.
-4. Add a positive and a negative fixture under `bench/fixtures/`. A rule that fires on its own
-   negative fixture does not ship.
-5. Run the validator.
+4. Add a vulnerable and a clean fixture under `bench/fixtures/`, then wire them into
+   `bench/test_fixtures.py`: the family goes in `must_find` for its own tree and in `FOREIGN`
+   for every other tree, so platform gating is asserted in both directions. A rule that fires
+   on a clean tree does not ship — that gate has caught more bugs here than any other.
+5. Run the validator, then `bench/test_fixtures.py`.

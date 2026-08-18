@@ -33,7 +33,9 @@ fn main() -> ExitCode {
 
     match cmd.as_str() {
         "inspect" => {
-            let Some(path) = args.get(1) else { return fail("inspect needs a path") };
+            let Some(path) = args.get(1) else {
+                return fail("inspect needs a path");
+            };
             match tee_audit_core::eif::inspect(Path::new(path)) {
                 Ok(report) => match serde_json::to_string(&report) {
                     Ok(s) => {
@@ -47,7 +49,9 @@ fn main() -> ExitCode {
         }
 
         "measure" => {
-            let Some(path) = args.get(1) else { return fail("measure needs a path") };
+            let Some(path) = args.get(1) else {
+                return fail("measure needs a path");
+            };
             match tee_audit_core::eif::measurements(Path::new(path)) {
                 Ok(m) => {
                     let body = serde_json::json!({
@@ -85,6 +89,8 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
 
-        other => fail(format!("unknown command {other:?}; expected inspect, measure, or scan")),
+        other => fail(format!(
+            "unknown command {other:?}; expected inspect, measure, or scan"
+        )),
     }
 }

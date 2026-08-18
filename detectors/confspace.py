@@ -193,7 +193,7 @@ def _line_of(text: str, pattern: re.Pattern) -> int:
 def check_token_verification(root: Path) -> list[Finding]:
     """BT-CS01 — a Confidential Space token is obtained and never cryptographically verified."""
     out: list[Finding] = []
-    for path, raw, code, impl in _iter_code(root):
+    for path, _raw, code, impl in _iter_code(root):
         if not TOKEN_SOURCE.search(code):
             continue
         if TOKEN_VERIFIED.search(impl) or KNOWN_VALIDATOR.search(impl):
@@ -232,10 +232,10 @@ def check_token_verification(root: Path) -> list[Finding]:
 def check_platform_claims(root: Path) -> list[Finding]:
     """BT-CS02 — the claims that carry the platform guarantee are never compared."""
     out: list[Finding] = []
-    for path, raw, code, impl in _iter_code(root):
+    for path, _raw, code, impl in _iter_code(root):
         if not TOKEN_SOURCE.search(code):
             continue
-        def _claim_checked(pat: re.Pattern) -> bool:
+        def _claim_checked(pat: re.Pattern, impl: str = impl) -> bool:
             """A claim counts as checked only if a comparison sits near *that* claim.
 
             Scoped per claim rather than per file. The file-wide version passed any claim
@@ -304,7 +304,7 @@ def check_digest_pinning(root: Path) -> list[Finding]:
     policy: it binds "an enclave" to "the code I published". Only the remediation differs.
     """
     out: list[Finding] = []
-    for path, raw, code, impl in _iter_code(root):
+    for path, _raw, code, impl in _iter_code(root):
         if not TOKEN_SOURCE.search(code):
             continue
         for label, (read_pat, pinned_pat) in IDENTITY_CHECKS.items():
@@ -341,7 +341,7 @@ def check_digest_pinning(root: Path) -> list[Finding]:
 def check_fail_open(root: Path) -> list[Finding]:
     """BT-CS03 — attestation fails and the workload starts anyway."""
     out: list[Finding] = []
-    for path, raw, code, impl in _iter_code(root):
+    for path, _raw, code, _impl in _iter_code(root):
         if not TOKEN_SOURCE.search(code):
             continue
         # Look at catch/except blocks that mention the soft-failure shape.

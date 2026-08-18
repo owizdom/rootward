@@ -22,8 +22,10 @@
       "pattern": "^BT-(T[0-9]{2}[A-Z]?|CFG[0-9]{2}|DS[0-9]{2}|CS[0-9]{2}|EC[0-9]{2}|LYR[0-9]{2})-[a-z0-9-]+$",
       "description": "BT-T## threat rules, BT-CFG## build/deploy config, BT-DS## dstack-specific, BT-LYR## layer scoring."
     },
-    "title": { "type": "string", "minLength": 10 },
-
+    "title": {
+      "type": "string",
+      "minLength": 10
+    },
     "source": {
       "type": "string",
       "format": "uri",
@@ -32,10 +34,12 @@
     },
     "source_secondary": {
       "type": "array",
-      "items": { "type": "string", "format": "uri" },
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
       "description": "Primary sources for rules that are independently defensible (RFCs, vendor docs, CVEs). Present on every rule we would still ship if the handbook did not exist."
     },
-
     "threat": {
       "type": "integer",
       "minimum": 0,
@@ -48,16 +52,37 @@
       "maximum": 6,
       "description": "Lowest handbook security layer (0-6) that requires this rule to pass. Drives the scorecard: failing a rule caps the protocol below this layer."
     },
-
     "platform": {
       "type": "array",
       "minItems": 1,
-      "items": { "enum": ["nitro", "dstack", "confidential-space", "eigencompute", "sgx", "tdx", "sev-snp", "generic"] }
+      "items": {
+        "enum": [
+          "nitro",
+          "dstack",
+          "confidential-space",
+          "eigencompute",
+          "sgx",
+          "tdx",
+          "sev-snp",
+          "generic"
+        ]
+      }
     },
-    "severity": { "enum": ["critical", "high", "medium", "low", "info"] },
-
+    "severity": {
+      "enum": [
+        "critical",
+        "high",
+        "medium",
+        "low",
+        "info"
+      ]
+    },
     "detection": {
-      "enum": ["deterministic", "semantic", "hybrid"],
+      "enum": [
+        "deterministic",
+        "semantic",
+        "hybrid"
+      ],
       "description": "deterministic = parse/AST/grep, no model call. semantic = requires judgment. hybrid = deterministic prefilter, semantic adjudication."
     },
     "detector": {
@@ -66,36 +91,55 @@
     },
     "languages": {
       "type": "array",
-      "items": { "enum": ["rust", "go", "python", "typescript", "javascript", "json", "yaml", "toml", "dockerfile", "shell", "solidity", "any"] }
+      "items": {
+        "enum": [
+          "rust",
+          "go",
+          "python",
+          "typescript",
+          "javascript",
+          "json",
+          "yaml",
+          "toml",
+          "dockerfile",
+          "shell",
+          "solidity",
+          "any"
+        ]
+      }
     },
-
-    "rationale": { "type": "string", "minLength": 30, "description": "Why this is exploitable. Mechanism, not restatement of the title." },
-    "attack": { "type": "string", "description": "Documented real-world exploitation, where the handbook or public record names one." },
-    "remediation": { "type": "string", "minLength": 20 },
-
+    "rationale": {
+      "type": "string",
+      "minLength": 30,
+      "description": "Why this is exploitable. Mechanism, not restatement of the title."
+    },
+    "attack": {
+      "type": "string",
+      "description": "Documented real-world exploitation, where the handbook or public record names one."
+    },
+    "remediation": {
+      "type": "string",
+      "minLength": 20
+    },
     "false_positives": {
       "type": "string",
       "minLength": 20,
       "description": "REQUIRED. When this rule is wrong. A rule whose author cannot name its failure mode has not been thought through, and an unreviewed rule inflates the FP rate the benchmark exists to measure."
     },
-
     "confidence": {
-      "enum": ["high", "medium", "low"],
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
       "description": "Expected precision of the detector, set before benchmarking and corrected by it. Divergence between this and the measured number is itself a result."
     },
-
-    "fixtures": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "positive": { "type": "array", "items": { "type": "string" } },
-        "negative": { "type": "array", "items": { "type": "string" } }
-      },
-      "description": "Paths under bench/fixtures/. A rule that fires on its own negative fixture does not ship."
-    },
-
     "status": {
-      "enum": ["draft", "implemented", "benchmarked"],
+      "enum": [
+        "draft",
+        "implemented",
+        "benchmarked"
+      ],
       "default": "draft",
       "description": "draft = catalogued only. implemented = detector exists and passes fixtures. benchmarked = precision/recall measured on the mutation corpus."
     }

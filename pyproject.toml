@@ -23,6 +23,9 @@ semantic = ["claude-agent-sdk>=0.1"]
 
 all = ["semgrep>=1.100", "claude-agent-sdk>=0.1"]
 
+# Lint, run in CI. Separate from `all` because auditing does not need it.
+dev = ["ruff>=0.6"]
+
 # No [project.scripts] and no [build-system], deliberately.
 #
 # This project is run from a clone, not installed. cli/audit.py resolves catalog/rules/,
@@ -41,9 +44,19 @@ package = false
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# bench/corpus is cloned third-party code. bench/fixtures is test data whose whole purpose is
+# to contain defects -- linting it would be asking the fixtures to be well-written, which is
+# the opposite of what several of them are for.
+extend-exclude = ["bench/corpus", "bench/fixtures"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 ignore = [
     "E501",  # long lines are usually prose in a message string
+    # Severity/Confidence/Verdict are `(str, Enum)` rather than `StrEnum` on purpose.
+    # StrEnum changes what str() returns -- "critical" instead of "Severity.CRITICAL" --
+    # and these values are serialised into the JSON and SARIF reports that other tools
+    # consume. Swapping the base class to satisfy a lint would be an observable output
+    # change for no benefit.
+    "UP042",
 ]

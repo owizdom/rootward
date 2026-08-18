@@ -298,7 +298,7 @@ def check_public_key_derivation(root: Path) -> list[Finding]:
     expand -- while providing none of the property.
     """
     out: list[Finding] = []
-    for path, raw, code, impl in _iter_code(root):
+    for path, _raw, _code, impl in _iter_code(root):
         lines = read_lines(path)
         rel = str(path.relative_to(root))
         for m in re.finditer(r"(?i)\b(createHash|createHmac|hkdfSync|hkdf|pbkdf2Sync|pbkdf2"
@@ -347,7 +347,7 @@ def check_public_key_derivation(root: Path) -> list[Finding]:
 def check_env_as_attestation(root: Path) -> list[Finding]:
     """BT-EC02 — enclave state is asserted from an environment variable."""
     out: list[Finding] = []
-    for path, raw, code, impl in _iter_code(root):
+    for path, _raw, _code, impl in _iter_code(root):
         m = ENV_AS_PROOF.search(impl)
         if not m:
             continue
@@ -431,7 +431,7 @@ def check_dev_key_fallback(root: Path) -> list[Finding]:
 def check_disabled_checks(root: Path) -> list[Finding]:
     """BT-EC04 — a security check that turns itself off, or degrades to something weaker."""
     out: list[Finding] = []
-    for path, raw, code, impl in _iter_code(root):
+    for path, _raw, _code, impl in _iter_code(root):
         rel = str(path.relative_to(root))
         lines = read_lines(path)
 
@@ -521,7 +521,7 @@ def check_secret_in_argv(root: Path) -> list[Finding]:
 def check_env_dump_route(root: Path) -> list[Finding]:
     """BT-EC06 — an unauthenticated HTTP route that enumerates the environment."""
     out: list[Finding] = []
-    for path, raw, code, impl in _iter_code(root):
+    for path, _raw, _code, impl in _iter_code(root):
         if not ENV_ENUMERATION.search(impl):
             continue
         routes = list(ROUTE_HANDLER.finditer(impl))
@@ -656,7 +656,6 @@ def check_egress(root: Path) -> list[Finding]:
         if manifest.get("has_egress_block") and allow and not wildcard:
             continue
         rel = str(path.relative_to(root))
-        lines = read_lines(path)
         out.append(
             Finding(
                 rule_id="BT-EC08-egress-unrestricted",

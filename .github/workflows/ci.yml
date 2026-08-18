@@ -50,6 +50,27 @@ jobs:
       - name: coverage
         run: .venv/bin/python catalog/coverage.py
 
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv venv && uv pip install ruff
+
+      # The ruff config had been in pyproject since the start and had never run. It found
+      # 58 violations on first execution, including a closure over a loop variable and two
+      # zips that would silently truncate.
+      - name: ruff
+        run: .venv/bin/ruff check .
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: cargo fmt
+        working-directory: core
+        run: cargo fmt --check
+
   detect:
     name: detection gates
     runs-on: ubuntu-latest

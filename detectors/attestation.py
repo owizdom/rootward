@@ -26,7 +26,6 @@ from model import (
     Severity,
     code_only,
     quote_line,
-    read_lines,
     strip_definitions,
 )
 

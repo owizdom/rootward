@@ -40,7 +40,9 @@ impl Default for Register {
 
 impl Register {
     pub fn new() -> Self {
-        Self { hasher: Sha384::new() }
+        Self {
+            hasher: Sha384::new(),
+        }
     }
 
     pub fn update(&mut self, bytes: &[u8]) {
@@ -148,7 +150,11 @@ mod tests {
     fn empty_register_is_nonzero_and_stable() {
         let hex = empty_register_hex();
         assert_eq!(hex.len(), 96, "SHA-384 is 48 bytes / 96 hex chars");
-        assert_ne!(hex, "0".repeat(96), "must not be confused with debug-mode zero PCRs");
+        assert_ne!(
+            hex,
+            "0".repeat(96),
+            "must not be confused with debug-mode zero PCRs"
+        );
         assert_eq!(hex, empty_register_hex(), "must be deterministic");
     }
 

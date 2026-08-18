@@ -64,10 +64,17 @@ impl std::fmt::Display for RamdiskError {
         match self {
             Self::Decompress(e) => write!(f, "decompress failed: {e}"),
             Self::Truncated { at, need, have } => {
-                write!(f, "truncated archive at offset {at}: need {need} bytes, have {have}")
+                write!(
+                    f,
+                    "truncated archive at offset {at}: need {need} bytes, have {have}"
+                )
             }
             Self::BadMagic { at, found } => {
-                write!(f, "bad cpio magic at offset {at}: {:?}", String::from_utf8_lossy(found))
+                write!(
+                    f,
+                    "bad cpio magic at offset {at}: {:?}",
+                    String::from_utf8_lossy(found)
+                )
             }
             Self::BadField { at, field } => write!(f, "unparseable {field} at offset {at}"),
             Self::TooLarge => write!(f, "archive exceeds the {MAX_INFLATED} byte inflate limit"),
@@ -124,7 +131,11 @@ pub fn parse_cpio(data: &[u8]) -> Result<Vec<Entry>, RamdiskError> {
 
         let need = pos + HEADER_LEN;
         if need > data.len() {
-            return Err(RamdiskError::Truncated { at: pos, need: HEADER_LEN, have: data.len() - pos });
+            return Err(RamdiskError::Truncated {
+                at: pos,
+                need: HEADER_LEN,
+                have: data.len() - pos,
+            });
         }
         let hdr = &data[pos..pos + HEADER_LEN];
 
@@ -143,13 +154,21 @@ pub fn parse_cpio(data: &[u8]) -> Result<Vec<Entry>, RamdiskError> {
         let name_start = pos + HEADER_LEN;
         let name_end = name_start
             .checked_add(namesize)
-            .ok_or(RamdiskError::BadField { at: pos, field: "c_namesize" })?;
+            .ok_or(RamdiskError::BadField {
+                at: pos,
+                field: "c_namesize",
+            })?;
         if name_end > data.len() {
-            return Err(RamdiskError::Truncated { at: pos, need: namesize, have: data.len() - name_start });
+            return Err(RamdiskError::Truncated {
+                at: pos,
+                need: namesize,
+                have: data.len() - name_start,
+            });
         }
 
         let raw_name = &data[name_start..name_end];
-        let name = String::from_utf8_lossy(raw_name.strip_suffix(b"\0").unwrap_or(raw_name)).into_owned();
+        let name =
+            String::from_utf8_lossy(raw_name.strip_suffix(b"\0").unwrap_or(raw_name)).into_owned();
 
         if name == TRAILER {
             break;
@@ -158,15 +177,32 @@ pub fn parse_cpio(data: &[u8]) -> Result<Vec<Entry>, RamdiskError> {
         let data_start = name_end + pad4(HEADER_LEN + namesize);
         let data_end = data_start
             .checked_add(filesize)
-            .ok_or(RamdiskError::BadField { at: pos, field: "c_filesize" })?;
+            .ok_or(RamdiskError::BadField {
+                at: pos,
+                field: "c_filesize",
+            })?;
         if data_end > data.len() {
-            return Err(RamdiskError::Truncated { at: pos, need: filesize, have: data.len().saturating_sub(data_start) });
+            return Err(RamdiskError::Truncated {
+                at: pos,
+                need: filesize,
+                have: data.len().saturating_sub(data_start),
+            });
         }
 
         let truncated = filesize > MAX_ENTRY_BYTES;
-        let body = if truncated { Vec::new() } else { data[data_start..data_end].to_vec() };
+        let body = if truncated {
+            Vec::new()
+        } else {
+            data[data_start..data_end].to_vec()
+        };
 
-        entries.push(Entry { path: name, mode, size: filesize, data: body, truncated });
+        entries.push(Entry {
+            path: name,
+            mode,
+            size: filesize,
+            data: body,
+            truncated,
+        });
 
         pos = data_end + pad4(filesize);
     }
@@ -187,7 +223,19 @@ pub(crate) mod testing {
         let mut out = Vec::new();
         out.extend_from_slice(MAGIC_NEWC);
         let fields: [u64; 13] = [
-            1, mode as u64, 0, 0, 1, 0, body.len() as u64, 0, 0, 0, 0, namesize as u64, 0,
+            1,
+            mode as u64,
+            0,
+            0,
+            1,
+            0,
+            body.len() as u64,
+            0,
+            0,
+            0,
+            0,
+            namesize as u64,
+            0,
         ];
         for f in fields.iter() {
             out.extend_from_slice(format!("{f:08X}").as_bytes());
@@ -216,7 +264,11 @@ mod tests {
     fn parses_entries_and_stops_at_trailer() {
         let mut archive = Vec::new();
         archive.extend(newc_entry("app/config.json", 0o100644, b"{\"k\":1}"));
-        archive.extend(newc_entry("app/key.pem", 0o100600, b"-----BEGIN PRIVATE KEY-----"));
+        archive.extend(newc_entry(
+            "app/key.pem",
+            0o100600,
+            b"-----BEGIN PRIVATE KEY-----",
+        ));
         archive.extend(trailer());
         archive.extend(newc_entry("after/trailer.txt", 0o100644, b"ignored"));
 
@@ -251,14 +303,20 @@ mod tests {
     fn rejects_bad_magic() {
         let mut archive = newc_entry("f", 0o100644, b"x");
         archive[0] = b'X';
-        assert!(matches!(parse_cpio(&archive), Err(RamdiskError::BadMagic { .. })));
+        assert!(matches!(
+            parse_cpio(&archive),
+            Err(RamdiskError::BadMagic { .. })
+        ));
     }
 
     #[test]
     fn rejects_truncated_body_instead_of_reading_out_of_bounds() {
         let mut archive = newc_entry("f", 0o100644, b"0123456789abcdef");
         archive.truncate(archive.len() - 8);
-        assert!(matches!(parse_cpio(&archive), Err(RamdiskError::Truncated { .. })));
+        assert!(matches!(
+            parse_cpio(&archive),
+            Err(RamdiskError::Truncated { .. })
+        ));
     }
 
     #[test]
@@ -266,7 +324,10 @@ mod tests {
         // c_filesize claims a huge body the archive does not contain.
         let mut archive = newc_entry("f", 0o100644, b"x");
         archive[54..62].copy_from_slice(b"7FFFFFFF");
-        assert!(matches!(parse_cpio(&archive), Err(RamdiskError::Truncated { .. })));
+        assert!(matches!(
+            parse_cpio(&archive),
+            Err(RamdiskError::Truncated { .. })
+        ));
     }
 
     #[test]
@@ -316,7 +377,11 @@ mod tests {
         }
 
         let entries = parse_cpio(&decompress(&gz).unwrap()).unwrap();
-        assert_eq!(entries.len(), 2, "concatenated gzip members must all be read");
+        assert_eq!(
+            entries.len(),
+            2,
+            "concatenated gzip members must all be read"
+        );
         assert_eq!(entries[1].path, "b");
     }
 }

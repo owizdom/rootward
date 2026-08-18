@@ -795,7 +795,7 @@ def main() -> int:
             )
 
     rows = []
-    for i, mut in enumerate(mutations):
+    for mut in mutations:
         base = bases[mut.base]
         baseline_families = baselines[mut.base]
         with tempfile.TemporaryDirectory(prefix="tee-audit-mutant-") as tmp:

@@ -30,8 +30,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "detectors"))
 sys.path.insert(0, str(ROOT / "agent"))
 
-from model import Confidence, Finding, Severity, Verdict  # noqa: E402
 import prompts  # noqa: E402
+from model import Confidence, Finding, Severity, Verdict  # noqa: E402
 
 # Read-only tools. The auditor has no business editing the code it is auditing, and a
 # semantic pass that can write is a semantic pass that can "fix" a finding out of existence.
@@ -282,7 +282,7 @@ async def run_semantic(root: Path, scope: list[str], rules: list[str] | None = N
     )
 
     candidates: list[Finding] = []
-    for rule, result in zip(selected, results):
+    for rule, result in zip(selected, results, strict=False):
         if isinstance(result, BaseException):
             warnings.append(f"semantic pass {rule} failed: {result}")
             continue
@@ -296,7 +296,7 @@ async def run_semantic(root: Path, scope: list[str], rules: list[str] | None = N
     )
 
     kept, dropped = [], []
-    for original, result in zip(candidates, verified):
+    for original, result in zip(candidates, verified, strict=False):
         if isinstance(result, BaseException):
             original.verdict = Verdict.PLAUSIBLE
             original.refutation = f"adversarial pass errored: {result}"

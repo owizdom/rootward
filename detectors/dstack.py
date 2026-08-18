@@ -13,11 +13,10 @@ that each of those is actually wired up rather than merely available.
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
-from model import Confidence, Finding, Severity, code_only, quote_line, read_lines
+from model import Confidence, Finding, Severity, code_only, quote_line
 from platform_detect import Platform
 
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}

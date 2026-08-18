@@ -110,7 +110,10 @@ fn be_u64(b: &[u8]) -> u64 {
 
 fn parse_header(buf: &[u8]) -> Result<Header, String> {
     if buf.len() != EIF_HEADER_SIZE {
-        return Err(format!("header must be {EIF_HEADER_SIZE} bytes, got {}", buf.len()));
+        return Err(format!(
+            "header must be {EIF_HEADER_SIZE} bytes, got {}",
+            buf.len()
+        ));
     }
     if buf[0..4] != EIF_MAGIC {
         return Err(format!(
@@ -121,7 +124,9 @@ fn parse_header(buf: &[u8]) -> Result<Header, String> {
     }
     let num_sections = be_u16(&buf[26..28]);
     if num_sections as usize > MAX_NUM_SECTIONS {
-        return Err(format!("num_sections {num_sections} exceeds the format maximum of {MAX_NUM_SECTIONS}"));
+        return Err(format!(
+            "num_sections {num_sections} exceeds the format maximum of {MAX_NUM_SECTIONS}"
+        ));
     }
     Ok(Header {
         version: be_u16(&buf[4..6]),
@@ -141,7 +146,8 @@ pub fn inspect(path: &Path) -> Result<EifReport, String> {
     let mut r = BufReader::new(file);
 
     let mut hbuf = vec![0u8; EIF_HEADER_SIZE];
-    r.read_exact(&mut hbuf).map_err(|e| format!("read header: {e}"))?;
+    r.read_exact(&mut hbuf)
+        .map_err(|e| format!("read header: {e}"))?;
     let header = parse_header(&hbuf)?;
 
     let mut measurements = Measurements::new();
@@ -182,13 +188,20 @@ pub fn inspect(path: &Path) -> Result<EifReport, String> {
         }
 
         let mut data = vec![0u8; size as usize];
-        r.read_exact(&mut data).map_err(|e| format!("read section {index} data: {e}"))?;
+        r.read_exact(&mut data)
+            .map_err(|e| format!("read section {index} data: {e}"))?;
 
         match kind {
             SectionType::Kernel | SectionType::Cmdline => measurements.kernel_or_cmdline(&data),
             SectionType::Ramdisk => {
                 measurements.ramdisk(&data);
-                scan_ramdisk(index, &data, &mut ramdisk_entries, &mut findings, &mut warnings);
+                scan_ramdisk(
+                    index,
+                    &data,
+                    &mut ramdisk_entries,
+                    &mut findings,
+                    &mut warnings,
+                );
             }
             SectionType::Signature => {
                 signature_present = true;
@@ -200,7 +213,12 @@ pub fn inspect(path: &Path) -> Result<EifReport, String> {
             SectionType::Invalid => unreachable!("rejected above"),
         }
 
-        sections.push(Section { index, kind, offset: data_offset, size });
+        sections.push(Section {
+            index,
+            kind,
+            offset: data_offset,
+            size,
+        });
         offset = data_offset + size;
         index += 1;
 
@@ -335,7 +353,11 @@ mod tests {
         assert_eq!(rep.sections[2].kind, SectionType::Ramdisk);
 
         for pcr in ["PCR0", "PCR1", "PCR2"] {
-            assert_eq!(rep.measurements[pcr].len(), 96, "{pcr} must be 48 bytes of hex");
+            assert_eq!(
+                rep.measurements[pcr].len(),
+                96,
+                "{pcr} must be 48 bytes of hex"
+            );
         }
         // One ramdisk means nothing reached the app register.
         assert_eq!(rep.measurements["PCR2"], empty_register());
@@ -353,7 +375,10 @@ mod tests {
     fn changing_one_byte_changes_pcr0() {
         let a = write_tmp("a.eif", &minimal_eif(b"payload-a"));
         let b = write_tmp("b.eif", &minimal_eif(b"payload-b"));
-        assert_ne!(measurements(&a).unwrap()["PCR0"], measurements(&b).unwrap()["PCR0"]);
+        assert_ne!(
+            measurements(&a).unwrap()["PCR0"],
+            measurements(&b).unwrap()["PCR0"]
+        );
     }
 
     #[test]
@@ -364,7 +389,8 @@ mod tests {
 
         let key_line =
             "PRIVATE_KEY=0x8f2a559490d1b7c3e0a2b41d6c95a7e3f18b204c7d6e9a1350f4c8b2d7e6a903";
-        let mut cpio = crate::ramdisk::testing::newc_entry("app/.env", 0o100600, key_line.as_bytes());
+        let mut cpio =
+            crate::ramdisk::testing::newc_entry("app/.env", 0o100600, key_line.as_bytes());
         cpio.extend(crate::ramdisk::testing::trailer());
 
         let mut enc = GzEncoder::new(Vec::new(), flate2::Compression::default());
@@ -376,13 +402,18 @@ mod tests {
 
         assert_eq!(rep.ramdisk_entries, 1);
         assert!(
-            rep.findings.iter().any(|f| f.kind == secrets::Kind::EvmPrivateKey),
+            rep.findings
+                .iter()
+                .any(|f| f.kind == secrets::Kind::EvmPrivateKey),
             "planted key not found: {:?}",
             rep.findings
         );
         // And the report must not carry the key itself.
         let json = serde_json::to_string(&rep).unwrap();
-        assert!(!json.contains("8f2a559490d1b7c3"), "report leaked key material");
+        assert!(
+            !json.contains("8f2a559490d1b7c3"),
+            "report leaked key material"
+        );
     }
 
     #[test]

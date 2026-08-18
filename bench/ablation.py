@@ -189,7 +189,7 @@ def render(results: list[dict]) -> str:
     added = [row for row in shared if row["only_semantic"]]
     if not added:
         lines += [
-            f"On every threat class that **both** layers implement, the model layer found",
+            "On every threat class that **both** layers implement, the model layer found",
             f"nothing the deterministic layer missed, across {len(results)} repositories. "
             f"That is the honest result: for those",
             "classes the model call is not buying detection, and `--semantic` should be",
@@ -204,7 +204,7 @@ def render(results: list[dict]) -> str:
         ]
         lines += [
             f"- `{row['class']}` — {len(row['only_semantic'])} additional at "
-            + ", ".join(f"`{f}:{l}`" for f, l in row["only_semantic"][:4])
+            + ", ".join(f"`{f}:{ln}`" for f, ln in row["only_semantic"][:4])
             for row in added
         ]
         lines.append("")

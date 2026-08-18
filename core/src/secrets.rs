@@ -103,7 +103,8 @@ pub fn entropy(s: &str) -> f64 {
 fn known_test_digests() -> &'static [&'static str] {
     &[
         // hardhat / anvil account #0 and #1
-        "cdb2ef4e0b0e", "4a4b1a0f0d29",
+        "cdb2ef4e0b0e",
+        "4a4b1a0f0d29",
     ]
 }
 
@@ -118,9 +119,9 @@ fn known_test_digests() -> &'static [&'static str] {
 /// Deliberately conservative — every entry here is one confirmed absent from BIP-39, so a
 /// genuine mnemonic can never be suppressed by this check.
 const NOT_IN_BIP39: [&str; 24] = [
-    "the", "and", "that", "for", "with", "this", "which", "are", "not", "but",
-    "from", "they", "have", "has", "was", "were", "been", "its", "would", "could",
-    "should", "than", "then", "there",
+    "the", "and", "that", "for", "with", "this", "which", "are", "not", "but", "from", "they",
+    "have", "has", "was", "were", "been", "its", "would", "could", "should", "than", "then",
+    "there",
 ];
 
 fn looks_like_prose(phrase: &str) -> bool {
@@ -140,8 +141,16 @@ fn is_placeholder(value: &str) -> bool {
     }
     let lower = value.to_ascii_lowercase();
     const STANDINS: [&str; 10] = [
-        "changeme", "placeholder", "example", "your-", "xxxx", "todo",
-        "dummy", "notreal", "redacted", "<insert",
+        "changeme",
+        "placeholder",
+        "example",
+        "your-",
+        "xxxx",
+        "todo",
+        "dummy",
+        "notreal",
+        "redacted",
+        "<insert",
     ];
     STANDINS.iter().any(|s| lower.contains(s))
 }
@@ -157,8 +166,20 @@ fn preceded_by_digest_label(line: &str, start: usize) -> bool {
     // RUSTC_TOOLCHAIN_SHA256, GO_TOOLCHAIN_SHA256, ...) and every one was reported as an
     // EVM private key, because only the colon form was recognised.
     const LABELS: [&str; 14] = [
-        "sha256:", "sha512:", "sha384:", "sha1:", "md5:", "integrity", "checksum", "digest",
-        "sha256=", "sha512=", "sha384=", "sha1=", "md5=", "_hash=",
+        "sha256:",
+        "sha512:",
+        "sha384:",
+        "sha1:",
+        "md5:",
+        "integrity",
+        "checksum",
+        "digest",
+        "sha256=",
+        "sha512=",
+        "sha384=",
+        "sha1=",
+        "md5=",
+        "_hash=",
     ];
     let window_start = start.saturating_sub(16);
     // Guard against slicing through a UTF-8 boundary on a line with multibyte characters.
@@ -301,7 +322,10 @@ mod tests {
         assert_eq!(f[0].severity, "critical");
         // The finding must not carry the key body.
         let json = serde_json::to_string(&f[0]).unwrap();
-        assert!(!json.contains("MIIEvQIBADANBg"), "finding leaked key material");
+        assert!(
+            !json.contains("MIIEvQIBADANBg"),
+            "finding leaked key material"
+        );
     }
 
     #[test]
@@ -332,7 +356,10 @@ mod tests {
             "Dockerfile",
             "FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:1f2e3d4c5b6a798877665544332211ffeeddccbbaa99887766554433221100ff",
         );
-        assert!(f.is_empty(), "pinned base image digest must not be a finding: {f:?}");
+        assert!(
+            f.is_empty(),
+            "pinned base image digest must not be a finding: {f:?}"
+        );
     }
 
     #[test]
@@ -354,7 +381,10 @@ mod tests {
     fn ignores_a_sha256_hash_that_is_not_a_key() {
         // 64 hex chars that are a content hash. This is the main FP source for the EVM
         // rule, and the reason the value_len and entropy fields exist in the finding.
-        let f = scan_text("lock.json", "\"integrity\": \"5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8\"");
+        let f = scan_text(
+            "lock.json",
+            "\"integrity\": \"5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8\"",
+        );
         // Detected by shape; a human decides. Assert we at least classify and hash it
         // rather than printing it.
         for finding in &f {
@@ -375,7 +405,10 @@ mod tests {
         // reports — and it turns up in enough vendored docs and samples that letting it
         // through would be a steady source of false positives.
         let f = scan_text("docs.md", "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE");
-        assert!(f.is_empty(), "documented example key must not be reported: {f:?}");
+        assert!(
+            f.is_empty(),
+            "documented example key must not be reported: {f:?}"
+        );
     }
 
     #[test]
@@ -406,7 +439,9 @@ mod tests {
 
     #[test]
     fn skips_binary_files() {
-        let mut data = b"PRIVATE_KEY=0x8f2a559490d1b7c3e0a2b41d6c95a7e3f18b204c7d6e9a1350f4c8b2d7e6a903".to_vec();
+        let mut data =
+            b"PRIVATE_KEY=0x8f2a559490d1b7c3e0a2b41d6c95a7e3f18b204c7d6e9a1350f4c8b2d7e6a903"
+                .to_vec();
         data.push(0);
         assert!(scan_bytes("app/binary", &data).is_empty());
     }

@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from model import Confidence, Finding, Severity, code_only, quote_line, read_lines
+from model import Confidence, Finding, Severity, code_only, quote_line
 
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}
 TEXTY = {".rs", ".go", ".py", ".ts", ".js", ".mjs", ".json", ".yaml", ".yml", ".toml"}

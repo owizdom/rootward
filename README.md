@@ -50,8 +50,10 @@ failure the handbook does not name — a key derived from a public value, which 
 
 Mutants vary the *shape* of each defect, not just the file, because a rule that recognises
 only its author's idiom scores full recall against one mutant and then misses the same bug in
-real code. Adding shape variation dropped recall from a flattering 17/17 to 32/35 and exposed
-a genuine gap in the certificate-chain rule.
+real code. That has paid for itself twice: introducing shape variation dropped an early
+17/17 to 32/35 and exposed a gap in the certificate-chain rule, and taking the newer rules
+from one shape to three found three more detector bugs — including that `BT-CS02` missed
+the commonest form of its own defect, claims read and logged but never compared.
 
 **The most useful thing this project produced is not a detection rate.** It is
 [`docs/when-the-verifier-is-wrong.md`](docs/when-the-verifier-is-wrong.md): the adversarial

@@ -15,7 +15,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from model import Confidence, Finding, Severity, read_lines, quote_line
+from model import Confidence, Finding, Severity, quote_line, read_lines
 
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}
 

@@ -1,4 +1,8 @@
-"""Platform detection — is this repo Nitro Enclaves, dstack, both, or neither?
+"""Platform detection — Nitro Enclaves, dstack, Confidential Space, EigenCompute, or none.
+
+Four tiers, two of them layered: EigenCompute runs on Google Cloud Confidential Space, so
+detecting the deployment layer implies the substrate. The generic Confidential Space rules
+then apply to any TDX workload there, while the EigenCloud-specific rules stay gated.
 
 Without this, every dstack rule fires on every Nitro repo and vice versa, and a report full
 of inapplicable findings is worse than no report: it trains the reader to skim. Detection is

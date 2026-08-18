@@ -23,8 +23,8 @@ report at all.
 from __future__ import annotations
 
 import argparse
-import json
 import hashlib
+import json
 import re
 import shutil
 import subprocess
@@ -344,7 +344,9 @@ def layer_scorecard(
     # "Layer 6" because nothing checks layers 5 and 6 would be precisely the overclaiming
     # this tool exists to catch — so the score is capped at the highest layer we can
     # actually speak to, and the gap is reported rather than silently rounded up.
-    ceiling = max((l for l in range(1, 7) if per_layer[l]["required_rules"] > 0), default=0)
+    ceiling = max(
+        (lvl for lvl in range(1, 7) if per_layer[lvl]["required_rules"] > 0), default=0
+    )
 
     # No platform means no applicable rules, so every layer "passes" vacuously and an empty
     # directory was being awarded the tool's maximum score. Nothing was checked, so there is
@@ -360,7 +362,7 @@ def layer_scorecard(
 
     effective = 0
     for level in range(1, ceiling + 1):
-        if all(per_layer[l]["passes"] for l in range(1, level + 1)):
+        if all(per_layer[lvl]["passes"] for lvl in range(1, level + 1)):
             effective = level
         else:
             break

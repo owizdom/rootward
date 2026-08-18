@@ -14,7 +14,6 @@ Exit code is always 0: at this stage an uncovered rule is expected, not a failur
 from __future__ import annotations
 
 import re
-import subprocess
 import sys
 from pathlib import Path
 
