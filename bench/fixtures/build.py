@@ -44,7 +44,10 @@ def newc(name: str, mode: int, body: bytes) -> bytes:
 def ramdisk(entries: list[tuple[str, int, bytes]]) -> bytes:
     blob = b"".join(newc(n, m, b) for n, m, b in entries)
     blob += newc("TRAILER!!!", 0, b"")
-    return gzip.compress(blob)
+    # mtime=0: gzip writes a timestamp into its header by default, so the compressed
+    # bytes -- and therefore PCR1, which measures the ramdisk -- changed on every build.
+    # Following the README then left a tracked file modified.
+    return gzip.compress(blob, mtime=0)
 
 
 def section(kind: int, data: bytes) -> bytes:

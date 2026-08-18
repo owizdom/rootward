@@ -25,6 +25,10 @@ out/
 
 # local
 .env
+# ...but fixture .env files are the test data: two BT-T09B findings live in
+# eigencompute-vulnerable/.env, and ignoring them meant CI ran a weaker fixture than a
+# developer did, with the gate passing either way.
+!bench/fixtures/**/.env
 .DS_Store
 .idea/
 .vscode/
