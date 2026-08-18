@@ -72,7 +72,7 @@ handbook's Threat 3 verbatim, in code written to be copied.
 
 `attestation-doc-validation` (Evervault) is a correct attestation validator, so `BT-T06`
 firing there means the detector is wrong, not the repository. **It now reports zero findings
-at layer 4/4.** Getting there took five distinct fixes, every one of them a rule firing on
+at layer 3/3.** Getting there took five distinct fixes, every one of them a rule firing on
 correct code:
 
 | cause | example |
