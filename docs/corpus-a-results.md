@@ -201,7 +201,42 @@ the app id and the KMS public key hash but never compares `hwmodel`, `swname`, `
 `tcbstatus`. Whether the SDK checks them internally is not visible from the repository, which
 is what the rule's `false_positives` field says and why it ships at medium confidence.
 
-### Gaps this corpus makes measurable
+### The semantic layer on EigenCompute, verified once
+
+The platform-specific threat model was rewritten for Confidential Space — no vsock, an
+ordinary network stack, secrets from KMS gated on an attested image digest — and then not
+exercised for a while. Telling a model that "every byte crosses a vsock channel the parent
+controls" on a platform with no vsock produces fluent, well-cited, wrong findings, which is
+the failure this project already documented once in
+[`when-the-verifier-is-wrong.md`](when-the-verifier-is-wrong.md), arriving through the system
+prompt instead of through a refutation.
+
+Run against `bobIsAlive` at the pinned commit, 20 semantic findings, checked for leakage:
+
+| term | occurrences |
+|---|---|
+| `vsock`, `parent instance`, `parent EC2`, `nitro`, `EIF`, `PCR0`, `NSM` | **0** |
+| `image digest` | 6 |
+| `ecloud` | 7 |
+| `KMS` | 27 |
+| `log_visibility` | 2 |
+
+`ecloud.toml` is cited in the findings, which confirms the scope fix — `.toml` was missing
+from `SCOPE_SUFFIXES`, so the deployment manifest had never been handed to the semantic layer
+at all, and `BT-LYR01` was comparing a README against source while never seeing the file that
+declares `log_visibility = "public"`.
+
+**The adversarial pass dropped 4 of 24 findings**, each with a specific reason — a sealing key
+that never leaves RAM, a telemetry claim contradicted by the Dockerfile's runtime stage, a
+length-only log that leaks nothing useful. A refutation rate of zero would have meant the
+verifier was unavailable or rubber-stamping; this is it doing the job.
+
+Worth noting for corroboration rather than as a separate result: `BT-LYR01` independently
+described the `BT-EC01` defect — "the spending wallet's private key is a deterministic HMAC
+over a *public* value" — from the claims-versus-code direction, having been pointed at the
+README rather than at the derivation.
+
+## Gaps this corpus makes measurable
 
 **`eigenbox` reports zero findings, and that is not a clean bill of health.** It is a
 TEE-side gateway that signs every response with a secp256k1 key derived from `MNEMONIC` and

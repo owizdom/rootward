@@ -238,9 +238,17 @@ def run_eif_scan(root: Path, core: Path | None) -> tuple[list[Finding], list[str
 
 # --------------------------------------------------------- semantic scope ---
 ENCLAVE_HINTS = re.compile(
-    r"(?i)(enclave|vsock|attest|nsm|kms|tee|nitro|dstack|tappd|seal|secure|crypt)"
+    r"(?i)(enclave|vsock|attest|nsm|kms|tee|nitro|dstack|tappd|seal|secure|crypt"
+    # EigenCompute / Confidential Space vocabulary. Without these the boundary files on
+    # that platform were never picked up by the path heuristic, so the semantic layer only
+    # ever saw whatever the deterministic layer had already flagged.
+    r"|eigen|ecloud|confidential|mnemonic|wallet|signer|jwt|token)"
 )
-SCOPE_SUFFIXES = {".rs", ".go", ".py", ".ts", ".js", ".mjs", ".md"}
+# .toml is here for the deployment manifest. Leaving it out meant `ecloud.toml` -- the file
+# that declares log_visibility and the egress allowlist -- was never handed to the semantic
+# layer, so BT-LYR01 compared a README against source while never seeing the manifest that
+# contradicts it.
+SCOPE_SUFFIXES = {".rs", ".go", ".py", ".ts", ".js", ".mjs", ".md", ".toml"}
 
 
 def semantic_scope(root: Path, findings: list[Finding], limit: int = 60) -> list[str]:
