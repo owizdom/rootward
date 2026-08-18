@@ -142,7 +142,7 @@ def check_replay_protection(root: Path) -> list[Finding]:
 
         carries_token = bool(FRESHNESS.search(live))
         lines = raw.splitlines()
-        line = _line_of(raw, VSOCK_SURFACE)
+        line = _line_of(live, VSOCK_SURFACE)
 
         findings.append(
             Finding(
@@ -175,10 +175,18 @@ def check_replay_protection(root: Path) -> list[Finding]:
     return findings
 
 
+# Files that declare shapes rather than make decisions. An ABI entry naming an "oracle"
+# field, or a generated type module, matched the authority vocabulary while containing no
+# control flow at all.
+DECLARATION_ONLY = re.compile(r"(?i)(^|/)(abi|abis|types?|generated|__generated__)(/|\.)")
+
+
 def check_relayed_authority(root: Path) -> list[Finding]:
-    """BT-T10 — parent-relayed data used for a decision without verifying its origin."""
+    """BT-T10 — relayed data used for a decision without verifying its origin."""
     findings: list[Finding] = []
     for path, rel in _iter_code(root):
+        if DECLARATION_ONLY.search(rel):
+            continue
         raw = path.read_text(encoding="utf-8", errors="replace")
         live = code_only(raw, path.suffix)
 
@@ -190,7 +198,7 @@ def check_relayed_authority(root: Path) -> list[Finding]:
             continue
 
         lines = raw.splitlines()
-        line = _line_of(raw, RELAYED_SOURCE)
+        line = _line_of(live, RELAYED_SOURCE)
 
         findings.append(
             Finding(
@@ -199,12 +207,12 @@ def check_relayed_authority(root: Path) -> list[Finding]:
                 line=line,
                 evidence=quote_line(lines, line),
                 message=(
-                    "Data relayed through the parent is consumed in a decision that carries "
-                    "authority, with no signature check, attestation, or proof verification "
-                    "anywhere in this file. The enclave has no network stack, so every "
-                    "external response arrives via a parent-side proxy — without end-to-end "
-                    "authentication that proxy is not a blind transport but a trusted "
-                    "oracle, and the operator chooses what it says."
+                    "Data fetched from outside the enclave is consumed in a decision that "
+                    "carries authority, with no signature check, attestation, or proof "
+                    "verification anywhere in this file. Whoever controls the transport — a "
+                    "parent-side proxy on Nitro, the network path on Confidential Space — "
+                    "chooses what that response says. Without end-to-end authentication the "
+                    "enclave is not deciding, it is relaying someone else's decision."
                 ),
                 severity=Severity.CRITICAL,
                 # Deciding which relayed value carries authority is a judgment call, which is

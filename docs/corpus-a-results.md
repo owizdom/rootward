@@ -255,13 +255,66 @@ an intended API is a design property, not a code pattern.
 `eigencompute-secure-DB` have not been read line by line and should not be counted as true
 positives on the strength of this table.
 
+## Triage of the outstanding findings
+
+These were reported and unreviewed for a while, which the previous version of this document
+said. Read against source, here is what they are.
+
+### `BT-T10` on vanta — mostly wrong, and it exposed two real bugs
+
+Six findings. Reading them found a defect in the detector rather than in vanta:
+
+| finding | verdict |
+|---|---|
+| `venue-poly/src/abi/conditional-tokens.ts` | **false positive.** An ABI entry with a field named `oracle`. Pure data, no control flow. |
+| `game/src/lib/audio.ts` | **false positive.** A browser game preloading an audio file. Not enclave code. |
+| `haircut/src/example.ts` | **false positive.** A formatting template in an example script. |
+| `runtime/src/loops/operational.ts` | **false positive** at the reported line — an alert string, not a decision. |
+| `runtime/src/services/markets-cache.ts` | **plausible.** A real fetch feeding a cache that pricing reads. Needs the semantic pass, which is what `hybrid` means. |
+| `runtime/src/http/routes/dev-probe.ts` | **plausible**, and scoped to a dev route. |
+
+Two fixes came out of it:
+
+1. **The reported line was located in the raw file while the decision was made against
+   comment-stripped code**, so a finding could point at a comment that happened to match
+   while the real match was elsewhere. Evidence pointing at the wrong line is not evidence,
+   and this is the tool's central contract.
+2. **A LOW-confidence prefilter hit was capping the layer score.** `BT-T10` and `BT-T07D` are
+   `hybrid` rules that say in their own catalog entries that they are prefilters awaiting
+   adjudication — and they ship at `critical`. So the headline number was at the mercy of the
+   least certain rule in the catalog, and on a real repository those turned out to be an ABI
+   definition and a browser audio preload. LOW-confidence findings still appear in the report,
+   ranked and labelled; they no longer decide the score. vanta is now capped by
+   `BT-T03-secret-egress-logging`, which is a rule with nine mutation shapes behind it.
+
+Also skipped now: files under `abi/`, `types/` and `generated/`, which declare shapes rather
+than make decisions.
+
+### `BT-CS02` on vanta — true, with a stated limit
+
+Both hits are real as far as a static reading can establish. vanta pins `EXPECTED_APP_ID` and
+the KMS public-key hash and refuses to start on a mismatch — genuinely more than most — but
+never compares `hwmodel`, `swname`, `secboot` or `tcbstatus`. A correctly signed token from a
+debug VM with secure boot off would satisfy every check it does make.
+
+**The limit:** whether `@layr-labs/ecloud-sdk` asserts those claims internally is not visible
+from this repository. That is exactly what the rule's `false_positives` field says, and why it
+ships at medium confidence rather than high.
+
+### `BT-T03` on vanta — nine findings, not reviewed
+
+Left explicitly open. `BT-T03` has nine mutation shapes across four languages behind it and is
+the rule now capping vanta's score, so it deserves the same line-by-line reading the others
+got. That has not happened, and this document should not imply otherwise.
+
 ## What this run does not show
 
 - **No precision or recall figure for real repositories.** Ground truth does not exist for
   them; that is what the mutation corpus (`docs/benchmark-results.md`) and the external
   comparison (`docs/dstack-vs-zksecurity.md`) are for. Of 102 findings across eleven
   repositories, 7 are verified true positives, 0 are known false positives that survived,
-  and the rest are unreviewed.
+  and the rest are unreviewed. The triage section above covers eight of them; the nine
+  `BT-T03` findings on vanta are named as still-open rather than quietly counted.
 - **The semantic rules did not run.** This is the deterministic layer only — see
   `docs/ablation.md` for what the model layer adds.
 - Everything in the report's NOT VERIFIED section applies: no deployed configuration, no

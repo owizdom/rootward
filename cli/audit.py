@@ -302,7 +302,17 @@ def layer_scorecard(
     A single failing prerequisite caps the protocol there, which is the point: the
     handbook's layers are cumulative, so Layer 4 with broken attestation is not Layer 4.
     """
-    failed = {f.rule_id for f in findings if f.severity in (Severity.CRITICAL, Severity.HIGH)}
+    # LOW confidence means the detector is a prefilter that has not been adjudicated —
+    # BT-T07D and BT-T10 say so in their own catalog entries. Letting an unadjudicated guess
+    # cap the score at 0 puts the headline number at the mercy of the least certain rule in
+    # the catalog, and on a real repository those are exactly the findings that turn out to
+    # be an ABI definition or a browser audio preload. They still appear in the report,
+    # ranked and labelled; they just do not decide the score.
+    failed = {
+        f.rule_id for f in findings
+        if f.severity in (Severity.CRITICAL, Severity.HIGH)
+        and f.confidence != Confidence.LOW
+    }
 
     # Only rules that could apply to this deployment count toward the layer requirements.
     # Without this, adding a platform inflates every other platform's verifiable ceiling:
