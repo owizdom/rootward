@@ -58,16 +58,30 @@ CORE_BIN_CANDIDATES = [
     ROOT / "core" / "target" / "debug" / "tee-audit-core",
 ]
 
-def _source_line(path: Path, line_no: int) -> str:
-    """One line of source for evidence."""
+def _source_line(path: Path, line_no: int, max_join: int = 4) -> str:
+    """The offending source for evidence, following a call across lines if it wraps.
+
+    A single line is usually enough. It is not when the call is formatted across several,
+    and then the evidence reads `console.warn(` — an opening paren, which tells the reader
+    nothing and cannot be triaged. Where the parentheses are unbalanced, continue for a few
+    lines until they close.
+    """
     try:
-        with path.open(encoding="utf-8", errors="replace") as fh:
-            for i, line in enumerate(fh, start=1):
-                if i == line_no:
-                    return line.strip()
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
-        pass
-    return ""
+        return ""
+    if not 1 <= line_no <= len(lines):
+        return ""
+
+    out = lines[line_no - 1].strip()
+    depth = out.count("(") - out.count(")")
+    i = line_no
+    while depth > 0 and i < len(lines) and i - line_no < max_join:
+        nxt = lines[i].strip()
+        out = f"{out} {nxt}"
+        depth += nxt.count("(") - nxt.count(")")
+        i += 1
+    return out
 
 
 SEVERITY_MAP = {
@@ -160,6 +174,9 @@ def run_semgrep(root: Path, semgrep_bin: str) -> tuple[list[Finding], list[str]]
         evidence = (r["extra"].get("lines") or "").strip()
         if not evidence or evidence == "requires login":
             evidence = _source_line(abs_path, r["start"]["line"])
+
+        if cid.startswith("BT-T03-") and not leaks_a_value(evidence):
+            continue
 
         findings.append(
             Finding(
@@ -517,6 +534,60 @@ def not_verified(
 
 
 # ------------------------------------------------------------- rendering ---
+# --- BT-T03 post-filter -----------------------------------------------------------
+
+SECRET_WORD = (
+    r"secret|private_?key|priv_?key|plaintext|decrypted|seed|mnemonic|passwd|password"
+    r"|credential|session_?key|shared_?key|api_?key|token"
+)
+# A name that says where a secret lives, or what it hashes to, rather than the secret.
+NOT_THE_VALUE = (
+    r"_(?:PATH|FILE|DIR|URL|URI)\b|Path\b|fingerprint|digest|hash|checksum|redacted|masked"
+)
+INTERPOLATION = re.compile(r"\$\{([^}]*)\}")
+QUOTED = re.compile(r"`[^`]*`|\"[^\"]*\"|'[^']*'")
+
+
+def leaks_a_value(line: str) -> bool:
+    """Does this log call put a secret *value* into the sink, or just mention one?
+
+    semgrep binds the whole logged argument and matches a secret name anywhere inside it,
+    which conflates things that are not alike:
+
+        console.log(`MNEMONIC=${seed.toString("hex")}`)   leaks the seed
+        console.log(`Add MNEMONIC=<seed-hex> to .env`)    is documentation
+        console.log(`seed file: ${SEED_PATH}`)            discloses a filename
+        console.log(`MNEMONIC cleanup failed: ${msg}`)    reports an error
+
+    Only the first is a finding. Seven of the nine hits on vanta were the other three kinds.
+
+    Deliberately narrow: it answers only for JS/TS template literals and for calls whose
+    arguments are string constants. Anything else -- a Rust `eprintln!("{}", secret)`, a
+    Python `logger.info(secret)`, a bare `console.log(mnemonic)` -- is left alone and still
+    reported, because prefering the gap to the fabrication cuts both ways and this filter
+    has no business guessing about shapes it does not model.
+
+    It lives here rather than in the semgrep rule because semgrep's regex engine rejects
+    the nested lookaheads the discrimination needs.
+    """
+    interps = INTERPOLATION.findall(line)
+    if interps:
+        # A template literal: the finding is real only if a secret-named thing is one of the
+        # interpolated values, not merely part of the surrounding text.
+        return any(
+            re.search(SECRET_WORD, i, re.I) and not re.search(NOT_THE_VALUE, i, re.I)
+            for i in interps
+        )
+
+    # No interpolation. If every argument is a string constant there is no runtime value to
+    # leak, whatever words the text contains.
+    args = line.split("(", 1)[-1]
+    if args.strip() and not QUOTED.sub("", args).strip(" \t,);"):
+        return False
+
+    return True
+
+
 SARIF_LEVEL = {
     "critical": "error",
     "high": "error",
