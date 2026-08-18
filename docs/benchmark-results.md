@@ -9,9 +9,9 @@ in a Nitro tree, and a mutant that finds none of its target text reports
 clean run. Every mutant names the tree it belongs to.
 
 - base tree `bench/fixtures/clean`: 35 mutants
-- base tree `bench/fixtures/eigencompute-clean`: 36 mutants
-- mutants: 71 applied, 0 inapplicable
-- **recall 71/71 (100%)**
+- base tree `bench/fixtures/eigencompute-clean`: 39 mutants
+- mutants: 74 applied, 0 inapplicable
+- **recall 74/74 (100%)**
 - **false positives: 0**
 
 `precision` counts a rule firing on a mutant that planted a *different* defect as a
@@ -25,6 +25,7 @@ false positive — that finding did not exist on the clean tree, so the rule own
 | `CS01` | eigencompute | 3/3 | 100% | 3 | 0 | signature verification replaced by a base64 decode; jwks verification swapped for decodeJwt; verification call renamed to a local stub |
 | `CS02` | eigencompute | 3/3 | 100% | 3 | 0 | hardware model check removed; secure-boot assertion removed on its own; claims read and logged but never compared |
 | `CS03` | eigencompute | 3/3 | 100% | 3 | 0 | attestation failure caught and boot continues; failure swallowed by a .catch() returning a fabricated result; non-ok fetch logged and execution continues |
+| `CS04` | eigencompute | 3/3 | 100% | 3 | 0 | signature emitted as an attestation header; attestation built and verified locally by prefix check; an attestation report asserting its own attested flag |
 | `EC01` | eigencompute | 3/3 | 100% | 3 | 0 | hkdf keyed on the KMS public key; signing seed derived from the instance id; wallet key derived from the image digest |
 | `EC02` | eigencompute | 3/3 | 100% | 3 | 0 | enclave state read off an environment variable; attestation skipped when a platform variable is present; enclave state from KMS_SERVER_URL presence |
 | `EC03` | eigencompute | 3/3 | 100% | 3 | 0 | mnemonic falls back to a published test phrase; sealing key defaults to all zeroes; admin token defaults to a hardcoded literal |

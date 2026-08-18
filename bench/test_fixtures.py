@@ -77,17 +77,17 @@ EXPECTED: dict[str, dict] = {
 # it means platform gating failed, and the reader of a Nitro report is being shown dstack
 # findings (or vice versa). Checked in both directions.
 FOREIGN: dict[str, set[str]] = {
-    "vulnerable": {"DS01", "DS02", "DS03", "DS04", "DS05", "CS01", "CS02", "CS03",
+    "vulnerable": {"CS04", "DS01", "DS02", "DS03", "DS04", "DS05", "CS01", "CS02", "CS03",
                    "EC01", "EC02", "EC03", "EC04", "EC05", "EC06", "EC07", "EC08"},
-    "clean": {"DS01", "DS02", "DS03", "DS04", "DS05", "CS01", "CS02", "CS03",
+    "clean": {"CS04", "DS01", "DS02", "DS03", "DS04", "DS05", "CS01", "CS02", "CS03",
               "EC01", "EC02", "EC03", "EC04", "EC05", "EC06", "EC07", "EC08"},
-    "dstack-vulnerable": {"CS01", "CS02", "CS03", "EC01", "EC02", "EC03", "EC04",
+    "dstack-vulnerable": {"CS04", "CS01", "CS02", "CS03", "EC01", "EC02", "EC03", "EC04",
                           "EC05", "EC06", "EC07", "EC08", "CFG01", "CFG02", "CFG03"},
-    "dstack-clean": {"CS01", "CS02", "CS03", "EC01", "EC02", "EC03", "EC04",
+    "dstack-clean": {"CS04", "CS01", "CS02", "CS03", "EC01", "EC02", "EC03", "EC04",
                      "EC05", "EC06", "EC07", "EC08"},
-    "eigencompute-vulnerable": {"DS01", "DS02", "DS03", "DS04", "DS05",
+    "eigencompute-vulnerable": {"CS04", "DS01", "DS02", "DS03", "DS04", "DS05",
                                 "T02", "T06", "T09A", "CFG01", "CFG02", "CFG03"},
-    "eigencompute-clean": {"DS01", "DS02", "DS03", "DS04", "DS05",
+    "eigencompute-clean": {"CS04", "DS01", "DS02", "DS03", "DS04", "DS05",
                            "T02", "T06", "T09A", "CFG01", "CFG02", "CFG03"},
 }
 

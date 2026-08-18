@@ -744,6 +744,78 @@ MUTATIONS: list[Mutation] = [
                       'const EXPECTED_IMAGE_DIGEST = "";'),),
     ),
 
+    # --- BT-CS04: repository-level, so each mutant removes every hardware root ----------
+    # Mutation.apply edits a single file; all three roots in the clean tree live in
+    # src/attest.ts, so the teardown fits. What varies is how the replacement dresses a
+    # plain signature up as an attestation.
+
+    Mutation(
+        "CS04", "src/attest.ts",
+        "export interface Verified {",
+        'export const ATTESTATION_VERSION = "example/v1";\n\n'
+        "export function attestationHeader(body: string): string {\n"
+        '  return createHmac("sha256", "gateway").update(body).digest("hex");\n}\n\n'
+        "export interface Verified {",
+        "signature emitted as an attestation header",
+        base="eigencompute-clean",
+        also_expects=("CS01", "CS02"),
+        extra_edits=(
+            ('const METADATA =\n  "http://metadata.google.internal/computeMetadata/v1/instance/attestation/token";',
+             'const METADATA = "http://127.0.0.1:8080/local";'),
+            ('import { createRemoteJWKSet, jwtVerify } from "jose";',
+             'import { createHmac } from "node:crypto";'),
+            ('const JWKS = createRemoteJWKSet(\n  new URL("https://confidentialcomputing.googleapis.com/.well-known/jwks.json"),\n);',
+             ''),
+            ('  const { payload } = await jwtVerify(token, JWKS, {\n    issuer: "https://confidentialcomputing.googleapis.com",\n    audience: AUDIENCE,\n    clockTolerance: 30,\n  });',
+             '  const payload = JSON.parse(token);'),
+        ),
+    ),
+    Mutation(
+        "CS04", "src/attest.ts",
+        "export async function requireAttestation(nonce: string): Promise<Verified> {",
+        "export function buildAttestation(content: string, signer: string): string {\n"
+        '  return `v1:${createHmac("sha256", signer).update(content).digest("hex")}`;\n}\n\n'
+        "export function verifyAttestation(a: string): boolean {\n"
+        '  return a.startsWith("v1:");\n}\n\n'
+        "export async function requireAttestation(nonce: string): Promise<Verified> {",
+        "attestation built and verified locally by prefix check",
+        base="eigencompute-clean",
+        also_expects=("CS01", "CS02"),
+        extra_edits=(
+            ('const METADATA =\n  "http://metadata.google.internal/computeMetadata/v1/instance/attestation/token";',
+             'const METADATA = "http://127.0.0.1:8080/local";'),
+            ('import { createRemoteJWKSet, jwtVerify } from "jose";',
+             'import { createHmac } from "node:crypto";'),
+            ('const JWKS = createRemoteJWKSet(\n  new URL("https://confidentialcomputing.googleapis.com/.well-known/jwks.json"),\n);',
+             ''),
+            ('  const { payload } = await jwtVerify(token, JWKS, {\n    issuer: "https://confidentialcomputing.googleapis.com",\n    audience: AUDIENCE,\n    clockTolerance: 30,\n  });',
+             '  const payload = JSON.parse(token);'),
+        ),
+    ),
+    Mutation(
+        "CS04", "src/attest.ts",
+        "export interface Verified {",
+        "/** The attestation report this service publishes at /attestation. */\n"
+        "export interface AttestationReport {\n"
+        "  attestationVersion: string;\n  attested: boolean;\n  signer: string;\n}\n\n"
+        "export function getAttestation(signer: string): AttestationReport {\n"
+        '  return { attestationVersion: "v1", attested: true, signer };\n}\n\n'
+        "export interface Verified {",
+        "an attestation report asserting its own attested flag",
+        base="eigencompute-clean",
+        also_expects=("CS01", "CS02"),
+        extra_edits=(
+            ('const METADATA =\n  "http://metadata.google.internal/computeMetadata/v1/instance/attestation/token";',
+             'const METADATA = "http://127.0.0.1:8080/local";'),
+            ('import { createRemoteJWKSet, jwtVerify } from "jose";',
+             'import { createHmac } from "node:crypto";'),
+            ('const JWKS = createRemoteJWKSet(\n  new URL("https://confidentialcomputing.googleapis.com/.well-known/jwks.json"),\n);',
+             ''),
+            ('  const { payload } = await jwtVerify(token, JWKS, {\n    issuer: "https://confidentialcomputing.googleapis.com",\n    audience: AUDIENCE,\n    clockTolerance: 30,\n  });',
+             '  const payload = JSON.parse(token);'),
+        ),
+    ),
+
 ]
 
 

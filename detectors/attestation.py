@@ -382,11 +382,140 @@ def check_pcr_policy_matches_eif(root: Path, core_bin: Path | None) -> list[Find
     return findings
 
 
+
+# --- BT-CS04: attestation vocabulary with no hardware root ------------------------
+
+# The words. Used heavily by anything that genuinely attests, and equally heavily by
+# something that signs a response and calls the signature an attestation.
+ATTESTATION_VOCAB = re.compile(r"(?i)\battest\w*")
+
+# Any actual root of trust. One of these anywhere in the repository is enough to say the
+# project has a hardware anchor somewhere, even if a given file delegates to it.
+HARDWARE_ROOT = re.compile(
+    r"(?i)("
+    # Confidential Space / GCP
+    r"metadata\.google\.internal|computeMetadata/v1/instance/attestation"
+    r"|confidentialcomputing\.googleapis\.com|\bAttestClient\b|\bJwtProvider\b"
+    # the SDK's attest entry point specifically -- importing the package for its API
+    # client is not attestation, and matching the bare package name made this rule
+    # suppress itself on the repository it was written for.
+    r"|ecloud-sdk/attest"
+    # Intel TDX / SGX
+    r"|/dev/tdx[-_]guest|/sys/kernel/config/tsm/report|\bDCAP\b|quote3?_?verify"
+    r"|\bsgx_?(?:quote|report|ra)\b"
+    # AWS Nitro
+    r"|nsm_?api|/dev/nsm|nitro_enclaves_nsm|cose_?sign1|attestation_?doc"
+    r"|aws[-_]nitro[-_]enclaves"
+    # dstack
+    r"|\btappd\b|dstack[-_](?:kms|gateway|sdk)|\bRTMR\d?\b"
+    # generic JOSE verification of a platform token
+    r"|createRemoteJWKSet|\bjwtVerify\b|PyJWKClient"
+    r")"
+)
+
+# Evidence the project produces something it presents as attestation, rather than merely
+# discussing the concept. Without this a design document that says "attestation" a lot
+# would qualify.
+PRODUCES_ATTESTATION = re.compile(
+    r"(?i)("
+    r"attestation[_-]?(?:version|header|payload|response|token|report|doc)"
+    r"|X-\w+-(?:Signature|Attestation)"
+    r"|\bbuildAttestation\b|\battestationFor\w*|\bgetAttestation\b|/attestation\b"
+    r"|verifyAttestation|attested\s*[:=]"
+    r")"
+)
+
+MIN_VOCAB_HITS = 8
+
+
+def check_attestation_without_root(root: Path) -> list[Finding]:
+    """BT-CS04 — the repository presents attestation it does not have.
+
+    A repository-level question, not a file-level one, and the only rule here that is.
+    The failure is not a missing check inside a verification routine: it is that no
+    verification routine exists anywhere, while the surrounding project is built and
+    documented as though one does.
+
+    The shape that motivated it: a TEE-side gateway that signs every response with a
+    secp256k1 key, emits `X-Eigen-Signature`, ships a `verify` package, and uses the word
+    "attestation" eighty times — with no metadata-server call, no quote, no JWT, and no
+    certificate chain anywhere in the tree. The signature is real. What it proves is that
+    whoever holds the key signed the bytes, which is what any web server can say. It does
+    not bind the response to a measured workload on attested hardware, which is the entire
+    property the word is doing work for.
+
+    This reported zero findings before the rule existed, which is worse than a false
+    positive: a reader sees a clean report on a project whose central claim is unbacked.
+    """
+    vocab_hits = 0
+    produces_at: tuple[str, int] | None = None
+    saw_root = False
+
+    for path in sorted(root.rglob("*")):
+        if not path.is_file() or path.suffix not in CODE_SUFFIXES | {".md", ".json", ".toml"}:
+            continue
+        if any(part in SKIP_DIRS for part in path.parts):
+            continue
+        try:
+            if path.stat().st_size > 1_000_000:
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+
+        # A root of trust is implemented in code. The same hostname sitting in an egress
+        # allowlist or a README is a declaration, not a verification -- the clean fixture
+        # names confidentialcomputing.googleapis.com in its ecloud.toml, and reading that as
+        # an implementation made this rule suppress itself on its own mutants.
+        if path.suffix in CODE_SUFFIXES and HARDWARE_ROOT.search(text):
+            saw_root = True
+            break
+
+        rel = str(path.relative_to(root))
+        vocab_hits += len(ATTESTATION_VOCAB.findall(text))
+        if produces_at is None and path.suffix in CODE_SUFFIXES:
+            m = PRODUCES_ATTESTATION.search(text)
+            if m:
+                produces_at = (rel, text.count("\n", 0, m.start()) + 1)
+
+    if saw_root or produces_at is None or vocab_hits < MIN_VOCAB_HITS:
+        return []
+
+    rel, line = produces_at
+    return [
+        Finding(
+            rule_id="BT-CS04-attestation-without-hardware-root",
+            file=rel,
+            line=line,
+            evidence=(
+                f"{vocab_hits} uses of 'attest*' across the repository, and no hardware "
+                f"root of trust anywhere in it"
+            ),
+            message=(
+                "This project presents attestation it does not perform. It produces and "
+                "verifies something it calls an attestation, and the word appears throughout "
+                "— but there is no attestation token fetch, no TDX or SGX quote, no NSM "
+                "document, no certificate chain to a hardware root, and no platform SDK that "
+                "would do any of that on its behalf. What the signature proves is that "
+                "whoever holds the signing key signed the bytes. It does not prove the code "
+                "that signed them is the code you published, running on hardware that says "
+                "so, which is the property the word attestation is carrying here. A consumer "
+                "checking the signature and seeing it pass will believe otherwise."
+            ),
+            severity=Severity.HIGH,
+            confidence=Confidence.MEDIUM,
+            detector="detectors:attestation.check_attestation_without_root",
+            metadata={"attestation_mentions": vocab_hits},
+        )
+    ]
+
+
 def run(root: Path, core_bin: Path | None = None) -> list[Finding]:
     return [
         *check_chain_validation(root),
         *check_zero_pcr_rejected(root),
         *check_pcr_policy_matches_eif(root, core_bin),
+        *check_attestation_without_root(root),
     ]
 
 

@@ -1,0 +1,38 @@
+id: BT-CS04-attestation-without-hardware-root
+title: Project presents attestation with no hardware root of trust
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://cloud.google.com/confidential-computing/confidential-space/docs/validate-attestation-tokens
+threat: 1
+layer_required: 2
+platform: [generic, nitro, dstack, confidential-space, eigencompute]
+severity: high
+detection: deterministic
+detector: detectors:attestation.check_attestation_without_root
+languages: [any]
+rationale: >
+  A signature proves that whoever holds the signing key signed the bytes. Attestation proves
+  that the code which signed them is the code you published, running on hardware that vouches
+  for it. Projects conflate the two: they sign every response with a key the platform
+  provided, emit headers naming it an attestation, ship a verification library, and use the
+  word throughout their documentation, while performing no quote fetch, no token verification,
+  and no certificate-chain walk anywhere in the tree. Every individual piece works, so review
+  finds nothing wrong; the gap is that the security property being advertised was never
+  implemented at all. A consumer who checks the signature and sees it pass will believe a
+  great deal more than was proven.
+remediation: >
+  Obtain a real attestation from the platform and verify it before the signing identity is
+  trusted: a Confidential Space token validated against Google JWKS, a TDX or SGX quote
+  through DCAP, a Nitro attestation document chained to the AWS root, or the platform SDK that
+  does one of those. Bind the signing key to that attestation so a signature means the
+  measured workload signed it. Failing that, describe what the signature actually proves and
+  stop calling it attestation.
+false_positives: >
+  A client library, SDK, or verification tool that deliberately consumes attestations produced
+  elsewhere will use the vocabulary heavily and legitimately contain no hardware root. So will
+  a specification, a design document, or a test harness. The rule requires evidence that the
+  project produces something it presents as an attestation, not merely that it discusses them,
+  but a repository whose attestation code lives in a sibling repository is a genuine false
+  positive.
+confidence: medium
+status: benchmarked
