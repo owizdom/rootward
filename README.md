@@ -1,6 +1,7 @@
 # tee-audit
 
-Static auditor for Web3 protocols built on cloud TEEs — AWS Nitro Enclaves and dstack.
+Static auditor for Web3 protocols built on cloud TEEs — AWS Nitro Enclaves, dstack, and
+EigenCompute / Google Cloud Confidential Space.
 
 ```
 python3 cli/audit.py ./repo                 # deterministic rules, seconds, no model calls
@@ -20,17 +21,25 @@ attestation verification gaps, trusting the parent instance, metadata leakage, t
 oracles, hardcoded credentials, and KMS misconfiguration. The handbook estimates most active
 Web3 TEE projects carry three to five of these at once.
 
-Nearly all of them are visible in a repository — in source, Dockerfiles, KMS key policies,
-and the built EIF image. That is what this tool looks for.
+Nearly all of them are visible in a repository — in source, Dockerfiles, deployment
+manifests, KMS key policies, and the built EIF image. That is what this tool looks for.
+
+The handbook is written for Nitro and dstack. Applying it to a third platform was the
+test of whether the threat model or the pattern-matching was doing the work: on
+EigenCompute, seven of its threats carry over unchanged, `BT-T01` needed a second
+measurement type rather than a second rule, and the platform's own design produced one
+failure the handbook does not name — a key derived from a public value, which is
+[`BT-EC01`](catalog/rules/BT-EC01-key-from-public-input.yaml).
 
 ## Measured
 
 | | result | how |
 |---|---|---|
-| Mutation recall | **35/35** across 15 rules | [`docs/benchmark-results.md`](docs/benchmark-results.md) |
+| Mutation recall | **55/55** across 26 rules | [`docs/benchmark-results.md`](docs/benchmark-results.md) |
 | False positives on mutants | **0** | same |
-| Clean-fixture false positives | **0** on both clean trees | `bench/test_fixtures.py` |
-| Negative control (a correct validator) | **0 findings**, was 9 | [`docs/corpus-a-results.md`](docs/corpus-a-results.md) |
+| Clean-fixture false positives | **0** on all three clean trees | `bench/test_fixtures.py` |
+| Negative controls (two correct implementations) | **0 findings** each, were 9 and 4 | [`docs/corpus-a-results.md`](docs/corpus-a-results.md) |
+| Corpus | 11 pinned repositories, 3 platforms | [`docs/corpus-a-results.md`](docs/corpus-a-results.md) |
 | PCR measurement | matches AWS's own implementation | `cargo test --features differential` |
 | External validation | 1 re-find + 1 partial of 14 | [`docs/dstack-vs-zksecurity.md`](docs/dstack-vs-zksecurity.md) |
 | Model layer vs deterministic | **0 added findings** on shared classes | [`docs/ablation.md`](docs/ablation.md) |
@@ -48,7 +57,7 @@ existed to grade against.
 
 ## Design
 
-**Deterministic detectors first, model second.** Of 31 catalogued rules, 21 need no model
+**Deterministic detectors first, model second.** Of 42 catalogued rules, 32 need no model
 call — they are parse, AST, or binary-format checks. Six are hybrid, four require genuine
 judgment.
 
@@ -72,9 +81,10 @@ real launch. That list is a mandatory report section, computed from what the run
 did rather than hand-written.
 
 ```
-catalog/    31 YAML rules, each citing its source        ← the domain knowledge
+catalog/    42 YAML rules, each citing its source        ← the domain knowledge
 core/       Rust: EIF parse, CPIO ramdisk walk, PCR recompute, secret scan
-detectors/  semgrep TEE ruleset + KMS policy, build config, vsock, streams, dstack
+detectors/  semgrep TEE ruleset + KMS policy, build config, vsock, streams,
+            dstack, confidential-space, eigencompute
 agent/      Claude Agent SDK: the four semantic passes + adversarial refutation
 cli/        orchestration and the report
 bench/      fixtures, mutation harness, real-repo corpus, ablation
@@ -110,7 +120,25 @@ the rule to pass; failing one caps the protocol below it.
 | `BT-T10` unauthenticated relayed data | 10 | 1 | hybrid |
 | `BT-CFG01`–`CFG05` | — | 2 | debug mode, zero PCRs, PCR/policy diff, build determinism, key rotation |
 | `BT-DS01`–`DS05` | — | 2–4 | dstack: code governance, key derivation, KMS mode, RTMR policy, gateway binding |
+| `BT-CS01` attestation token never verified | 6 | 2 | deterministic |
+| `BT-CS02` platform claims unchecked | 1 | 2 | deterministic |
+| `BT-CS03` attestation failure is non-fatal | 0 | 2 | deterministic |
+| `BT-EC01` **key derived from public material** | 4 | 1 | deterministic |
+| `BT-EC02` enclave state from an env var | 0 | 1 | deterministic |
+| `BT-EC03` dev-key fallback reachable | 9 | 1 | deterministic |
+| `BT-EC04` security check silently disabled | 1 | 2 | deterministic |
+| `BT-EC05` deploy secret in argv | 3 | 1 | deterministic |
+| `BT-EC06` unauthenticated env dump | 3 | 1 | deterministic |
+| `BT-EC07` container overrides privilege drop | 5 | 1 | deterministic |
+| `BT-EC08` no egress allowlist | 3 | 3 | deterministic |
 | `BT-LYR01` layer scorecard | — | — | semantic |
+
+`BT-CS*` applies to any Google Cloud Confidential Space workload; `BT-EC*` is gated on
+EigenCompute specifically. Rules are gated by platform in both directions and the fixture
+suite asserts it, because a report padded with another platform's inapplicable findings
+teaches the reader to skim past the real ones. The security model those rules encode is
+written up in [`docs/eigencompute-model.md`](docs/eigencompute-model.md), read out of the
+`eigenx-cli` source rather than from a docs page.
 
 Every rule cites its source, states when it is wrong (`false_positives` is a required field),
 and carries a status the validator checks against reality — a rule claiming `benchmarked`
@@ -135,6 +163,13 @@ running instance, no active probing. Repository in, report out.
   necessarily the policy attached to the live key.
 - **`BT-T07D` and `BT-T10` are new and largely untriaged** on real code — they ship at LOW
   confidence for exactly that reason.
+- **No rule for "this presents itself as attestation and is not".** `eigenbox` in the
+  corpus signs every response with a real secp256k1 key and performs no hardware
+  attestation at all; it reports zero findings. The signature is genuine and proves only
+  that whoever holds the key signed it.
+- **No image measurement on EigenCompute.** There is no EIF and there are no PCRs, so the
+  Rust core does not run there. Workload identity is the image digest in the attestation
+  token, and comparing it to the digest recorded on chain needs the network.
 
 ## Setup
 

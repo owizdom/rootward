@@ -67,3 +67,70 @@ repos:
       A correct attestation validator. BT-T06 must NOT fire here; if it does, the
       chain-walk detection is wrong. This is the negative control for the rule most likely
       to over-report.
+
+  # --- EigenCompute -------------------------------------------------------------
+  # Six deployed applications, pinned at the commit audited. They are the author's own
+  # repositories, which is worth stating plainly: it makes the corpus easy to assemble and
+  # it means findings here were not adversarially selected. What it does not do is make them
+  # softer — the EC01 finding on bobIsAlive was verified against source before it was
+  # written down, and vanta is in the corpus precisely because it is the strongest of the six.
+
+  - name: vanta
+    url: https://github.com/owizdom/vanta
+    ref: e8d274f6052614581b6c7504667b707f9bf95d00
+    platform: eigencompute
+    note: >-
+      The EigenCompute negative control, and the only one of the six on mainnet (Base and
+      Polygon). It TLS-SPKI-pins its price feed, reads the mnemonic exactly once and zeroes
+      it, rejects HKDF salt/info reuse, keeps the signer as a non-exported KeyObject, and
+      refuses to start on an app-id mismatch. EC01, EC02, EC03 and CS01 firing here means
+      the detector is wrong, not the repository.
+
+  - name: bobIsAlive
+    url: https://github.com/owizdom/bobIsAlive
+    ref: 7de5b965e95a022de89799e1c1ac3251ec2d3999
+    platform: eigencompute
+    note: >-
+      Ground truth for BT-EC01. deriveTEEWalletKey derives a Starknet signing key by HMAC
+      from kmsPublicKey, which in fallback mode is the literal string
+      "eigencompute-instance:${EIGENCOMPUTE_INSTANCE_ID}" — and the instance id is published
+      unauthenticated on /api/tee. Verified against source, not inferred. Starknet Sepolia,
+      so the funds at risk are testnet.
+
+  - name: eigenbox
+    url: https://github.com/owizdom/eigenbox
+    ref: cefb8782a1fcb9767c979e26f5d3f1de6d232bea
+    platform: eigencompute
+    note: >-
+      A TEE-side gateway that signs every response with a secp256k1 key. Reports zero
+      findings, which is the correct result and also the interesting one: the catalog has no
+      rule for "this attests nothing" — the signature is real, and what it proves is only
+      that whoever holds the key signed it. That gap is a rule this catalog does not have
+      rather than a clean bill of health.
+
+  - name: swarm-mindv2
+    url: https://github.com/owizdom/swarm-mindv2
+    ref: 709241b0f721eadc413e5268ae138870192456fe
+    platform: eigencompute
+    note: >-
+      The clearest CS01 case in the corpus: decodeJWTPayload is documented in its own
+      docstring as decoding "without verifying", and the deploy scripts pass the deployer
+      key as an argv flag with --log-visibility public.
+
+  - name: eigen-hotcold-lotto
+    url: https://github.com/owizdom/eigen-hotcold-lotto
+    ref: e87da7bbdaa6db2c475e592a4361789edcc2dd41
+    platform: eigencompute
+    note: >-
+      Carries the EC03 shape the rule was written for: SEAL_KEY defaulting to 64 zeroes.
+      Also holds a defect this catalog cannot see — the enclave returns the exact numeric
+      distance to a sealed secret, so two guesses determine it. Information disclosure
+      through an intended API is not a pattern, and the gap is worth recording.
+
+  - name: eigencompute-secure-DB
+    url: https://github.com/owizdom/eigencompute-secure-DB
+    ref: 95e8bf34c9d1301bd554e73dc50d6596ee91af34
+    platform: eigencompute
+    note: >-
+      Smallest of the six and mostly quiet. Included for the T07C case: an API key compared
+      with Python's == against an allowlist re-read from disk on every request.

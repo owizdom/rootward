@@ -39,6 +39,13 @@ PYTHON = str(ROOT / ".venv" / "bin" / "python")
 # Repositories where a specific rule firing means the detector is wrong, not the repo.
 NEGATIVE_CONTROLS = {
     "attestation-doc-validation": {"T06"},
+    # vanta is the EigenCompute negative control. It TLS-SPKI-pins its price feed, reads
+    # MNEMONIC once and zeroes it, rejects HKDF salt/info reuse, keeps the signer as a
+    # non-exported KeyObject, and refuses to start on an app-id mismatch. Each of these
+    # rules firing there would mean the detector is wrong, and three of them did during
+    # development: EC01 on a generic sha256 helper, CS01 on delegation to the platform SDK,
+    # and EC03 on a token *budget* that happened to contain the word TOKEN.
+    "vanta": {"EC01", "EC02", "EC03", "CS01"},
 }
 
 
