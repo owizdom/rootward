@@ -107,6 +107,28 @@ fn known_test_digests() -> &'static [&'static str] {
     ]
 }
 
+/// High-frequency English function words that are absent from the BIP-39 English wordlist.
+///
+/// The mnemonic pattern is "12 or 24 lowercase words of 3-8 letters", which ordinary prose
+/// satisfies constantly. Auditing this repository with its own scanner flagged three plain
+/// English sentences as seed phrases at CRITICAL severity, including one in the README and
+/// one inside a JSON schema description. A real mnemonic draws only from the 2048-word
+/// BIP-39 list; any of these words present means the run is a sentence.
+///
+/// Deliberately conservative — every entry here is one confirmed absent from BIP-39, so a
+/// genuine mnemonic can never be suppressed by this check.
+const NOT_IN_BIP39: [&str; 24] = [
+    "the", "and", "that", "for", "with", "this", "which", "are", "not", "but",
+    "from", "they", "have", "has", "was", "were", "been", "its", "would", "could",
+    "should", "than", "then", "there",
+];
+
+fn looks_like_prose(phrase: &str) -> bool {
+    phrase
+        .split_whitespace()
+        .any(|w| NOT_IN_BIP39.contains(&w.to_ascii_lowercase().as_str()))
+}
+
 fn is_placeholder(value: &str) -> bool {
     let v = value.trim_start_matches("0x");
     // All-zero, all-f, repeated single char, or an obvious stand-in.
@@ -249,9 +271,10 @@ pub fn scan_text(path: &str, text: &str) -> Vec<Finding> {
             push(Kind::EvmPrivateKey, v);
         }
         for c in p.mnemonic.captures_iter(line) {
-            let words = c[1].split_whitespace().count();
-            if words == 12 || words == 24 {
-                push(Kind::MnemonicPhrase, &c[1]);
+            let phrase = &c[1];
+            let words = phrase.split_whitespace().count();
+            if (words == 12 || words == 24) && !looks_like_prose(phrase) {
+                push(Kind::MnemonicPhrase, phrase);
             }
         }
         for c in p.assignment.captures_iter(line) {
@@ -353,6 +376,23 @@ mod tests {
         // through would be a steady source of false positives.
         let f = scan_text("docs.md", "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE");
         assert!(f.is_empty(), "documented example key must not be reported: {f:?}");
+    }
+
+    #[test]
+    fn ignores_english_prose_that_matches_the_mnemonic_shape() {
+        // Found by pointing the tool at its own repository: twelve consecutive lowercase
+        // words is a sentence far more often than it is a seed phrase, and this shipped at
+        // CRITICAL severity against the README.
+        for prose in [
+            "only its author's idiom scores full recall against one mutant and then misses the same bug",
+            "a rule whose author cannot name its failure mode has not been thought through today",
+        ] {
+            let f = scan_text("README.md", prose);
+            assert!(
+                !f.iter().any(|x| x.kind == Kind::MnemonicPhrase),
+                "prose reported as a mnemonic: {prose:?} -> {f:?}"
+            );
+        }
     }
 
     #[test]

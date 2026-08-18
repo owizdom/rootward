@@ -80,8 +80,15 @@ def compare(name: str, path: Path) -> dict:
         })
 
     # Refuted findings never reach the report but are the clearest evidence the verification
-    # layer is doing work rather than rubber-stamping.
+    # layer is doing work rather than rubber-stamping. A refutation rate of zero is ambiguous
+    # on its own — it means either "the verifier checked and agreed" or "the verifier never
+    # ran" — and those were confused by hand once already, so the two are counted separately.
     refuted = sem.get("refuted", [])
+    kept = [f for f in sem["findings"] if f["detector"].startswith("agent:")]
+    refuter_errors = sum(
+        1 for f in kept
+        if "failed after" in (f.get("refutation") or "") or "errored" in (f.get("refutation") or "")
+    )
 
     return {
         "repo": name,
@@ -90,6 +97,8 @@ def compare(name: str, path: Path) -> dict:
         "deterministic_findings": len(det["findings"]),
         "semantic_findings": len(sem["findings"]),
         "refuted": len(refuted),
+        "refuter_errors": refuter_errors,
+        "semantic_kept": len(kept),
         "verdicts": _verdict_counts(sem["findings"]),
         "classes": rows,
         "failed_passes": [
@@ -131,6 +140,18 @@ def render(results: list[dict]) -> str:
         if r["verdicts"]:
             verdicts = ", ".join(f"{k} {v}" for k, v in sorted(r["verdicts"].items()))
             lines.append(f"- semantic verdicts: {verdicts}")
+        if r.get("refuter_errors"):
+            lines.append(
+                f"- **{r['refuter_errors']} of {r['semantic_kept']} refutations failed to "
+                f"run.** Those findings ship as PLAUSIBLE without having been checked — a "
+                f"refutation rate of zero here means the verifier was unavailable, not that "
+                f"it agreed."
+            )
+        elif r["refuted"] == 0 and r["semantic_kept"]:
+            lines.append(
+                f"- every refutation ran and none succeeded: the verifier checked all "
+                f"{r['semantic_kept']} findings and let them stand"
+            )
         if r["failed_passes"]:
             lines += ["", "Passes that did not complete (reported, not silently empty):", ""]
             lines += [f"  - {p.replace('Detector limitation: ', '')}" for p in r["failed_passes"]]
