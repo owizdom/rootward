@@ -8,6 +8,20 @@ The version this matters most for is the Action: pin `owizdom/rootward@v0.2.0` r
 
 ## Unreleased
 
+### Added
+
+- **A trust-boundary model** (`detectors/boundary.py`). Files are classified guest, host or
+  unknown; 11 rules whose threat needs the enclave are tagged `assumes: enclave_runtime` and
+  suppressed only on host files. Two independent structural signals are required for host, a
+  guest-only call vetoes it, a repository can declare its own boundary in `rootward.toml`,
+  and anything unresolved stays unknown and is audited.
+- **Adjudicated corpus expectations** (`bench/corpus_expectations.yaml`,
+  `bench/check_expectations.py`). The fixture suite proves the rules find defects planted
+  for them; it cannot prove they stay quiet on code that is merely complicated, which is
+  where every false positive has come from. This pins the answer per real repository, with a
+  reason for every entry, and fails on a rule that reappears after being fixed or vanishes
+  after being expected. Not in CI, since the corpus is fetched rather than vendored.
+
 ### Changed
 
 - **Reported severity is now per-instance.** A finding's severity is its rule's impact
