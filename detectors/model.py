@@ -197,7 +197,12 @@ def code_only(text: str, suffix: str) -> str:
 
 
 # Definition sites, which are not evidence that the thing is ever called.
-DEFINITION_SITE = re.compile(r"^\s*(?:async\s+)?(?:def|fn|func|function|pub\s+fn)\s+\w+")
+# Declaration sites, not call sites. Extended past `fn`/`def` after dstack reported
+# `pub struct VsockListener {` as a vsock listener with no replay protection.
+DEFINITION_SITE = re.compile(
+    r"^\s*(?:pub(?:\([\w:]+\))?\s+)?(?:async\s+)?"
+    r"(?:def|fn|func|function|struct|class|enum|trait|interface|impl|type)\s+\w+"
+)
 
 
 def strip_definitions(text: str) -> str:
@@ -210,6 +215,51 @@ def strip_definitions(text: str) -> str:
     return "\n".join(
         "" if DEFINITION_SITE.match(line) else line for line in text.splitlines()
     )
+
+
+# An import names a symbol; it does not call it. Rust `use serde::Deserialize`, Go's
+# import block, a Python `from x import verify`, a JS `import { validate }`.
+IMPORT_SITE = re.compile(
+    r"""^\s*(
+        use\s+[\w:{}, *]+;?\s*$          # rust
+      | pub\s+use\s+.*$                   # rust re-export
+      | \#\[[^\]]*\]?\s*$               # rust attribute, incl. #[derive(Deserialize)]
+      | (from\s+[\w. ]+\s+)?import\b.*$  # python, js, go single-line
+      | import\s*\(\s*$                   # go block open
+      | const\s+\{?[\w,\s}]*\}?\s*=\s*require\(.*$   # cjs
+    )""",
+    re.VERBOSE,
+)
+# Continuation lines of a multi-line `use foo::{` / `import (` block.
+IMPORT_CONT_OPEN = re.compile(r"^\s*(use\s+[\w:]*\{|import\s*\(|from\s+[\w.]+\s+import\s*\()\s*$")
+IMPORT_CONT_CLOSE = re.compile(r"^\s*[)}]\s*;?\s*$")
+
+
+def strip_imports(text: str) -> str:
+    """Blank out import and attribute lines, keeping line numbers.
+
+    The third member of the same family as `code_only` and `strip_definitions`, and it was
+    added for the same reason they were: something that is not an implementation was being
+    read as one. On the dstack monorepo, `use serde::{Deserialize, Serialize}` satisfied the
+    "this file performs attestation work" test in BT-T06, so a 575-line file of type
+    definitions and accessors was reported as parsing an attestation document without
+    validating its certificate chain. `use tokio_vsock::VsockAddr;` did the same for the
+    vsock rules. Eight of eight T06 findings and most of T10 and T07D on that repository
+    came from this one confusion, and every one of them was wrong.
+    """
+    out, in_block = [], False
+    for line in text.splitlines():
+        if in_block:
+            out.append("")
+            if IMPORT_CONT_CLOSE.match(line):
+                in_block = False
+            continue
+        if IMPORT_CONT_OPEN.match(line):
+            in_block = True
+            out.append("")
+            continue
+        out.append("" if IMPORT_SITE.match(line) else line)
+    return "\n".join(out)
 
 
 def strip_string_literals(text: str) -> str:

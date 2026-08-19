@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from model import Confidence, Finding, Severity, code_only, quote_line
+from model import Confidence, Finding, Severity, code_only, quote_line, strip_imports
 
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}
 TEXTY = {".rs", ".go", ".py", ".ts", ".js", ".mjs", ".json", ".yaml", ".yml", ".toml"}
@@ -88,7 +88,7 @@ def run(root: Path) -> list[Finding]:
     findings: list[Finding] = []
 
     for path, rel, raw in _iter_text(root):
-        live = code_only(raw, path.suffix) if path.suffix in {
+        live = strip_imports(code_only(raw, path.suffix)) if path.suffix in {
             ".rs", ".go", ".py", ".ts", ".js", ".mjs", ".yaml", ".yml", ".toml"
         } else raw
 

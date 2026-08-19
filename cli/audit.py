@@ -111,6 +111,34 @@ def find_core() -> Path | None:
     return None
 
 
+# ------------------------------------------------------- non-production paths ---
+#
+# Test data, mocks, simulators and vendored samples. A hardcoded key in `test_outputs.js`
+# and a TEE simulator that returns a canned quote are both doing their jobs, and reporting
+# them buries the findings that are not. On the dstack monorepo 21 of 72 findings were in
+# these paths, which is the difference between a report someone reads and one they skim.
+#
+# Suppressed rather than silently dropped: the count goes in the NOT VERIFIED section, and
+# `--include-tests` turns it off for anyone who does want to audit their fixtures.
+NON_PRODUCTION = re.compile(
+    r"(?i)(^|/)("
+    r"tests?|__tests?__|spec|specs|testdata|test-run|test-suites|"
+    r"fixtures?|examples?|samples?|benches|e2e|"
+    r"mocks?|[\w-]*-mock|[\w-]*simulator|tee-simulator"
+    r")(/|$)"
+    r"|(^|/)(test_[^/]+|[^/]+_test|[^/]+[._](test|spec)|mock-[^/]+)\.[a-z]+$"
+    r"|(^|/)test[-_]outputs?\.[a-z]+$"
+)
+
+
+def split_non_production(findings: list) -> tuple[list, list]:
+    """Returns (production, suppressed)."""
+    prod, supp = [], []
+    for f in findings:
+        (supp if NON_PRODUCTION.search(f.file) else prod).append(f)
+    return prod, supp
+
+
 # --------------------------------------------------------------- semgrep ---
 def run_semgrep(root: Path, semgrep_bin: str) -> tuple[list[Finding], list[str]]:
     """Returns (findings, warnings). A semgrep failure degrades the audit rather than
@@ -822,6 +850,12 @@ def main() -> int:
              "handing to someone who is not going to read a terminal.",
     )
     ap.add_argument(
+        "--include-tests", action="store_true",
+        help="also report findings in test, mock, simulator, fixture and sample paths. Off "
+             "by default: a hardcoded key in a test fixture is test data, and reporting it "
+             "buries the findings that are not.",
+    )
+    ap.add_argument(
         "--out", metavar="PATH", default=None,
         help="where to write --format pdf (default: rootward-report.pdf in the working "
              "directory). Ignored by the text formats, which go to stdout.",
@@ -905,6 +939,9 @@ def main() -> int:
         )
 
     findings = sort_for_report(dedupe(findings))
+    suppressed: list[Finding] = []
+    if not args.include_tests:
+        findings, suppressed = split_non_production(findings)
     scorecard = layer_scorecard(catalog, findings, platform)
 
     result = {
@@ -920,6 +957,15 @@ def main() -> int:
             root, catalog, platform, core, eif_reports, warnings, semantic_ran=args.semantic
         ),
     }
+
+    # A suppressed finding that nobody is told about is a finding the report lied about.
+    if suppressed:
+        by_rule = ", ".join(sorted({f.rule_id.split("-")[1] for f in suppressed}))
+        result["not_verified"].append(
+            f"{len(suppressed)} finding(s) in test, mock, simulator, fixture or sample "
+            f"paths were suppressed ({by_rule}). These are usually test data doing its job. "
+            f"Re-run with --include-tests to see them."
+        )
 
     if args.format == "json":
         print(json.dumps(result, indent=2))

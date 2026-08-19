@@ -18,7 +18,15 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from model import Confidence, Finding, Severity, code_only, quote_line
+from model import (
+    Confidence,
+    Finding,
+    Severity,
+    code_only,
+    quote_line,
+    strip_definitions,
+    strip_imports,
+)
 
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}
 CODE_SUFFIXES = {".rs", ".go", ".py", ".ts", ".js", ".mjs"}
@@ -132,17 +140,21 @@ def check_replay_protection(root: Path) -> list[Finding]:
     findings: list[Finding] = []
     for path, rel in _iter_code(root):
         raw = path.read_text(encoding="utf-8", errors="replace")
-        live = code_only(raw, path.suffix)
+        live = strip_definitions(code_only(raw, path.suffix))
+        # An import is not a listener: `use tokio_vsock::VsockAddr;` was enough to report a
+        # file as relaying unauthenticated parent data. Trigger on the import-stripped view,
+        # keep suppression on the fuller one.
+        trigger = strip_imports(live)
 
         # Scope: this file must actually read messages off a vsock surface.
-        if not (VSOCK_SURFACE.search(live) and MESSAGE_READ.search(live)):
+        if not (VSOCK_SURFACE.search(trigger) and MESSAGE_READ.search(trigger)):
             continue
         if FRESHNESS_ENFORCED.search(live):
             continue
 
         carries_token = bool(FRESHNESS.search(live))
         lines = raw.splitlines()
-        line = _line_of(live, VSOCK_SURFACE)
+        line = _line_of(trigger, VSOCK_SURFACE)
 
         findings.append(
             Finding(
@@ -188,17 +200,21 @@ def check_relayed_authority(root: Path) -> list[Finding]:
         if DECLARATION_ONLY.search(rel):
             continue
         raw = path.read_text(encoding="utf-8", errors="replace")
-        live = code_only(raw, path.suffix)
+        live = strip_definitions(code_only(raw, path.suffix))
+        # An import is not a listener: `use tokio_vsock::VsockAddr;` was enough to report a
+        # file as relaying unauthenticated parent data. Trigger on the import-stripped view,
+        # keep suppression on the fuller one.
+        trigger = strip_imports(live)
 
-        if not RELAYED_SOURCE.search(live):
+        if not RELAYED_SOURCE.search(trigger):
             continue
-        if not AUTHORITY_USE.search(live):
+        if not AUTHORITY_USE.search(trigger):
             continue
         if PAYLOAD_VERIFIED.search(live):
             continue
 
         lines = raw.splitlines()
-        line = _line_of(live, RELAYED_SOURCE)
+        line = _line_of(trigger, RELAYED_SOURCE)
 
         findings.append(
             Finding(

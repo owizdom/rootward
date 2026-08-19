@@ -27,6 +27,7 @@ from model import (
     code_only,
     quote_line,
     strip_definitions,
+    strip_imports,
 )
 
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}
@@ -61,6 +62,15 @@ ATTESTATION_VERB = re.compile(
     r"verify|validate|authenticate|check_?signature|"
     r"from_slice|decode|deserialize|parse|loads?\b"
     r")\b"
+)
+
+# The subset that means "this file decides whether to trust the document", as opposed to
+# moving its bytes around. BT-T06 asks whether a chain is walked to a pinned root, and only
+# a file making that decision can fail to. dstack's `v1.rs` decodes an attestation from
+# msgpack and `nsm-qvl/collateral.rs` fetches collateral over HTTP; both matched the codec
+# half, neither has any business validating a certificate chain, and both were reported.
+ATTESTATION_TRUST_VERB = re.compile(
+    r"(?i)\b(verify|validate|authenticate|check_?signature)\b"
 )
 
 
@@ -106,11 +116,22 @@ CHAIN_MATERIAL = re.compile(r"(?i)\b(cabundle|ca_?bundle|cert_?chain)\b")
 
 # CHAIN_VERIFY: the chain is actually checked against something. This is the load-bearing
 # signal; the rule stays quiet only when one of these (or a KNOWN_VALIDATOR) is present.
+# What counts as "the chain is actually walked". Widened after dstack: `nsm-qvl` calls
+# `verify_certificate_chain(&doc, root_ca_pem, ...)` and builds on webpki, and this pattern
+# recognised neither, so the crate whose entire job is verifying Nitro attestations was
+# reported as parsing them without verifying. `verify_cert_chain` does not match
+# `verify_certificate_chain`; the general form does.
+#
+# Nothing here matches what the T06 mutants leave behind when they delete the validation
+# call (`load_pem_x509_certificate`, a root constant, a bare `.verify(`), which is the
+# property that keeps widening this from quietly buying silence.
 CHAIN_VERIFY = re.compile(
     r"(?i)\b("
     r"X509Store|X509StoreContext|add_cert|set_trust|"
-    r"verify_cert_chain|build_chain|validate_chain|verify_chain|"
-    r"verify_directly_issued_by|check_chain|chain_verify"
+    r"verify\w*_chain|build_chain|validate_chain|chain_verify|check_chain|"
+    r"verify_directly_issued_by|"
+    r"webpki|EndEntityCert|verify_for_usage|TrustAnchor|anchor_from_trusted_cert|"
+    r"verify_certificate_chain|verify_attestation"
     r")\b"
 )
 # ROOT_MATERIAL alone proves only that a root is available, not that it is consulted.
@@ -168,11 +189,24 @@ def check_chain_validation(root: Path) -> list[Finding]:
     """BT-T06: attestation parsed without walking the chain to a pinned AWS root."""
     findings: list[Finding] = []
     for path in _iter_code(root):
+        rel = str(path.relative_to(root))
+        # `_is_auditable` existed for exactly this and this check never called it.
+        if not _is_auditable(rel):
+            continue
         text = path.read_text(encoding="utf-8", errors="replace")
         # Match safeguards against live code only. A comment saying the cabundle is walked
-        # and an uncalled helper that walks it are both text, not verification.
+        # and an uncalled helper that walks it are both text, not verification. Imports are
+        # the same class: `use serde::{Deserialize, Serialize}` is not attestation work, and
+        # on dstack it made a file of type definitions look like an unvalidated parser.
         live = strip_definitions(code_only(text, path.suffix))
-        if not _does_attestation(live):
+        # Trigger and suppression read different views on purpose. Whether the file *does*
+        # attestation work is asked of code with imports removed, so `use serde::Deserialize`
+        # cannot answer yes. Whether it *validates* is asked of the fuller text, because
+        # importing webpki is weak evidence of validation and weak evidence should still
+        # buy silence: stripping imports from both halves took this rule from 8 findings on
+        # dstack to 11, every one of them wrong.
+        trigger = strip_imports(live)
+        if not (ATTESTATION_NOUN.search(trigger) and ATTESTATION_TRUST_VERB.search(trigger)):
             continue
         if CHAIN_VERIFY.search(live) or KNOWN_VALIDATOR.search(live):
             continue
@@ -188,7 +222,7 @@ def check_chain_validation(root: Path) -> list[Finding]:
         findings.append(
             Finding(
                 rule_id="BT-T06-no-root-cert-validation",
-                file=str(path.relative_to(root)),
+                file=rel,
                 line=line,
                 evidence=quote_line(lines, line),
                 message=(

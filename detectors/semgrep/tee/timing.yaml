@@ -31,7 +31,7 @@ rules:
           - pattern: $LHS.as_slice() == $RHS.as_slice()
       - metavariable-regex:
           metavariable: $LHS
-          regex: (?i).*(secret|hmac|signature|sig(nature)?([^a-z]|$)|mac|tag|token|passwd|password|auth_?code|api_?key|private_?key|shared_?key|session_?key).*
+          regex: (?i).*(secret|hmac|signature|sig(nature)?([^a-z]|$)|mac|auth_?tag|mac_?tag|gcm_?tag|token|passwd|password|auth_?code|api_?key|private_?key|shared_?key|session_?key).*
       # A length check is not the leaky comparison; it leaks only the length.
       - pattern-not: $LHS.len() == $RHS
       - pattern-not: $LHS.len() != $RHS
@@ -72,7 +72,7 @@ rules:
           - pattern: strings.EqualFold($LHS, $RHS)
       - metavariable-regex:
           metavariable: $LHS
-          regex: (?i).*(secret|hmac|signature|sig(nature)?([^a-z]|$)|mac|tag|token|passwd|password|authCode|apiKey|privateKey|sharedKey|sessionKey).*
+          regex: (?i).*(secret|hmac|signature|sig(nature)?([^a-z]|$)|mac|auth_?tag|mac_?tag|gcm_?tag|token|passwd|password|authCode|apiKey|privateKey|sharedKey|sessionKey).*
       - pattern-not: len($LHS) == $RHS
       - pattern-not: len($LHS) != $RHS
       # subtle.ConstantTimeCompare(...) == 1 and hmac.Equal(...) are the recommended
@@ -110,7 +110,7 @@ rules:
           - pattern: $LHS != $RHS
       - metavariable-regex:
           metavariable: $LHS
-          regex: (?i).*(secret|hmac|signature|sig(nature)?([^a-z]|$)|mac|tag|token|passwd|password|auth_code|api_key|private_key|shared_key|session_key).*
+          regex: (?i).*(secret|hmac|signature|sig(nature)?([^a-z]|$)|mac|auth_?tag|mac_?tag|gcm_?tag|token|passwd|password|auth_code|api_key|private_key|shared_key|session_key).*
       - pattern-not-inside: |
           def $F(...):
             ...
@@ -151,7 +151,7 @@ rules:
           - pattern: $LHS.equals($RHS)
       - metavariable-regex:
           metavariable: $LHS
-          regex: (?i).*(secret|hmac|signature|sig(nature)?([^a-z]|$)|mac|tag|token|passwd|password|authCode|apiKey|privateKey|sharedKey|sessionKey).*
+          regex: (?i).*(secret|hmac|signature|sig(nature)?([^a-z]|$)|mac|auth_?tag|mac_?tag|gcm_?tag|token|passwd|password|authCode|apiKey|privateKey|sharedKey|sessionKey).*
       - pattern-not: $LHS.length === $RHS
       - pattern-not: $LHS.length !== $RHS
       - pattern-not: crypto.timingSafeEqual(...) === $R

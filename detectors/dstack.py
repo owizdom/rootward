@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from model import Confidence, Finding, Severity, code_only, quote_line
+from model import Confidence, Finding, Severity, code_only, quote_line, strip_definitions
 from platform_detect import Platform
 
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}
@@ -43,6 +43,13 @@ KMS_THRESHOLD = re.compile(r"(?i)\b(shamir|threshold|secret[_-]?shar\w*|mpc|t_?o
 # and vendors. Sealing to hardware forfeits that, and portability is not a convenience here:
 # rapid migration off a compromised host is one of the defences dstack leans on precisely
 # because it assumes the hardware will eventually break.
+# AEAD `Seal` is the Go/NaCl name for authenticated encryption and has nothing to do with
+# sealing a key to hardware. dstack's `gcm.Seal(nil, iv, envJSON, nil)` was reported as
+# hardware-bound sealing.
+AEAD_SEAL = re.compile(r"(?i)\b(gcm|aead|box|secretbox|chacha\w*|cipher)\.seal\b|\.seal\(nil,")
+# The genuine article: a TPM/SGX sealing call rather than the word.
+TPM_SEAL = re.compile(r"(?i)\b(tpm_?(seal|unseal|bind)|sgx_?seal|esys_?(create|load)|mrenclave|mrsigner)\b")
+
 HARDWARE_SEALING = re.compile(
     r"(?i)\b("
     r"seal_?(data|key|to_?hardware)?|unseal|sgx_?seal|"
@@ -232,6 +239,11 @@ def check_key_derivation(root: Path) -> list[Finding]:
     """BT-DS02: keys sealed to hardware instead of derived from application identity."""
     findings: list[Finding] = []
     for path, text in _iter_text(root):
+        # `gcm.Seal(nil, iv, ...)` is AEAD encryption, not hardware sealing, and a
+        # `Unseal = 0x0000015E` constant is a TPM command number rather than a call.
+        text = strip_definitions(text)
+        if AEAD_SEAL.search(text) and not TPM_SEAL.search(text):
+            continue
         if not HARDWARE_SEALING.search(text):
             continue
         if APP_IDENTITY_DERIVATION.search(text):
