@@ -1,14 +1,14 @@
 # What a real repository is expected to produce.
 #
-# The fixture suite proves the rules find defects that were planted for them. It cannot
-# prove they stay quiet on code that is merely complicated, and that is where every false
-# positive in this catalog has come from. This file pins the answer for each pinned corpus
-# repo so a rule change that reintroduces one is caught by a diff rather than by a reviewer.
+# The fixture suite proves the rules find defects planted for them. It cannot prove they
+# stay quiet on code that is merely complicated, and that is where every false positive in
+# this catalog has come from. This file pins the adjudicated answer per pinned corpus repo,
+# so a rule change that reintroduces one is caught by a diff rather than by a reviewer.
 #
-# Check it with:  .venv/bin/python bench/corpus.py --check
+#   .venv/bin/python bench/check_expectations.py <path> --name <key>
 #
-# Every entry carries why it is expected. An entry with no reason is a finding nobody has
-# adjudicated, which is the thing this file exists to prevent.
+# Every entry carries why. An entry with no reason is a finding nobody has adjudicated,
+# which is the thing this file exists to prevent.
 
 meta-dstack:
   # Pinned at 5b63aec3, the commit zkSecurity audited. Archived upstream since 2026-07-12.
@@ -16,9 +16,6 @@ meta-dstack:
     BT-OS01-firmware-not-tdx-target: >-
       Re-finds zkSecurity's only High. OvmfPkg/build.sh with no IntelTdx target at
       dstack-ovmf_git.bb:208. Fixed on the monorepo, still present at this pinned commit.
-    BT-OS02-secure-boot-not-enabled: >-
-      PACKAGECONFIG ??= "" with a [secureboot] option declared and never taken. True, and a
-      documented tradeoff upstream: enabling it adds OpenSSL and compiles OVMF twice.
     BT-DS01-no-onchain-code-governance: >-
       FALSE POSITIVE, not yet fixed. meta-dstack is an OS image layer, not a deployment, so
       there is no application here to register with the governance contracts. The
@@ -26,25 +23,17 @@ meta-dstack:
       which live in the monorepo rather than in this layer.
 
 dstack:
-  # The monorepo at current main. Verified finding by finding on 2026-08-19: no confirmed
-  # vulnerability. Everything below is either a posture question or a known-imperfect rule.
+  # The monorepo at current main. Verified finding by finding on 2026-08-19 by reading the
+  # source rather than the evidence line. Everything that was not real was fixed in the
+  # rules, not filtered here.
   expect:
     BT-T03C-stream-exposure: >-
-      "public_logs": true is hardcoded in the CLI manifest generators
-      (dstack-cli-core/src/compose.rs:61, config.rs:238) with no parameter to change it, so
-      every scaffolded app ships public container logs. A default worth asking about, not a
-      defect. The guest-agent instance is gated at http_routes.rs:22 and is a false positive
-      the gate detection does not yet see.
-    BT-T07A-vsock-no-timeout: >-
-      FALSE POSITIVE, not yet fixed. Anchors on VsockStream::connect in a hyper Service::call
-      connector; the rule is about a blocking read.
-    BT-T07D-no-replay-protection: >-
-      FALSE POSITIVE, not yet fixed. tdx-attest reads a QGS quote whose freshness comes from
-      report_data signed into the quote. Replay protection in dstack lives above vsock.
-    BT-OS02-secure-boot-not-enabled: >-
-      Same documented tradeoff as meta-dstack, now at os/yocto/layers/.
-  # Rules that must stay silent. Each was a false positive that has been fixed; a
-  # reappearance means the fix regressed.
+      "public_logs": true is hardcoded in the manifest generators
+      (dstack-cli-core/src/compose.rs:61, config.rs:238, tools/sca/sca.py:62) and
+      build_app_compose takes no parameter for it, so every scaffolded app ships public
+      container logs. A default worth asking about rather than a defect.
+  # Rules that must stay silent. Each was a false positive, each was traced to source, and
+  # each was fixed in the rule. A reappearance means that fix regressed.
   forbid:
     BT-T06-no-root-cert-validation: >-
       dstack-attest delegates to nsm_qvl::QuoteVerifier built from a pinned root_ca.
@@ -54,6 +43,11 @@ dstack:
     BT-T07C-timing-oracle-compare: >-
       launch_token_hash is documented public by dstack's own error string, and pe_sig is a
       PE header magic number.
+    BT-T07A-vsock-no-timeout: >-
+      VsockStream::connect inside a hyper Service::call; a tower connector composes its
+      timeout at the service layer.
+    BT-T07D-no-replay-protection: >-
+      tdx-attest reads a QGS quote whose freshness is report_data signed into the quote.
     BT-T10-unauthenticated-parent-response: >-
       Every instance was a variable binding or an HTTP client construction.
     BT-DS01-no-onchain-code-governance: >-
@@ -62,6 +56,11 @@ dstack:
       The tpm2 crate implements sealing; it is the platform, not a deployment on it.
     BT-T03-secret-egress-logging: >-
       The PRNG seed in differential-random.py is an argparse reproducibility handle.
+    BT-T03B-crash-dump-egress: >-
+      traceback.print_exc() in a host-side deployment script.
+    BT-OS02-secure-boot-not-enabled: >-
+      The recipe states the tradeoff three lines above the line: an OpenSSL dependency and a
+      second OVMF compile, disabled by default, distros may change it.
     BT-CS01-attestation-token-unverified: >-
       Confidential Space was detected from prose in CHANGELOG.md.
     BT-CS02-platform-claims-unchecked: >-

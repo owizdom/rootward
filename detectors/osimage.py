@@ -177,6 +177,34 @@ def check_firmware_target(root: Path) -> list[Finding]:
     return out
 
 
+# A stated reason directly above the line. `code_only` strips comments before matching, so
+# the rule never sees that the recipe explains itself: dstack writes "Enabling Secure Boot
+# adds a dependency on OpenSSL and implies compiling OVMF twice, so it is disabled by
+# default. Distros may change that default." three lines above `PACKAGECONFIG ??= ""`. That
+# is an accepted risk with a rationale, which is a different thing from an oversight, and
+# reporting it as a finding tells a maintainer their own comment was not read.
+# The rationale has to explain *not* enabling it. The first version accepted "so it is" and
+# "because", which matched the clean fixture's comment "Secure boot anchors the first link
+# of the measured-boot chain, so it is on" -- a comment saying the option IS taken -- and
+# suppressed all three OS02 mutants. The mutation gate caught it. Only negative framing
+# counts.
+RATIONALE = re.compile(
+    r"(?i)#[^\n]*("
+    r"disabled by default|off by default|not enabled by default|"
+    r"may change that default|left disabled|deliberately (disabled|off)|"
+    r"intentionally (disabled|off)|we do not enable|not enabled here"
+    r")"
+)
+RATIONALE_LOOKBACK = 6
+
+
+def _has_stated_rationale(raw: str, line: int) -> bool:
+    """Is there a comment explaining the choice within RATIONALE_LOOKBACK lines above?"""
+    lines = raw.splitlines()
+    start = max(0, line - 1 - RATIONALE_LOOKBACK)
+    return any(RATIONALE.search(ln) for ln in lines[start: max(0, line - 1)])
+
+
 def check_secure_boot(root: Path) -> list[Finding]:
     """BT-OS02: the firmware recipe offers secure boot and does not take it."""
     out: list[Finding] = []
@@ -189,6 +217,9 @@ def check_secure_boot(root: Path) -> list[Finding]:
             continue
         rel = str(path.relative_to(root))
         line = _line(code, SECUREBOOT_DEFAULT_OFF)
+        if _has_stated_rationale(read_lines(path) and path.read_text(
+                encoding="utf-8", errors="replace"), line):
+            continue
         out.append(
             Finding(
                 rule_id="BT-OS02-secure-boot-not-enabled",

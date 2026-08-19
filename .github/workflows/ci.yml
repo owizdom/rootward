@@ -53,18 +53,39 @@ jobs:
       # The README's rule table was maintained by hand and drifted: it claimed 42 rules
       # when there were 46, and BT-CS04 shipped without ever appearing in it. It is
       # generated now, and this is what keeps it generated.
-      - name: readme rule table is current
+      - name: readme rule table and badges are current
         run: |
           .venv/bin/python catalog/table.py > /tmp/table.md
           .venv/bin/python - <<'PY'
-          import pathlib, sys
+          import pathlib, re, sys
           table = pathlib.Path("/tmp/table.md").read_text().strip()
           readme = pathlib.Path("README.md").read_text()
+          problems = []
           if table not in readme:
-              print("README.md rule table is stale. Regenerate it with:")
-              print("  .venv/bin/python catalog/table.py")
+              problems.append("rule table is stale; regenerate with catalog/table.py")
+
+          # The header badges carry numbers, and a number in a badge is a claim. The last
+          # time the README carried hand-maintained counts it drifted to "42 rules" when
+          # there were 46, so anything numeric up there is checked against its source.
+          rules = len(list(pathlib.Path("catalog/rules").glob("BT-*.yaml")))
+          m = re.search(r"badge/rules-(\d+)-", readme)
+          if not m or int(m.group(1)) != rules:
+              problems.append(f"rules badge says {m.group(1) if m else 'nothing'}, catalog has {rules}")
+
+          bench = pathlib.Path("docs/benchmark-results.md").read_text()
+          rec = re.search(r"\*\*recall (\d+)/(\d+)", bench)
+          m = re.search(r"mutation%20recall-(\d+)%2F(\d+)-", readme)
+          if not (rec and m and m.groups() == rec.groups()):
+              problems.append(
+                  f"recall badge says {m.groups() if m else 'nothing'}, "
+                  f"benchmark says {rec.groups() if rec else 'nothing'}"
+              )
+
+          if problems:
+              for x in problems:
+                  print(f"  {x}")
               sys.exit(1)
-          print("README rule table matches the catalog")
+          print(f"README matches the catalog: {rules} rules, recall {rec.group(0)}")
           PY
 
   lint:

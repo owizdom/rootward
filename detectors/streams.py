@@ -17,7 +17,15 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from model import Confidence, Finding, Severity, code_only, quote_line, strip_imports
+from model import (
+    Confidence,
+    Finding,
+    Severity,
+    code_only,
+    quote_line,
+    strip_imports,
+    strip_string_literals,
+)
 
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}
 TEXTY = {".rs", ".go", ".py", ".ts", ".js", ".mjs", ".json", ".yaml", ".yml", ".toml"}
@@ -61,6 +69,15 @@ GATED = re.compile(
     r")\b"
 )
 
+# The other kind of gate: the code consults the exposure flag before exposing anything.
+# dstack's guest-agent opens with `if config.app_compose.public_logs {` and only relays the
+# container log stream inside that branch. That is the feature working as designed, and it
+# was reported as an ungated relay because the auth vocabulary above does not describe it.
+FLAG_CHECKED = re.compile(
+    r"(?i)\b(if|unless|when|match|guard)\b[^\n]{0,60}"
+    r"\b(public_?logs?|logs?_?public|expose_?logs?|public_?sysinfo)\b(?!\s*[:=]\s*(true|1))"
+)
+
 
 def _iter_text(root: Path):
     for path in root.rglob("*"):
@@ -93,20 +110,26 @@ def run(root: Path) -> list[Finding]:
         } else raw
 
         flag = PUBLIC_FLAG.search(live)
-        relay = LOG_RELAY.search(live) and STREAM_WIRED.search(live)
+        # A relay token inside a string literal is text. dstack's installer prints
+        # "=> not ready within timeout (journalctl -u ...)", which is advice to the operator
+        # about how to look at logs, and was read as a log relay. `strip_string_literals`
+        # exists for exactly this class and the flag branch keeps the fuller view, because a
+        # configuration flag legitimately lives in a string.
+        relay_view = strip_string_literals(live)
+        relay = LOG_RELAY.search(relay_view) and STREAM_WIRED.search(relay_view)
 
         if not (flag or relay):
             continue
         # A gated endpoint is a different risk profile; the handbook's concern is the
         # unrestricted case, and reporting an authenticated one trains readers to skim.
-        if not flag and GATED.search(live):
+        if not flag and (GATED.search(live) or FLAG_CHECKED.search(live)):
             continue
 
         lines = raw.splitlines()
         # Anchor in the same view the trigger fired on. Searching `raw` here put the
         # citation on `use docker_logs::parse_duration;`, an import that `live` had already
         # blanked precisely because it is not the thing being reported.
-        line = _line_of(live, PUBLIC_FLAG if flag else LOG_RELAY)
+        line = _line_of(live if flag else relay_view, PUBLIC_FLAG if flag else LOG_RELAY)
 
         findings.append(
             Finding(

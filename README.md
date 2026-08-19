@@ -1,8 +1,25 @@
-# rootward
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/rootward-mark-inverse.png">
+    <img src="assets/rootward-mark.png" width="104" alt="rootward">
+  </picture>
+</p>
 
-[![ci](https://github.com/owizdom/rootward/actions/workflows/ci.yml/badge.svg)](https://github.com/owizdom/rootward/actions/workflows/ci.yml)
-[![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![platforms](https://img.shields.io/badge/platforms-Nitro%20%7C%20dstack%20%7C%20EigenCompute%20%7C%20Confidential%20Space-informational)](#rules)
+<h1 align="center">rootward</h1>
+
+<p align="center">
+  <em>A TEE's guarantee is a chain. Most tools start at the last link.</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/owizdom/rootward/actions/workflows/ci.yml"><img src="https://github.com/owizdom/rootward/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="license"></a>
+  <a href="#rules"><img src="https://img.shields.io/badge/rules-46-informational" alt="46 rules"></a>
+  <a href="docs/benchmark-results.md"><img src="https://img.shields.io/badge/mutation%20recall-83%2F83-success" alt="mutation recall 83/83"></a>
+  <a href="#rules"><img src="https://img.shields.io/badge/platforms-Nitro%20%7C%20dstack%20%7C%20EigenCompute%20%7C%20Confidential%20Space-informational" alt="platforms"></a>
+</p>
+
+---
 
 rootward is a static auditor for Web3 protocols built on cloud TEEs. Point it at a
 repository and it reads everything that decides whether the enclave actually holds: source,

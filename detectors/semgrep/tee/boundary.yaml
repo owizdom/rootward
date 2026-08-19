@@ -452,6 +452,14 @@ rules:
           $S = $ANY;
           ...
           $S.set_read_timeout(...);
+      # A tower/hyper connector composes its timeout at the service layer, not at the
+      # socket. dstack's `impl Service<Uri>` calls `VsockStream::connect` inside `call`,
+      # which is the idiomatic shape and where a timeout layer wraps it from outside.
+      # Reporting it says the defect is the connect, which is not where the fix goes.
+      - pattern-not-inside: |
+          fn call(&mut self, $REQ: $T) -> Self::Future {
+            ...
+          }
 
   # ---------------------------------------------------------------- BT-T07B ---
   - id: tee-error-differential-padding

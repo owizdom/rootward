@@ -183,6 +183,16 @@ def _colocated_anchor(text: str) -> int | None:
     return None
 
 
+# A payload that carries its own binding does not need the transport to provide freshness.
+# An attestation quote echoes the caller's report_data and is signed over it, so replaying
+# an old one fails at verification rather than at the socket. dstack's tdx-attest writes a
+# QGS request and reads the quote back; the rule reported the read as having no replay
+# protection, and dstack's replay protection is in the quote.
+SELF_BINDING_PAYLOAD = re.compile(
+    r"(?i)\b(quote|attestation_?(doc|report)|report_?data|qgs|nsm_?(request|response))\b"
+)
+
+
 def _read_anchor(text: str) -> int | None:
     """Line of a message read that sits within PROXIMITY_LINES of a vsock surface."""
     lines = text.splitlines()
@@ -215,6 +225,8 @@ def check_replay_protection(root: Path) -> list[Finding]:
         if not (VSOCK_SURFACE.search(trigger) and MESSAGE_READ.search(trigger)):
             continue
         if FRESHNESS_ENFORCED.search(live):
+            continue
+        if SELF_BINDING_PAYLOAD.search(live):
             continue
 
         # Anchor on the read, not the surface. The surface's first mention is typically a
