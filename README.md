@@ -22,10 +22,6 @@ through an agent that tries to refute it before it reaches the report.
 ## Table of Contents
 
 - [Why](#why)
-  - [What this gives an auditor](#what-this-gives-an-auditor)
-  - [What this gives a team shipping one](#what-this-gives-a-team-shipping-one)
-  - [What it is not](#what-it-is-not)
-  - [How far it reaches](#how-far-it-reaches)
 - [Features](#features)
 - [Usage](#usage)
 - [How to Install](#how-to-install)
@@ -50,87 +46,29 @@ The [Bluethroat Labs TEE Security Handbook](https://bluethroatlabs.com/docs/exec
 makes one argument throughout: Web3 TEE protocols do not get rekt by hardware attacks. Its
 scope page says so directly. Hardware attack research is out of scope because "hardware
 attacks are not what actually causes Web3 TEE protocols to get rekt." The real failures are
-attestation verification gaps, trusting the parent instance, metadata leakage, timing
-oracles, hardcoded credentials, and KMS misconfiguration. The handbook estimates most active
-Web3 TEE projects carry three to five of these at once.
+attestation gaps, trusting the parent instance, metadata leakage, timing oracles, hardcoded
+credentials, and KMS misconfiguration, and it estimates most active projects carry three to
+five at once.
 
-That claim has an uncomfortable consequence. The industry's attention goes to the attacks
-with names and logos, Spectre and Plundervolt and WireTap, while the things that break real
-deployments are ordinary software defects sitting in plain sight. A project can be perfectly
-safe from a memory-bus attack it will never face and still hand its keys away because a
-Dockerfile pins nothing and a KMS policy checks PCR0.
+The attention goes to the attacks with names and logos. The things that break real
+deployments are ordinary defects in plain sight: a Dockerfile that pins nothing, a KMS
+policy that checks PCR0. Almost all of them are visible in the repository.
 
-So the handbook is a good threat model that mostly gets read once. rootward exists to make
-it something you run.
+So the handbook is a good threat model that gets read once. rootward exists to make it
+something you run.
 
-### What this gives an auditor
+**For an auditor**, it does the mechanical first pass in seconds: which PCRs the policy
+pins, where the attestation document is verified, whether the vsock listener has a timeout.
+Every answer arrives with a `file:line` and the quoted source, every rule declares in its
+own YAML when it is wrong, and every report ends with what it structurally could not check,
+so a clean result never quietly means "did not look."
 
-Nearly all of those failures are visible in a repository, and finding them is the part of a
-TEE engagement that is mechanical rather than clever. A human reading a dstack fork for the
-first time spends the first day locating the KMS policy, working out which PCRs it pins,
-tracing where the attestation document is verified, and confirming whether the vsock
-listener has a timeout. rootward does that pass in seconds and hands back `file:line`
-evidence for each answer, which leaves the engagement's actual time for the reasoning a
-scanner cannot do.
+**For a team shipping one**, it catches the slow failure: audited once, and eleven months
+later the base image is unpinned again and a debug flag came back for an incident and
+stayed. In CI those are pull-request comments via SARIF, on the offending line.
 
-Three properties are there specifically so the output survives contact with a real review:
-
-**Every finding carries evidence.** A `file:line` with the quoted source, or two hashes.
-Nothing is asserted at you, so triage is reading the cited line rather than reconstructing
-what the tool might have meant.
-
-**Every rule states when it is wrong.** `false_positives` is a required field in the
-catalog. When a rule fires on correct code, its own YAML usually tells you why before you
-open the source.
-
-**Every report says what it could not check.** Static analysis cannot see the KMS policy
-actually deployed in AWS, the runtime PCR values, or whether `--debug-mode` was used on the
-real launch. That list is a mandatory section computed from what the run actually did, so a
-clean report never quietly means "did not look."
-
-### What this gives a team shipping one
-
-The failure this is built against is the slow one. A repository is audited once, the
-findings are fixed, and eleven months later the base image is unpinned again, a debug flag
-came back for an incident and stayed, and a new KMS policy pins PCR0 only. None of that is
-visible in a code review of the diff that caused it.
-
-Run it in CI and those become pull-request comments. The GitHub Action emits SARIF, so a
-hardcoded mnemonic shows up as a review comment on the offending line instead of in a log
-nobody opens, and the exit contract distinguishes a clean repository from a scanner that
-failed to run, which is the difference between a gate and a green checkmark that means
-nothing.
-
-It is also a way to read your own posture without hiring anyone. The scorecard maps to the
-handbook's layer model, and failing one rule caps the protocol below that layer, so the
-output is a position rather than a list.
-
-### What it is not
-
-It is not a replacement for an audit. It finds catalogued defects in a repository; it does
-not reason about your protocol's economics, your key ceremony, or the thing your system does
-that no handbook describes. The honest framing is that it clears the floor so a human review
-starts somewhere better than the floor.
-
-It also does not touch live infrastructure. No AWS credentials, no attestation fetched from
-a running instance, no active probing. Repository in, report out.
-
-### How far it reaches
-
-The handbook is written for Nitro and dstack. Applying it to a third platform was the test
-of whether the threat model or the pattern matching was doing the work. On EigenCompute,
-seven of its threats carry over unchanged, `BT-T01` needed a second measurement type rather
-than a second rule, and the platform's own design produced one failure the handbook does not
-name: a key derived from a public value, which is
-[`BT-EC01`](catalog/rules/BT-EC01-key-from-public-input.yaml).
-
-The handbook also stops at the application. A TEE's guarantee is a chain, where hardware
-measures firmware, firmware measures the kernel, and the kernel measures the workload, and
-every application-level rule starts at the last link. `BT-OS01` through `OS03` read the
-other end: the BitBake recipes and EDK II build invocations that decide what the machine was
-built from. That rule class is the one an external audit proved was missing, and it is where
-the only High in [zkSecurity's dstack audit](https://phala.com/dstack/dstack-audit.pdf)
-lives. rootward now re-finds it.
+It is not a replacement for an audit. It finds catalogued defects and does not reason about
+your protocol. It clears the floor so a human starts above it.
 
 ## Features
 
