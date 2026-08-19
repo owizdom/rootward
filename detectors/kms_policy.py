@@ -127,7 +127,7 @@ def analyze_policy(path: Path, doc: dict, rel: str) -> list[Finding]:
                         "the measurement guarantee is not enforced anywhere KMS can see."
                     ),
                     severity=Severity.CRITICAL,
-                    confidence=Confidence.HIGH,
+                    confidence=Confidence.MEDIUM,
                     detector="kms_policy.no_attestation_condition",
                     metadata={"statement": sid, "actions": sorted(sensitive)},
                 )

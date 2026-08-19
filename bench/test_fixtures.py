@@ -25,6 +25,18 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _catalog() -> dict:
+    import yaml
+
+    return {
+        r["id"]: r
+        for r in (yaml.safe_load(p.read_text()) for p in (ROOT / "catalog" / "rules").glob("*.yaml"))
+    }
+
+
+CATALOG = _catalog()
 FIXTURES = ROOT / "bench" / "fixtures"
 
 # Rule families each vulnerable tree must produce. Keyed by the middle segment of the
@@ -184,6 +196,24 @@ def main() -> int:
 
         if "max_layer" in spec and layer > spec["max_layer"]:
             failures.append(f"{name}: layer {layer} exceeds expected max {spec['max_layer']}")
+
+        # The catalog's confidence is a ceiling, not an equality. A detector may be less
+        # sure about a particular instance than the rule is in general, which is what
+        # BT-T03C does when the exposure is implied rather than stated; it may not claim to
+        # be more sure than the rule it implements.
+        #
+        # This was decorative until confidence started driving reported severity. Turning it
+        # on found ten detectors whose emitted confidence had drifted from their catalog
+        # entry in one direction or the other, silently moving severities.
+        rank = {"high": 0, "medium": 1, "low": 2}
+        for f in result["findings"]:
+            rule = CATALOG.get(f["rule_id"])
+            declared = (rule or {}).get("confidence")
+            if declared and rank[f["confidence"]] < rank[declared]:
+                failures.append(
+                    f"{name}: {f['rule_id']} emitted confidence {f['confidence']!r}, which "
+                    f"claims more certainty than the catalog's {declared!r}"
+                )
 
         # Every finding must carry evidence. A finding without the offending line is an
         # assertion, which is the thing this whole project is against.

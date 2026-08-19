@@ -479,7 +479,7 @@ def check_disabled_checks(root: Path) -> list[Finding]:
                         "because the fallback returns the same shape as success."
                     ),
                     severity=Severity.CRITICAL,
-                    confidence=Confidence.HIGH,
+                    confidence=Confidence.MEDIUM,
                     detector="detectors:eigencompute.check_disabled_checks",
                 )
             )

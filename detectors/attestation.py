@@ -293,7 +293,7 @@ def check_zero_pcr_rejected(root: Path) -> list[Finding]:
                     "developer runs locally, so this passes every test."
                 ),
                 severity=Severity.CRITICAL,
-                confidence=Confidence.LOW,
+                confidence=Confidence.HIGH,
                 detector="attestation.zero_pcr",
             )
         )

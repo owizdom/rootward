@@ -147,7 +147,7 @@ def check_governance(root: Path) -> list[Finding]:
                 "like it works while the governance guarantee is simply absent."
             ),
             severity=Severity.HIGH,
-            confidence=Confidence.LOW,
+            confidence=Confidence.MEDIUM,
             detector="dstack.governance_contracts",
             metadata={"note": "governance may live in a separate deployment repo"},
         )
@@ -179,7 +179,7 @@ def check_kms_mode(root: Path) -> list[Finding]:
                     "Shamir-based MPC requires a threshold of nodes to collaborate."
                 ),
                 severity=Severity.HIGH,
-                confidence=Confidence.MEDIUM,
+                confidence=Confidence.HIGH,
                 detector="dstack.kms_mode",
             )
         )
@@ -228,7 +228,7 @@ def check_rtmr_policy(root: Path) -> list[Finding]:
                 "particular."
             ),
             severity=Severity.CRITICAL,
-            confidence=Confidence.LOW,
+            confidence=Confidence.MEDIUM,
             detector="dstack.rtmr_policy",
             metadata={"note": "comparison may be delegated to dstack-KMS key release"},
         )

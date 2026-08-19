@@ -8,12 +8,36 @@ The version this matters most for is the Action: pin `owizdom/rootward@v0.2.0` r
 
 ## Unreleased
 
-### Added
+### Changed
 
-- `--format pdf`, with `--out` for the path. Renders the same result object the markdown
-  report is built from, so the two layouts cannot drift. Needs `reportlab` (pure Python);
-  without it the run exits 1 and says so rather than writing an empty file. The exit
-  contract is unchanged, so `--fail-on` still gates CI in this format.
+- **Reported severity is now per-instance.** A finding's severity is its rule's impact
+  lowered by the detector's confidence (`high` 0 steps, `medium` 1, `low` 2), floored at
+  `low` and never raised above what the rule declares. The original is kept on the finding
+  and printed in the report, so the adjustment is visible rather than trusted.
+  **This changes what `--fail-on` gates on**: a pipeline set to `--fail-on critical` will
+  trip less often than before. That is the correction, not a side effect. On the dstack
+  monorepo it takes 13 criticals to 3.
+- The catalog's `confidence` is now a ceiling that detectors may not exceed, checked on
+  every fixture tree by `bench/test_fixtures.py`. Turning that check on found ten detectors
+  whose emitted confidence had drifted from their catalog entry in one direction or the
+  other, silently moving severities.
+
+### Fixed
+
+- **BT-T10 required only that a fetch and an authority-carrying word appear somewhere in
+  the same file.** On a 900-line module that is barely a question, and it produced six
+  criticals on dstack whose evidence lines were variable bindings
+  (`let relay = async {`, `Client::builder().build()?`). It now requires the two within 25
+  lines of each other, will not anchor on a binding-only line, and matches fetch calls
+  rather than crate names. Six findings to zero, none of them real.
+- **BT-T03 flagged PRNG seeds.** `print(f"FAIL seed={args.seed:#x} ...")` in a differential
+  test harness was reported as a critical secret egress; the value traces to `argparse` and
+  `random.Random`. Values reached through a CLI namespace or named for a PRNG are excluded.
+  `instance_id_seed = secrets.token_hex(20)` written to a logger still fires, which is the
+  split that matters.
+- **BT-T06B fired on RA-TLS.** `InsecureSkipVerify: true` paired with a
+  `VerifyPeerCertificate` callback is how attestation-based verification is done.
+- Directories named `mock-*` are suppressed alongside `*-mock`.
 
 ## v0.2.1: 2026-08-19
 

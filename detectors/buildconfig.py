@@ -117,7 +117,7 @@ def check_debug_mode(root: Path) -> list[Finding]:
                         )
                     ),
                     severity=Severity.MEDIUM if dev else Severity.CRITICAL,
-                    confidence=Confidence.MEDIUM if dev else Confidence.HIGH,
+                    confidence=Confidence.HIGH if dev else Confidence.HIGH,
                     detector="buildconfig.debug_mode",
                     metadata={"dev_path": dev},
                 )
@@ -151,7 +151,7 @@ def check_build_determinism(root: Path) -> list[Finding]:
                                 "corresponds to the published source. Pin with @sha256:."
                             ),
                             severity=Severity.MEDIUM,
-                            confidence=Confidence.HIGH,
+                            confidence=Confidence.MEDIUM,
                             detector="buildconfig.build_determinism",
                         )
                     )

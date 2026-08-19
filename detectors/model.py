@@ -31,6 +31,25 @@ class Severity(str, Enum):
     def rank(self) -> int:
         return {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}[self.value]
 
+    def demoted(self, steps: int) -> Severity:
+        """This severity lowered by `steps`, floored at `low`.
+
+        Severity in the catalog is a property of the *rule*: how bad this class of defect
+        is when it is real. It says nothing about how sure the detector is that this
+        particular instance is real, and reporting both as one number is what produces a
+        table that is thirteen-fourteenths critical and teaches the reader to skip the
+        column. Demotion is one-directional on purpose: the catalog value is a ceiling, so
+        no instance can be reported as worse than its rule says it is.
+
+        The floor is `low` rather than `info` because `info` reads as "not a finding", and
+        a low-confidence hit on a critical rule is still a place to look.
+        """
+        ladder = ["critical", "high", "medium", "low"]
+        if self.value not in ladder:
+            return self  # `info` is already below the floor; demoting it would raise it
+        i = ladder.index(self.value)
+        return Severity(ladder[min(i + max(steps, 0), len(ladder) - 1)])
+
 
 class Confidence(str, Enum):
     HIGH = "high"

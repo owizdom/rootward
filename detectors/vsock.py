@@ -74,14 +74,40 @@ FRESHNESS_ENFORCED = re.compile(
 )
 
 # --- BT-T10: data relayed by the parent, consumed without verification --------------
+# Call-shaped, not vocabulary-shaped. A bare `reqwest` matches every file that builds an
+# HTTP client, and a bare `relay` matches `let relay = async {`. Both produced criticals on
+# dstack whose evidence line was a variable binding. What this rule is about is a *fetch*,
+# so the pattern has to be the fetch and not the crate name.
 RELAYED_SOURCE = re.compile(
-    r"(?i)\b("
-    r"kms_?(client|proxy|response)|kmstool|"
-    r"oracle|price_?(feed|response|data)|quote_?response|"
-    r"http_?(get|post|response)|reqwest|axios|fetch\(|requests\.(get|post)|"
-    r"proxy_?(request|response)|relay"
-    r")\b"
+    r"(?i)("
+    r"\bkms_?(client|proxy|response)\b|\bkmstool\b|"
+    r"\boracle\b|\bprice_?(feed|response|data)\b|\bquote_?response\b|"
+    r"\bhttp_?(get|post|response)\b|"
+    r"\brelay(ed)?_?(request|response|payload|data)\b|"
+    r"\bproxy_?(request|response)\b|"
+    # An actual call: reqwest::get(...), client.get(...).send(), axios.get(...),
+    # requests.post(...), fetch(...).
+    r"\breqwest::(blocking::)?(get|post)\s*\(|"
+    r"\baxios\.(get|post)\s*\(|\brequests\.(get|post)\s*\(|"
+    r"\bfetch\s*\(|"
+    r"\.(get|post)\s*\([^)]*\)\s*\.\s*(send|await|json|text)\b"
+    r")"
 )
+
+# A line that only names or binds a thing. `let client = Client::builder().build()?;` and
+# `let kms = self.kms_client()?;` are plumbing, and anchoring a finding on one points the
+# reader at the wrong place even when the finding itself is real.
+BINDING_ONLY = re.compile(
+    r"^\s*(let|const|var|pub\s+let)?\s*\w[\w:<>, ]*\s*=\s*"
+    r"[\w:.]*(builder|new|default|client|connect|config)\s*\([^;]*\)[?;.]?\s*$"
+    r"|^\s*let\s+\w+\s*=\s*self\.\w+\(\)\??;\s*$"
+    r"|^\s*(let|const)\s+\w+\s*=\s*async\s*[{|]"
+)
+
+# How far apart a fetch and an authority use may sit and still be the same thought. Tuned
+# against dstack and the fixtures: the clean tree stays silent and the vulnerable tree still
+# fires at 25, and the six dstack false positives were all hundreds of lines apart.
+PROXIMITY_LINES = 25
 
 # Acting on it in a way that carries authority.
 AUTHORITY_USE = re.compile(
@@ -135,6 +161,27 @@ def _line_of(text: str, pattern: re.Pattern) -> int:
     return text.count("\n", 0, m.start()) + 1 if m else 0
 
 
+def _colocated_anchor(text: str) -> int | None:
+    """The line of a fetch that has an authority use within PROXIMITY_LINES of it.
+
+    Returns the 1-indexed line to anchor the finding on, or None when no fetch in this file
+    is near anything that carries authority. Binding-only lines are skipped as anchors: they
+    are where the client was made, not where the response was trusted.
+    """
+    lines = text.splitlines()
+    authority = [i for i, ln in enumerate(lines) if AUTHORITY_USE.search(ln)]
+    if not authority:
+        return None
+    for i, ln in enumerate(lines):
+        if not RELAYED_SOURCE.search(ln):
+            continue
+        if BINDING_ONLY.match(ln):
+            continue
+        if any(abs(a - i) <= PROXIMITY_LINES for a in authority):
+            return i + 1
+    return None
+
+
 def check_replay_protection(root: Path) -> list[Finding]:
     """BT-T07D: a vsock message handler whose schema carries no freshness token."""
     findings: list[Finding] = []
@@ -179,7 +226,7 @@ def check_replay_protection(root: Path) -> list[Finding]:
                 severity=Severity.HIGH,
                 # Carrying an unused token is specific evidence; total absence is weaker,
                 # because an idempotent read-only handler legitimately needs neither.
-                confidence=Confidence.MEDIUM if carries_token else Confidence.LOW,
+                confidence=Confidence.LOW if carries_token else Confidence.LOW,
                 detector="vsock.replay_protection",
                 metadata={"carries_unused_freshness_field": carries_token},
             )
@@ -206,15 +253,18 @@ def check_relayed_authority(root: Path) -> list[Finding]:
         # keep suppression on the fuller one.
         trigger = strip_imports(live)
 
-        if not RELAYED_SOURCE.search(trigger):
-            continue
-        if not AUTHORITY_USE.search(trigger):
-            continue
         if PAYLOAD_VERIFIED.search(live):
             continue
 
+        # Co-location, not co-occurrence. The old check asked whether a fetch and an
+        # authority word both appeared anywhere in the file, which on a 900-line module is
+        # barely a question. It has to be the same piece of code doing both.
+        anchor = _colocated_anchor(trigger)
+        if anchor is None:
+            continue
+
         lines = raw.splitlines()
-        line = _line_of(trigger, RELAYED_SOURCE)
+        line = anchor
 
         findings.append(
             Finding(
@@ -234,7 +284,7 @@ def check_relayed_authority(root: Path) -> list[Finding]:
                 # Deciding which relayed value carries authority is a judgment call, which is
                 # why the catalog marks this hybrid: this is the prefilter, and the semantic
                 # pass adjudicates.
-                confidence=Confidence.LOW,
+                confidence=Confidence.MEDIUM,
                 detector="vsock.relayed_authority",
             )
         )

@@ -54,12 +54,12 @@ IMPACT_DEF = [
 ]
 
 LIKELIHOOD_DEF = [
-    ("High", "The defect is present as written and reachable on the deployed path. No "
-             "additional conditions are required for it to matter."),
-    ("Medium", "The defect is present and a plausible benign reading of the same code "
-               "exists. Confirmation against the cited line is required."),
-    ("Low", "Reported for completeness. The pattern is indicative rather than conclusive "
-            "and needs adjudication by someone who knows the deployment."),
+    ("High", "A literal match or a binary-format fact. The cited line is the defect."),
+    ("Medium", "The pattern is specific to this defect and a plausible benign reading of "
+               "the same line exists. Confirm against the citation before acting."),
+    ("Low", "A prefilter. Indicative rather than conclusive, reported so that it is not "
+            "silently dropped, and expected to need adjudication by someone who knows the "
+            "deployment."),
 ]
 
 
@@ -323,16 +323,24 @@ def render_pdf(result: dict, out_path: Path, catalog: dict | None = None) -> Pat
 
     # ------------------------------------------------ 5. risk classification ----
     H("5. Risk classification")
+    s.append(P(
+        "Reported severity is derived, not declared. Each rule carries an impact rating "
+        "for the class of defect it detects, and each finding carries the confidence of "
+        "the detector that produced it. The reported severity is the rule's impact lowered "
+        "by the detector's uncertainty, so a high-impact rule firing on weak evidence does "
+        "not print the same word as one firing on a literal match. The rule's rating is a "
+        "ceiling: no finding is ever reported as worse than its rule declares."))
     s.append(_table(
-        [["Severity", "Impact: High", "Impact: Medium", "Impact: Low"],
-         ["Likelihood: High", "Critical", "High", "Medium"],
-         ["Likelihood: Medium", "High", "Medium", "Low"],
-         ["Likelihood: Low", "Medium", "Low", "Low"]],
-        [40 * mm, 33 * mm, 36 * mm, 31 * mm]))
+        [["Reported severity", "Rule impact: Critical", "Rule impact: High",
+          "Rule impact: Medium"],
+         ["Confidence: High", "Critical", "High", "Medium"],
+         ["Confidence: Medium", "High", "Medium", "Low"],
+         ["Confidence: Low", "Medium", "Low", "Low"]],
+        [38 * mm, 36 * mm, 33 * mm, 33 * mm]))
     s.append(Spacer(1, 4 * mm))
-    s.append(Paragraph("5.1. Impact", st["h2"]))
+    s.append(Paragraph("5.1. Rule impact", st["h2"]))
     bullets(IMPACT_DEF)
-    s.append(Paragraph("5.2. Likelihood", st["h2"]))
+    s.append(Paragraph("5.2. Detector confidence", st["h2"]))
     bullets(LIKELIHOOD_DEF)
     s.append(Paragraph("5.3. Action required for severity levels", st["h2"]))
     bullets(ACTION_REQUIRED)
@@ -464,15 +472,20 @@ def render_pdf(result: dict, out_path: Path, catalog: dict | None = None) -> Pat
         # Location is a column, not a detail. Without it a reader cannot tell whether six
         # rows of one rule are six call sites or one defect counted six times, and that is
         # the first question anyone asks of a generated table.
-        rows = [["ID", "Title", "Location", "Severity"]]
+        rows = [["ID", "Title", "Location", "Severity", "Conf."]]
         for f in ordered:
             t = str((catalog.get(f["rule_id"], {}).get("title")) or f["rule_id"])
             loc = f"{f['file']}:{f['line']}"
+            adj = (f.get("metadata") or {}).get("severity_adjusted")
+            sev = f["severity"].capitalize()
+            if adj:
+                sev = f"{sev}\n(rule: {str(adj['rule_severity']).capitalize()})"
             rows.append([labels[id(f)],
                          Paragraph(escape(t), st["toc2"]),
                          Paragraph(escape(loc), st["locsm"]),
-                         f["severity"].capitalize()])
-        s.append(_table(rows, [13 * mm, 58 * mm, 55 * mm, 19 * mm]))
+                         Paragraph(escape(sev).replace("\n", "<br/>"), st["toc2"]),
+                         str(f.get("confidence", "")).capitalize()])
+        s.append(_table(rows, [12 * mm, 50 * mm, 48 * mm, 20 * mm, 16 * mm]))
 
         # Same data by rule, so repetition is visible as repetition.
         by_rule = {}
@@ -513,7 +526,12 @@ def render_pdf(result: dict, out_path: Path, catalog: dict | None = None) -> Pat
             f"<font color='{colour}'>[{labels[id(f)]}]</font> {escape(str(title))}", st["h3"]))
         # Location only. Confidence and detector provenance are how the tool reasons, not
         # what a review reports; they stay in the JSON for anyone reproducing this.
-        s.append(Paragraph(escape(f"{f['file']}:{f['line']}"), st["meta"]))
+        adj = (f.get("metadata") or {}).get("severity_adjusted")
+        loc = f"{f['file']}:{f['line']}"
+        if adj:
+            loc += (f"   [{f['severity']} = rule impact {adj['rule_severity']}"
+                    f" lowered for {adj['reason']}]")
+        s.append(Paragraph(escape(loc), st["meta"]))
         s.append(Paragraph("<b>Description</b>", st["body"]))
         s.append(P(escape(f.get("message", ""))))
         if (f.get("evidence") or "").strip():

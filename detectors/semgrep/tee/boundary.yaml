@@ -158,7 +158,20 @@ rules:
           metavariable: $VAL
           # ...but not a fingerprint/digest/hash OF one: that is the non-secret
           # value a correct implementation logs in the secret's place.
-          regex: (?i)^(?!.*(fingerprint|digest|hash|checksum|redacted|masked|truncated|preview)).*$
+          #
+          # And not a `seed` that is a reproducibility handle. `seed` is the weakest token
+          # in the list above: a PRNG seed from argparse is a feature, and printing it is
+          # the point of a differential harness. dstack's `differential-random.py` takes
+          # `--seed` defaulting to 0x1053, feeds it to `random.Random(...)`, and prints it
+          # on failure so a case can be reproduced; we reported that as a critical. The
+          # distinguishing fact is provenance, and this split survives the case that
+          # matters: `instance_id_seed = secrets.token_hex(20)` logged in full still fires,
+          # because it is neither a CLI namespace attribute nor named for a PRNG.
+          #
+          # The lookaheads scan the whole match, not just its start: `$VAL` binds to the
+          # entire f-string in `print(f"seed={args.seed} ...")`, so a start-anchored
+          # exclusion never fires on the case it was written for.
+          regex: (?i)^(?!.*(fingerprint|digest|hash|checksum|redacted|masked|truncated|preview))(?!.*\b(args|arg|opts|opt|options|cli|ns|namespace|flags|params|cfg|conf|config)\.\w*(seed|nonce)\b)(?!.*\b(rng|prng|random|test|sample|fuzz|mock|dummy|fake|placeholder)[_.]?seed\b).*$
 
   - id: tee-secret-to-log-sink-python
     languages: [python]
@@ -183,7 +196,20 @@ rules:
           metavariable: $VAL
           # ...but not a fingerprint/digest/hash OF one: that is the non-secret
           # value a correct implementation logs in the secret's place.
-          regex: (?i)^(?!.*(fingerprint|digest|hash|checksum|redacted|masked|truncated|preview)).*$
+          #
+          # And not a `seed` that is a reproducibility handle. `seed` is the weakest token
+          # in the list above: a PRNG seed from argparse is a feature, and printing it is
+          # the point of a differential harness. dstack's `differential-random.py` takes
+          # `--seed` defaulting to 0x1053, feeds it to `random.Random(...)`, and prints it
+          # on failure so a case can be reproduced; we reported that as a critical. The
+          # distinguishing fact is provenance, and this split survives the case that
+          # matters: `instance_id_seed = secrets.token_hex(20)` logged in full still fires,
+          # because it is neither a CLI namespace attribute nor named for a PRNG.
+          #
+          # The lookaheads scan the whole match, not just its start: `$VAL` binds to the
+          # entire f-string in `print(f"seed={args.seed} ...")`, so a start-anchored
+          # exclusion never fires on the case it was written for.
+          regex: (?i)^(?!.*(fingerprint|digest|hash|checksum|redacted|masked|truncated|preview))(?!.*\b(args|arg|opts|opt|options|cli|ns|namespace|flags|params|cfg|conf|config)\.\w*(seed|nonce)\b)(?!.*\b(rng|prng|random|test|sample|fuzz|mock|dummy|fake|placeholder)[_.]?seed\b).*$
 
   - id: tee-secret-to-log-sink-js
     languages: [javascript, typescript]
@@ -206,7 +232,20 @@ rules:
           metavariable: $VAL
           # ...but not a fingerprint/digest/hash OF one: that is the non-secret
           # value a correct implementation logs in the secret's place.
-          regex: (?i)^(?!.*(fingerprint|digest|hash|checksum|redacted|masked|truncated|preview)).*$
+          #
+          # And not a `seed` that is a reproducibility handle. `seed` is the weakest token
+          # in the list above: a PRNG seed from argparse is a feature, and printing it is
+          # the point of a differential harness. dstack's `differential-random.py` takes
+          # `--seed` defaulting to 0x1053, feeds it to `random.Random(...)`, and prints it
+          # on failure so a case can be reproduced; we reported that as a critical. The
+          # distinguishing fact is provenance, and this split survives the case that
+          # matters: `instance_id_seed = secrets.token_hex(20)` logged in full still fires,
+          # because it is neither a CLI namespace attribute nor named for a PRNG.
+          #
+          # The lookaheads scan the whole match, not just its start: `$VAL` binds to the
+          # entire f-string in `print(f"seed={args.seed} ...")`, so a start-anchored
+          # exclusion never fires on the case it was written for.
+          regex: (?i)^(?!.*(fingerprint|digest|hash|checksum|redacted|masked|truncated|preview))(?!.*\b(args|arg|opts|opt|options|cli|ns|namespace|flags|params|cfg|conf|config)\.\w*(seed|nonce)\b)(?!.*\b(rng|prng|random|test|sample|fuzz|mock|dummy|fake|placeholder)[_.]?seed\b).*$
 
   - id: tee-secret-to-log-sink-go
     languages: [go]
@@ -232,7 +271,20 @@ rules:
           metavariable: $VAL
           # ...but not a fingerprint/digest/hash OF one: that is the non-secret
           # value a correct implementation logs in the secret's place.
-          regex: (?i)^(?!.*(fingerprint|digest|hash|checksum|redacted|masked|truncated|preview)).*$
+          #
+          # And not a `seed` that is a reproducibility handle. `seed` is the weakest token
+          # in the list above: a PRNG seed from argparse is a feature, and printing it is
+          # the point of a differential harness. dstack's `differential-random.py` takes
+          # `--seed` defaulting to 0x1053, feeds it to `random.Random(...)`, and prints it
+          # on failure so a case can be reproduced; we reported that as a critical. The
+          # distinguishing fact is provenance, and this split survives the case that
+          # matters: `instance_id_seed = secrets.token_hex(20)` logged in full still fires,
+          # because it is neither a CLI namespace attribute nor named for a PRNG.
+          #
+          # The lookaheads scan the whole match, not just its start: `$VAL` binds to the
+          # entire f-string in `print(f"seed={args.seed} ...")`, so a start-anchored
+          # exclusion never fires on the case it was written for.
+          regex: (?i)^(?!.*(fingerprint|digest|hash|checksum|redacted|masked|truncated|preview))(?!.*\b(args|arg|opts|opt|options|cli|ns|namespace|flags|params|cfg|conf|config)\.\w*(seed|nonce)\b)(?!.*\b(rng|prng|random|test|sample|fuzz|mock|dummy|fake|placeholder)[_.]?seed\b).*$
 
   # ---------------------------------------------------------------- BT-T03B ---
   - id: tee-crash-dump-egress-rust

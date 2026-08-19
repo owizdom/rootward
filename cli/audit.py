@@ -124,11 +124,43 @@ NON_PRODUCTION = re.compile(
     r"(?i)(^|/)("
     r"tests?|__tests?__|spec|specs|testdata|test-run|test-suites|"
     r"fixtures?|examples?|samples?|benches|e2e|"
-    r"mocks?|[\w-]*-mock|[\w-]*simulator|tee-simulator"
+    r"mocks?|[\w-]*-mock|mock-[\w-]*|[\w-]*simulator|tee-simulator"
     r")(/|$)"
     r"|(^|/)(test_[^/]+|[^/]+_test|[^/]+[._](test|spec)|mock-[^/]+)\.[a-z]+$"
     r"|(^|/)test[-_]outputs?\.[a-z]+$"
 )
+
+
+# How much a detector's own uncertainty lowers the severity it reports.
+#
+# Severity in the catalog answers "how bad is this class of defect when it is real". It
+# cannot answer "is this instance real", which is what confidence is for, and printing only
+# the first produces a table where thirteen of fourteen rows say Critical. A reader who
+# meets that table twice stops reading the column, which costs more than any single
+# mis-ranked finding.
+#
+# Demotion only. The catalog value is a ceiling, so nothing is ever reported as worse than
+# its rule declares, and the original is kept on the finding so the adjustment is visible
+# rather than trusted.
+CONFIDENCE_DEMOTION = {"high": 0, "medium": 1, "low": 2}
+
+
+def apply_confidence_demotion(findings: list) -> list:
+    """Lower each finding's severity by its detector's uncertainty. Returns the list."""
+    for f in findings:
+        steps = CONFIDENCE_DEMOTION.get(f.confidence.value, 1)
+        if steps == 0:
+            continue
+        effective = f.severity.demoted(steps)
+        if effective is f.severity or effective.value == f.severity.value:
+            continue
+        f.metadata["severity_adjusted"] = {
+            "rule_severity": f.severity.value,
+            "reported": effective.value,
+            "reason": f"{f.confidence.value} confidence",
+        }
+        f.severity = effective
+    return findings
 
 
 def split_non_production(findings: list) -> tuple[list, list]:
@@ -938,7 +970,7 @@ def main() -> int:
             "leakage, BT-CFG05 key rotation, BT-LYR01 layer claims) did not run; pass --semantic to enable them"
         )
 
-    findings = sort_for_report(dedupe(findings))
+    findings = sort_for_report(apply_confidence_demotion(dedupe(findings)))
     suppressed: list[Finding] = []
     if not args.include_tests:
         findings, suppressed = split_non_production(findings)

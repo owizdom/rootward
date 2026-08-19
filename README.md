@@ -277,6 +277,12 @@ the real ones. The EigenCompute security model is written up in
 [`docs/eigencompute-model.md`](docs/eigencompute-model.md), read out of the `eigenx-cli`
 source rather than from a docs page.
 
+Reported severity is derived rather than declared. The catalog severity above is the
+impact of the rule; the severity printed on a finding is that impact lowered by the
+detector's confidence in that particular instance, floored at low and never raised above
+what the rule declares. A high-impact rule firing on weak evidence should not print the
+same word as one firing on a literal match.
+
 Every rule cites its source, states when it is wrong (`false_positives` is a required field),
 and carries a status the validator checks against reality. A rule claiming `benchmarked`
 with no row in the benchmark results fails the build.

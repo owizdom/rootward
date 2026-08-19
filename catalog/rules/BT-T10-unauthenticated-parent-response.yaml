@@ -23,8 +23,12 @@ remediation: >
   state proof. Treat the KMS proxy as the blind transport it is documented to be, and verify the
   KMS response itself.
 false_positives: >
-  Relayed data that is not security-relevant, such as a feature flag or a cache warm hint, is
-  flagged the same as a price feed. Deciding which relayed value carries authority requires
-  following it to its use site, which is why this rule is hybrid rather than deterministic.
+  Fires on a fetch and an authority-carrying value that sit within 25 lines of each other
+  with no verification anywhere in the file. Proximity is a proxy for "these are the same
+  piece of code" and a wrong one wherever a response is fetched in one place and consumed
+  in another nearby for unrelated reasons. It also cannot see verification that happens in
+  a caller, a middleware layer, or a different module, so a codebase that authenticates
+  responses centrally and passes plain values inward will be over-reported. The rule is a
+  prefilter for the semantic pass and is not a conclusion on its own.
 confidence: medium
 status: implemented
