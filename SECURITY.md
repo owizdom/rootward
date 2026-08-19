@@ -1,11 +1,11 @@
 # Security
 
-`tee-audit` reads untrusted third-party repositories, and optionally sends parts of them to a
+`rootward` reads untrusted third-party repositories, and optionally sends parts of them to a
 model API. This document says what it does with your code, and what it does not.
 
 ## Reporting a vulnerability in this tool
 
-Open a [GitHub security advisory](https://github.com/owizdom/tee-audit/security/advisories/new),
+Open a [GitHub security advisory](https://github.com/owizdom/rootward/security/advisories/new),
 or email the maintainer. Please do not open a public issue for anything that would let a
 malicious repository read files outside its own tree, or exfiltrate anything.
 
@@ -32,23 +32,34 @@ Off by default. When you pass it, a bounded scope of files is sent to Claude:
 - capped at **60 files**, suffix-limited, and skipping `.git`, `node_modules`, `target`,
   `venv`, `dist`, `build`
 
-### The scope is a suggestion, not a sandbox — read this before auditing hostile code
+### The scope is enforced by a hook, and here is exactly how far that goes
 
-The agent runs with read-only tools (`Read`, `Grep`, `Glob`) so **it cannot modify anything**,
-and `cwd` is set to the audited repository. But `permission_mode` is `bypassPermissions`, and
-the instruction to stay inside the repository is exactly that — an instruction in the system
-prompt, not an enforced boundary.
+Every tool call the semantic passes make goes through a `PreToolUse` hook
+(`agent/sandbox.py`) before it runs. The hook resolves each path argument — `realpath`, so
+symlinks are followed — and denies anything that lands outside the audit root, along with
+any tool that is not `Read`, `Grep`, or `Glob`. `agent/test_sandbox.py` covers `..`
+traversal, absolute paths, a symlink planted inside the tree pointing out of it, and an
+ungranted tool.
 
-The audited repository's `README.md` is **always** in scope by construction. A repository
-written to attack you can put instructions there. We have not seen this happen, and the tool
-list means the worst case is a read rather than a write — but the honest statement is:
+**This replaced a boundary that did not exist, and the reason it did not exist is worth
+stating plainly.** The previous version relied on `allowed_tools=["Read", "Grep", "Glob"]`
+and a system-prompt instruction. `allowed_tools` is not a capability boundary under
+`permission_mode="bypassPermissions"` — measured, not assumed: an agent configured that way
+and asked for a file outside its `cwd` called **Bash**, ran `cat`, and returned the
+contents. Any assertion elsewhere in this repository's history that the tool list was the
+guard was wrong. With the hook in place the same request produces two denied `Bash` calls
+and one denied `Read`, and the file is not read.
 
-> **Do not run `--semantic` against a repository you actively distrust, on a machine holding
-> secrets you care about.** Run it in a container or a scratch checkout. The deterministic
-> layer has no such caveat and finds the large majority of what the tool finds.
+What the hook still does not do: it governs the tools, not the process. The auditor is
+ordinary Python running as you, and a rule, a dependency, or semgrep is not confined by it.
+The hook is a boundary on what the *model* can reach, not a container.
 
-Closing this properly needs filesystem-level sandboxing rather than a better prompt. It is a
-known limitation, not a solved problem.
+The audited repository's `README.md` is **always** in scope by construction, so a repository
+written to attack you can still put instructions there — the hook bounds what those
+instructions can reach, it does not stop them being read.
+
+> For genuinely hostile code, still prefer a container or a scratch checkout. The
+> deterministic layer has no such caveat and finds the large majority of what the tool finds.
 
 ## Reports can contain secrets from the audited repository
 
@@ -62,7 +73,7 @@ Two different policies apply, and the difference matters:
 So a report may contain a plaintext key, mnemonic, or token — and the rules most likely to
 match a line *containing* a live secret are exactly the ones that quote it verbatim.
 
-**Treat `tee-audit` output as sensitive as the repository it audited.** Do not paste a report
+**Treat `rootward` output as sensitive as the repository it audited.** Do not paste a report
 into a public issue without reading it first. When filing a false positive, the offending
 *pattern* is what is useful; redact the value.
 
@@ -81,14 +92,14 @@ It is bounds-checked deliberately and contains no `unsafe`:
 
 ## Cost
 
-`--semantic` spends money. `TEE_AUDIT_MAX_USD` (default `8.00`) caps **each agent invocation**,
+`--semantic` spends money. `ROOTWARD_MAX_USD` (default `8.00`) caps **each agent invocation**,
 not the run: five finder passes plus one refuter per finding means aggregate spend scales with
 findings. A repository that induces many findings costs more. Set the variable lower, or run
 without `--semantic`, if that matters.
 
 ## Scope of the tool's claims
 
-`tee-audit` is a static analyser. It cannot see your deployed KMS policy, your running
+`rootward` is a static analyser. It cannot see your deployed KMS policy, your running
 enclave's measurements, or how your image was actually launched — and every report ends with a
 computed list of what it could not check. **A clean report is not a security guarantee**, and a
 report on a repository with no detected TEE platform is not assessed at all rather than passed.

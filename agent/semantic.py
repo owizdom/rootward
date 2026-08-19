@@ -31,6 +31,7 @@ sys.path.insert(0, str(ROOT / "detectors"))
 sys.path.insert(0, str(ROOT / "agent"))
 
 import prompts  # noqa: E402
+import sandbox  # noqa: E402
 from model import Confidence, Finding, Severity, Verdict  # noqa: E402
 
 # Read-only tools. The auditor has no business editing the code it is auditing, and a
@@ -44,8 +45,8 @@ FINDER_MODEL = "claude-opus-5"
 # claude-agent-sdk 0.2.139.
 # $2 was too low: on dstack the BT-T08 pass died with "Reached maximum budget ($2)" and
 # was reported as a failed pass rather than a clean one. A real repository needs room to
-# read. Override with TEE_AUDIT_MAX_USD when auditing something large.
-MAX_USD_PER_AGENT = float(__import__("os").environ.get("TEE_AUDIT_MAX_USD", "8.00"))
+# read. Override with ROOTWARD_MAX_USD when auditing something large.
+MAX_USD_PER_AGENT = float(__import__("os").environ.get("ROOTWARD_MAX_USD", "8.00"))
 # The refuter is the check on the finder, so it needs comparable capability — a weaker
 # refuter rubber-stamps, which is worse than no refutation because it launders claims.
 REFUTER_MODEL = "claude-opus-5"
@@ -91,6 +92,11 @@ async def _run_json(system_prompt: str, user_prompt: str, cwd: Path, schema: dic
         # Read-only tools only, so nothing here can edit the audited repository. The
         # permission mode governs prompting, not capability — the tool list is the guard.
         permission_mode="bypassPermissions",
+        # ...and the guard on *where* those tools may look is the PreToolUse hook, not the
+        # system prompt. `cwd` sets the default, it does not bound anything: an absolute
+        # path or a `..` walks straight out of the repository, and the audited repository's
+        # README is in the model's context by construction. See agent/sandbox.py.
+        hooks=sandbox.make_hooks(cwd),
         cwd=str(cwd),
         model=model,
         max_turns=max_turns,
