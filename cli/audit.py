@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tee-audit — static auditor for Web3 protocols on cloud TEEs.
+"""rootward — static auditor for Web3 protocols on cloud TEEs.
 
     python3 cli/audit.py <path> [--format md|json] [--semgrep <bin>]
 
@@ -40,6 +40,7 @@ import confspace as confspace_rules  # noqa: E402
 import dstack as dstack_rules  # noqa: E402
 import eigencompute as eigencompute_rules  # noqa: E402
 import kms_policy  # noqa: E402
+import osimage as osimage_rules  # noqa: E402
 import platform_detect  # noqa: E402
 import streams as stream_rules  # noqa: E402
 import vsock as vsock_rules  # noqa: E402
@@ -54,8 +55,8 @@ from model import (  # noqa: E402
 
 SEMGREP_RULES = ROOT / "detectors" / "semgrep" / "tee"
 CORE_BIN_CANDIDATES = [
-    ROOT / "core" / "target" / "release" / "tee-audit-core",
-    ROOT / "core" / "target" / "debug" / "tee-audit-core",
+    ROOT / "core" / "target" / "release" / "rootward-core",
+    ROOT / "core" / "target" / "debug" / "rootward-core",
 ]
 
 def _source_line(path: Path, line_no: int, max_join: int = 4) -> str:
@@ -666,8 +667,8 @@ def render_sarif(result: dict, catalog: dict[str, dict]) -> str:
         "version": "2.1.0",
         "runs": [{
             "tool": {"driver": {
-                "name": "tee-audit",
-                "informationUri": "https://github.com/owizdom/tee-audit",
+                "name": "rootward",
+                "informationUri": "https://github.com/owizdom/rootward",
                 "rules": list(used.values()),
             }},
             "results": results,
@@ -791,7 +792,7 @@ def render_markdown(result: dict) -> str:
 # ------------------------------------------------------------------ main ---
 def main() -> int:
     ap = argparse.ArgumentParser(
-        prog="tee-audit",
+        prog="rootward",
         description="Static auditor for Web3 protocols on cloud TEEs — AWS Nitro Enclaves, "
                     "dstack, and EigenCompute / GCP Confidential Space.",
         epilog=(
@@ -846,10 +847,10 @@ def main() -> int:
 
     root = Path(args.path).resolve()
     if not root.exists():
-        print(f"tee-audit: no such path: {root}", file=sys.stderr)
+        print(f"rootward: no such path: {root}", file=sys.stderr)
         return 1
     if not root.is_dir():
-        print(f"tee-audit: {root} is a file; point at the repository directory that "
+        print(f"rootward: {root} is a file; point at the repository directory that "
               f"contains it", file=sys.stderr)
         return 1
 
@@ -876,6 +877,7 @@ def main() -> int:
     findings += dstack_rules.run(root, platform)
     findings += confspace_rules.run(root, platform)
     findings += eigencompute_rules.run(root, platform)
+    findings += osimage_rules.run(root, platform)
 
     refuted: list[Finding] = []
     if args.semantic:

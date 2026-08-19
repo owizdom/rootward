@@ -1,0 +1,28 @@
+id: BT-OS02-secure-boot-not-enabled
+title: Firmware recipe defines a secure-boot option and leaves it off
+source: https://bluethroatlabs.com/docs/layers-of-security-for-tees
+source_secondary:
+  - https://phala.com/dstack/dstack-audit.pdf
+threat: 5
+layer_required: 2
+platform: [generic, dstack, tdx, confidential-space, eigencompute]
+severity: medium
+detection: deterministic
+detector: detectors:osimage.check_secure_boot
+languages: [any]
+rationale: >
+  Measured boot is a chain, and secure boot is what anchors its first link. Without it the
+  firmware will load an unsigned bootloader, so the sequence every later measurement depends
+  on begins with something the host can replace. A recipe that defines the option and omits it
+  from the default configuration produces an image that looks complete and starts its chain of
+  trust from nothing in particular.
+remediation: >
+  Add secureboot to PACKAGECONFIG, or document which layer of the deployment provides the
+  equivalent guarantee and how that is verified.
+false_positives: >
+  Secure boot is frequently supplied by the platform rather than the image — a cloud
+  confidential VM asserts it through the attestation token's secboot claim, not through the
+  guest firmware build. Where that is the case the recipe is correct as written and the
+  finding is noise. The rule stays quiet when the recipe enables the option anywhere.
+confidence: medium
+status: benchmarked

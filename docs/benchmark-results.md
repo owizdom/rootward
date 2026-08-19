@@ -8,10 +8,15 @@ in a Nitro tree, and a mutant that finds none of its target text reports
 `inapplicable` and is then dropped from scoring — a recall hole that reads as a
 clean run. Every mutant names the tree it belongs to.
 
+The OS image rules are the exception, and `osimage-clean` is a Yocto layer with no
+platform marker in it at all. They read the machine the workload runs on rather
+than the workload, so they carry no platform gate and the tree asserts it.
+
 - base tree `bench/fixtures/clean`: 35 mutants
 - base tree `bench/fixtures/eigencompute-clean`: 39 mutants
-- mutants: 74 applied, 0 inapplicable
-- **recall 74/74 (100%)**
+- base tree `bench/fixtures/osimage-clean`: 9 mutants
+- mutants: 83 applied, 0 inapplicable
+- **recall 83/83 (100%)**
 - **false positives: 0**
 
 `precision` counts a rule firing on a mutant that planted a *different* defect as a
@@ -34,6 +39,9 @@ false positive — that finding did not exist on the clean tree, so the rule own
 | `EC06` | eigencompute | 3/3 | 100% | 3 | 0 | unauthenticated route enumerating the environment; whole environment serialised by an open route; env leaked through an otherwise innocuous health route |
 | `EC07` | eigencompute | 3/3 | 100% | 3 | 0 | privilege drop overridden to root; privilege drop overridden with a numeric uid; privilege drop removed along with its rationale |
 | `EC08` | eigencompute | 3/3 | 100% | 3 | 0 | egress allowlist widened to a wildcard; egress allowlist emptied; egress block deleted from the nested schema |
+| `OS01` | any | 3/3 | 100% | 3 | 0 | firmware target swapped to the general-purpose OVMF package; package argument dropped, so build.sh takes its default target; target moved into a variable, so the wrong one is never spelled at the call |
+| `OS02` | any | 3/3 | 100% | 3 | 0 | secure boot dropped from the default configuration; secure boot flag still passed to the build, explicitly false; default configuration takes tpm and leaves secureboot out |
+| `OS03` | any | 3/3 | 100% | 3 | 0 | debug-tweaks set directly in the production include; empty root password in the base include both images share; shell on the kernel command line of the production image |
 | `T01` | eigencompute, nitro | 5/5 | 100% | 5 | 0 | attestation condition removed from the KMS policy; attestation conditions swapped for unrelated keys; image digest read but never compared; app id read and logged but never compared; digest checked for presence rather than against a pin |
 | `T02` | nitro | 1/1 | 100% | 1 | 0 | pins collapsed onto PCR0 only |
 | `T03` | nitro | 3/3 | 100% | 3 | 0 | secret written to a log sink; secret interpolated into eprintln; secret passed to console.log |

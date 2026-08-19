@@ -1,0 +1,32 @@
+id: BT-OS01-firmware-not-tdx-target
+title: TDX guest firmware built from the general-purpose OVMF target
+source: https://bluethroatlabs.com/docs/layers-of-security-for-tees
+source_secondary:
+  - https://phala.com/dstack/dstack-audit.pdf
+  - https://github.com/tianocore/edk2
+threat: 5
+layer_required: 2
+platform: [generic, dstack, tdx, confidential-space, eigencompute]
+severity: high
+detection: deterministic
+detector: detectors:osimage.check_firmware_target
+languages: [any]
+rationale: >
+  EDK II builds guest firmware from one of two targets. Config-A, the general-purpose OVMF
+  build, leaves the virtual machine monitor inside the trusted computing base. Config-B, the
+  Intel TDX target, does not. A TDX deployment built from Config-A therefore trusts, at the
+  firmware level, exactly the component its threat model spends every other control treating
+  as adversarial — and because the defect sits below the kernel, no application-level measure
+  detects or compensates for it. zkSecurity rated this the only High in their dstack audit.
+remediation: >
+  Build the IntelTdx target rather than OvmfPkg. Confirm the produced firmware is the TDX
+  variant, and record the expected measurement so a rebuild that silently reverts the target
+  is visible in the attestation rather than only in the recipe.
+false_positives: >
+  A repository may build general-purpose OVMF for a non-TDX purpose alongside a TDX image — a
+  test harness, a QEMU development target, a second product. The rule requires TDX context
+  somewhere in the build tree before it fires, but it cannot tell which artefact a given
+  recipe is for, so a mixed repository can produce a finding about firmware that never boots
+  an enclave.
+confidence: medium
+status: benchmarked

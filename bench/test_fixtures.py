@@ -71,6 +71,31 @@ EXPECTED: dict[str, dict] = {
         "must_find": set(),
         "expect_zero": True,
     },
+    # A Yocto layer and nothing else — no application code, no SDK, no platform marker.
+    # The expected platform really is "none": the OS rules read the machine the workload
+    # runs on rather than the workload, and this asserts they are not gated behind a
+    # platform the way every other family is.
+    "osimage-vulnerable": {
+        "platform": "no TEE platform",
+        "must_find": {
+            "OS01",   # firmware built from the general-purpose OVMF target
+            "OS02",   # secure boot offered by the recipe and left out of the default
+            "OS03",   # debug-tweaks and a shell on the kernel command line in production
+        },
+    },
+    "osimage-clean": {
+        "platform": "no TEE platform",
+        "must_find": set(),
+        "expect_zero": True,
+    },
+}
+
+# Every family that is gated behind a platform profile.
+PLATFORM_SPECIFIC = {
+    "CS01", "CS02", "CS03", "CS04",
+    "DS01", "DS02", "DS03", "DS04", "DS05",
+    "EC01", "EC02", "EC03", "EC04", "EC05", "EC06", "EC07", "EC08",
+    "T02", "T06", "T09A", "CFG01", "CFG02", "CFG03",
 }
 
 # Rules belonging to another platform's profile. A rule that fires here is not merely noisy:
@@ -89,7 +114,17 @@ FOREIGN: dict[str, set[str]] = {
                                 "T02", "T06", "T09A", "CFG01", "CFG02", "CFG03"},
     "eigencompute-clean": {"CS04", "DS01", "DS02", "DS03", "DS04", "DS05",
                            "T02", "T06", "T09A", "CFG01", "CFG02", "CFG03"},
+    # Nothing platform-specific may fire on a tree with no platform at all.
+    "osimage-vulnerable": PLATFORM_SPECIFIC,
+    "osimage-clean": PLATFORM_SPECIFIC,
 }
+
+# The OS rules run on every platform, so they are foreign to every tree that does not
+# build an OS image — which is all six of the others. A rule with no platform gate is the
+# one most likely to start firing somewhere nobody was looking.
+for _name in ("vulnerable", "clean", "dstack-vulnerable", "dstack-clean",
+              "eigencompute-vulnerable", "eigencompute-clean"):
+    FOREIGN[_name] |= {"OS01", "OS02", "OS03"}
 
 
 def audit(path: Path) -> dict:

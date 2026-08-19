@@ -1,0 +1,31 @@
+id: BT-OS03-development-image-features
+title: Development image features reachable from a production TEE image
+source: https://bluethroatlabs.com/docs/dumb-ways-to-get-rekt-with-tees
+source_secondary:
+  - https://phala.com/dstack/dstack-audit.pdf
+threat: 5
+layer_required: 1
+platform: [generic, dstack, tdx, confidential-space, eigencompute]
+severity: high
+detection: deterministic
+detector: detectors:osimage.check_dev_image_features
+languages: [any]
+rationale: >
+  debug-tweaks, an empty root password, a permitted root login, or a shell on the kernel
+  command line each grant interactive access to whoever reaches the guest console — and the
+  operator always can. Inside a TEE that is not a development convenience but a bypass of the
+  entire boundary: an attacker who gets a shell does not need to defeat attestation, because
+  the code that attested is the code they are now driving. The measurement will not
+  distinguish such an image from a hardened one unless it is compared against a known-good
+  value.
+remediation: >
+  Keep development features in a development image and confirm the production recipe does not
+  include it, directly or transitively. Pin the expected measurement of the production image
+  so a build that picks up the wrong include is visible in the attestation.
+false_positives: >
+  A development image is supposed to contain these, and the rule follows include and require
+  directives to check whether a non-development recipe can reach the feature before reporting.
+  That graph is textual: a feature pulled in through a variable, a BitBake class, or a layer
+  configured outside the repository is invisible to it, in both directions.
+confidence: medium
+status: benchmarked

@@ -117,6 +117,18 @@ class Mutation:
         return True
 
 
+# Which platform each base tree represents, for the table's platform column. Derived from
+# the tree name until a third tree existed, at which point the derivation quietly labelled
+# `osimage-clean` as nitro. "any" is not a hedge here: the OS rules are the only family with
+# no platform gate, and the tree they are planted in detects as no platform at all.
+BASE_PLATFORM = {
+    "clean": "nitro",
+    "dstack-clean": "dstack",
+    "eigencompute-clean": "eigencompute",
+    "osimage-clean": "any",
+}
+
+
 MUTATIONS: list[Mutation] = [
     Mutation(
         "T07C", "enclave.rs",
@@ -816,6 +828,87 @@ MUTATIONS: list[Mutation] = [
         ),
     ),
 
+    # ------------------------------------------------------------------- OS image ---
+    # Planted in the osimage-clean tree, which is a Yocto layer and nothing else: no
+    # application code, no platform marker, no TEE SDK. That is deliberate. These three
+    # rules are the only ones in the catalog that read the machine the workload runs on
+    # rather than the workload, and the tree proves they are not gated behind a platform
+    # the way every other family is.
+
+    Mutation(
+        "OS01", "meta-example/recipes-core/ovmf/example-ovmf_git.bb",
+        "-p IntelTdxPkg/IntelTdxX64.dsc",
+        "-p OvmfPkg/OvmfPkgX64.dsc",
+        "firmware target swapped to the general-purpose OVMF package",
+        base="osimage-clean",
+    ),
+    Mutation(
+        "OS01", "meta-example/recipes-core/ovmf/example-ovmf_git.bb",
+        "-p IntelTdxPkg/IntelTdxX64.dsc ",
+        "",
+        "package argument dropped, so build.sh takes its default target",
+        base="osimage-clean",
+    ),
+    Mutation(
+        "OS01", "meta-example/recipes-core/ovmf/example-ovmf_git.bb",
+        'OVMF_SECURE_BOOT_FLAGS = "-DSECURE_BOOT_ENABLE=TRUE"',
+        'OVMF_SECURE_BOOT_FLAGS = "-DSECURE_BOOT_ENABLE=TRUE"\n'
+        'OVMF_DSC = "OvmfPkg/OvmfPkgX64.dsc"',
+        "target moved into a variable, so the wrong one is never spelled at the call",
+        base="osimage-clean",
+        extra_edits=(("-p IntelTdxPkg/IntelTdxX64.dsc", "-p ${OVMF_DSC}"),),
+    ),
+
+    Mutation(
+        "OS02", "meta-example/recipes-core/ovmf/example-ovmf_git.bb",
+        'PACKAGECONFIG ??= "secureboot"',
+        'PACKAGECONFIG ??= ""',
+        "secure boot dropped from the default configuration",
+        base="osimage-clean",
+        extra_edits=(('OVMF_SECURE_BOOT_FLAGS = "-DSECURE_BOOT_ENABLE=TRUE"',
+                      'OVMF_SECURE_BOOT_FLAGS = ""'),),
+    ),
+    Mutation(
+        "OS02", "meta-example/recipes-core/ovmf/example-ovmf_git.bb",
+        'PACKAGECONFIG ??= "secureboot"',
+        'PACKAGECONFIG ??= ""',
+        "secure boot flag still passed to the build, explicitly false",
+        base="osimage-clean",
+        extra_edits=(("-DSECURE_BOOT_ENABLE=TRUE", "-DSECURE_BOOT_ENABLE=FALSE"),),
+    ),
+    Mutation(
+        "OS02", "meta-example/recipes-core/ovmf/example-ovmf_git.bb",
+        'PACKAGECONFIG ??= "secureboot"',
+        'PACKAGECONFIG ??= ""\nPACKAGECONFIG:append = " tpm"',
+        "default configuration takes tpm and leaves secureboot out",
+        base="osimage-clean",
+        extra_edits=(('OVMF_SECURE_BOOT_FLAGS = "-DSECURE_BOOT_ENABLE=TRUE"',
+                      'OVMF_SECURE_BOOT_FLAGS = ""'),),
+    ),
+
+    Mutation(
+        "OS03", "meta-example/recipes-core/images/example-rootfs-prod.inc",
+        'EXTRA_IMAGE_FEATURES = ""',
+        'EXTRA_IMAGE_FEATURES = "debug-tweaks"',
+        "debug-tweaks set directly in the production include",
+        base="osimage-clean",
+    ),
+    Mutation(
+        "OS03", "meta-example/recipes-core/images/example-rootfs-base.inc",
+        'IMAGE_FEATURES += "read-only-rootfs"',
+        'IMAGE_FEATURES += "read-only-rootfs"\n'
+        'EXTRA_IMAGE_FEATURES += "allow-empty-password"',
+        "empty root password in the base include both images share",
+        base="osimage-clean",
+    ),
+    Mutation(
+        "OS03", "meta-example/recipes-core/images/example-rootfs.bb",
+        "inherit core-image",
+        'APPEND += "console=ttyS0 init=/bin/sh"\ninherit core-image',
+        "shell on the kernel command line of the production image",
+        base="osimage-clean",
+    ),
+
 ]
 
 
@@ -870,7 +963,7 @@ def main() -> int:
     for mut in mutations:
         base = bases[mut.base]
         baseline_families = baselines[mut.base]
-        with tempfile.TemporaryDirectory(prefix="tee-audit-mutant-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="rootward-mutant-") as tmp:
             work = Path(tmp) / "repo"
             shutil.copytree(base, work)
 
@@ -1011,6 +1104,10 @@ def render_markdown(scores: dict[str, dict], rows: list[dict], bases: dict) -> s
         "`inapplicable` and is then dropped from scoring — a recall hole that reads as a",
         "clean run. Every mutant names the tree it belongs to.",
         "",
+        "The OS image rules are the exception, and `osimage-clean` is a Yocto layer with no",
+        "platform marker in it at all. They read the machine the workload runs on rather",
+        "than the workload, so they carry no platform gate and the tree asserts it.",
+        "",
     ] + [
         f"- base tree `bench/fixtures/{name}`: "
         f"{len([r for r in rows if r.get('base') == name])} mutants"
@@ -1030,9 +1127,7 @@ def render_markdown(scores: dict[str, dict], rows: list[dict], bases: dict) -> s
     ]
     rule_base = {}
     for r in rows:
-        rule_base.setdefault(r["rule"], set()).add(
-            "eigencompute" if r.get("base", "clean").startswith("eigencompute") else "nitro"
-        )
+        rule_base.setdefault(r["rule"], set()).add(BASE_PLATFORM.get(r.get("base", "clean"), "?"))
     for rule in sorted(scores):
         s = scores[rule]
         rec = f"{s['tp']}/{s['planted']}"
