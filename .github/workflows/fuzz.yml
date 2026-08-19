@@ -38,6 +38,9 @@ jobs:
       - name: fuzz ${{ matrix.target }}
         working-directory: core
         run: |
+          # libFuzzer requires the writable corpus directory to already exist, and it is
+          # gitignored, so it never does on a fresh checkout.
+          mkdir -p fuzz/corpus/${{ matrix.target }}
           cargo fuzz run ${{ matrix.target }} \
             fuzz/corpus/${{ matrix.target }} fuzz/seeds/${{ matrix.target }} \
             -- -max_total_time=${{ inputs.seconds || 300 }} -max_len=16384
