@@ -39,8 +39,8 @@ def main() -> int:
         short = r["id"].split("-")[1]
         link = f"[`{short}`](catalog/rules/{r['id']}.yaml)"
         print(
-            f"| {i} | {link} | {r['title']} | {r.get('threat', '—')} | "
-            f"{r.get('layer_required', '—')} | {r['severity']} | {r['confidence']} |"
+            f"| {i} | {link} | {r['title']} | {r.get('threat', 'n/a')} | "
+            f"{r.get('layer_required', 'n/a')} | {r['severity']} | {r['confidence']} |"
         )
     return 0
 

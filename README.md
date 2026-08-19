@@ -4,12 +4,15 @@
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![platforms](https://img.shields.io/badge/platforms-Nitro%20%7C%20dstack%20%7C%20EigenCompute%20%7C%20Confidential%20Space-informational)](#rules)
 
-rootward is a static auditor for Web3 protocols built on cloud TEEs. It runs a catalog of
-46 rules derived from the Bluethroat Labs TEE Security Handbook against a repository — source,
-Dockerfiles, deployment manifests, KMS key policies, and the built enclave image — and reports
-a security-layer scorecard, ranked findings with `file:line` evidence, and a mandatory list of
-what it could not check. Most rules are deterministic and finish in seconds; the handful that
-need genuine judgment run behind `--semantic` and are adversarially verified before they ship.
+rootward is a static auditor for Web3 protocols built on cloud TEEs. Point it at a
+repository and it reads everything that decides whether the enclave actually holds: source,
+Dockerfiles, deployment manifests, KMS key policies, the Yocto and EDK II recipes the image
+was built from, and the built enclave image itself. It reports a security-layer scorecard,
+ranked findings with `file:line` evidence, and a mandatory list of what it could not check.
+
+Most of its 46 rules are deterministic and finish in seconds with no model calls. The
+handful that need genuine judgment run behind `--semantic`, and every one of those is put
+through an agent that tries to refute it before it reaches the report.
 
 ```sh
 .venv/bin/python cli/audit.py ./repo              # deterministic rules, seconds, no model calls
@@ -19,6 +22,10 @@ need genuine judgment run behind `--semantic` and are adversarially verified bef
 ## Table of Contents
 
 - [Why](#why)
+  - [What this gives an auditor](#what-this-gives-an-auditor)
+  - [What this gives a team shipping one](#what-this-gives-a-team-shipping-one)
+  - [What it is not](#what-it-is-not)
+  - [How far it reaches](#how-far-it-reaches)
 - [Features](#features)
 - [Usage](#usage)
 - [How to Install](#how-to-install)
@@ -41,48 +48,101 @@ need genuine judgment run behind `--semantic` and are adversarially verified bef
 
 The [Bluethroat Labs TEE Security Handbook](https://bluethroatlabs.com/docs/executive-summary)
 makes one argument throughout: Web3 TEE protocols do not get rekt by hardware attacks. Its
-scope page says so directly — hardware attack research is out of scope because "hardware
+scope page says so directly. Hardware attack research is out of scope because "hardware
 attacks are not what actually causes Web3 TEE protocols to get rekt." The real failures are
 attestation verification gaps, trusting the parent instance, metadata leakage, timing
 oracles, hardcoded credentials, and KMS misconfiguration. The handbook estimates most active
 Web3 TEE projects carry three to five of these at once.
 
-That is a claim about where the risk actually is, and it has an uncomfortable consequence:
-the industry's attention goes to the attacks with names and logos — Spectre, Plundervolt,
-WireTap — while the things that break real deployments are ordinary software defects sitting
-in plain sight. A project can be perfectly safe from a memory-bus attack it will never face
-and still hand its keys away because a Dockerfile pins nothing and a KMS policy checks PCR0.
+That claim has an uncomfortable consequence. The industry's attention goes to the attacks
+with names and logos, Spectre and Plundervolt and WireTap, while the things that break real
+deployments are ordinary software defects sitting in plain sight. A project can be perfectly
+safe from a memory-bus attack it will never face and still hand its keys away because a
+Dockerfile pins nothing and a KMS policy checks PCR0.
 
-Nearly all of those failures are visible in a repository — in source, Dockerfiles, deployment
-manifests, KMS key policies, and the built EIF image. That is what this tool looks for. Every
-rule in the catalog cites the handbook section it comes from, states the conditions under
-which it is wrong, and is measured rather than asserted.
+So the handbook is a good threat model that mostly gets read once. rootward exists to make
+it something you run.
 
-The handbook is written for Nitro and dstack. Applying it to a third platform was the
-test of whether the threat model or the pattern-matching was doing the work: on
-EigenCompute, seven of its threats carry over unchanged, `BT-T01` needed a second
-measurement type rather than a second rule, and the platform's own design produced one
-failure the handbook does not name — a key derived from a public value, which is
+### What this gives an auditor
+
+Nearly all of those failures are visible in a repository, and finding them is the part of a
+TEE engagement that is mechanical rather than clever. A human reading a dstack fork for the
+first time spends the first day locating the KMS policy, working out which PCRs it pins,
+tracing where the attestation document is verified, and confirming whether the vsock
+listener has a timeout. rootward does that pass in seconds and hands back `file:line`
+evidence for each answer, which leaves the engagement's actual time for the reasoning a
+scanner cannot do.
+
+Three properties are there specifically so the output survives contact with a real review:
+
+**Every finding carries evidence.** A `file:line` with the quoted source, or two hashes.
+Nothing is asserted at you, so triage is reading the cited line rather than reconstructing
+what the tool might have meant.
+
+**Every rule states when it is wrong.** `false_positives` is a required field in the
+catalog. When a rule fires on correct code, its own YAML usually tells you why before you
+open the source.
+
+**Every report says what it could not check.** Static analysis cannot see the KMS policy
+actually deployed in AWS, the runtime PCR values, or whether `--debug-mode` was used on the
+real launch. That list is a mandatory section computed from what the run actually did, so a
+clean report never quietly means "did not look."
+
+### What this gives a team shipping one
+
+The failure this is built against is the slow one. A repository is audited once, the
+findings are fixed, and eleven months later the base image is unpinned again, a debug flag
+came back for an incident and stayed, and a new KMS policy pins PCR0 only. None of that is
+visible in a code review of the diff that caused it.
+
+Run it in CI and those become pull-request comments. The GitHub Action emits SARIF, so a
+hardcoded mnemonic shows up as a review comment on the offending line instead of in a log
+nobody opens, and the exit contract distinguishes a clean repository from a scanner that
+failed to run, which is the difference between a gate and a green checkmark that means
+nothing.
+
+It is also a way to read your own posture without hiring anyone. The scorecard maps to the
+handbook's layer model, and failing one rule caps the protocol below that layer, so the
+output is a position rather than a list.
+
+### What it is not
+
+It is not a replacement for an audit. It finds catalogued defects in a repository; it does
+not reason about your protocol's economics, your key ceremony, or the thing your system does
+that no handbook describes. The honest framing is that it clears the floor so a human review
+starts somewhere better than the floor.
+
+It also does not touch live infrastructure. No AWS credentials, no attestation fetched from
+a running instance, no active probing. Repository in, report out.
+
+### How far it reaches
+
+The handbook is written for Nitro and dstack. Applying it to a third platform was the test
+of whether the threat model or the pattern matching was doing the work. On EigenCompute,
+seven of its threats carry over unchanged, `BT-T01` needed a second measurement type rather
+than a second rule, and the platform's own design produced one failure the handbook does not
+name: a key derived from a public value, which is
 [`BT-EC01`](catalog/rules/BT-EC01-key-from-public-input.yaml).
 
-The handbook stops at the application. A TEE's guarantee is a chain — hardware measures
-firmware, firmware measures the kernel, the kernel measures the workload — and every
-application-level rule starts at the last link. `BT-OS01`–`OS03` read the other end: the
-BitBake recipes and EDK II build invocations that decide what the machine was built from.
-That rule class is the one an external audit proved was missing, and it is where the only
-High in [zkSecurity's dstack audit](https://phala.com/dstack/dstack-audit.pdf) lives.
+The handbook also stops at the application. A TEE's guarantee is a chain, where hardware
+measures firmware, firmware measures the kernel, and the kernel measures the workload, and
+every application-level rule starts at the last link. `BT-OS01` through `OS03` read the
+other end: the BitBake recipes and EDK II build invocations that decide what the machine was
+built from. That rule class is the one an external audit proved was missing, and it is where
+the only High in [zkSecurity's dstack audit](https://phala.com/dstack/dstack-audit.pdf)
+lives. rootward now re-finds it.
 
 ## Features
 
 - **46 catalogued rules**, each citing its handbook section, each with a required
   `false_positives` field saying when it is wrong.
 - **Four platforms**: AWS Nitro Enclaves, dstack, EigenCompute, and Google Cloud
-  Confidential Space — gated in both directions, so a Nitro report never carries dstack noise.
+  Confidential Space, gated in both directions so a Nitro report never carries dstack noise.
 - **Binary image analysis** in Rust: EIF parse, CPIO ramdisk walk, PCR recomputation, and a
   secret scan of the image contents, checked against AWS's own implementation.
 - **Firmware and OS-image rules** that read BitBake recipes and EDK II build targets, not
   just application code.
-- **Evidence on every finding** — `file:line` with the quoted source, or two hashes.
+- **Evidence on every finding**: `file:line` with the quoted source, or two hashes.
 - **A mandatory NOT VERIFIED section**, computed from what the run actually did, so a report
   can never imply it checked something it skipped.
 - **A security-layer scorecard** mapped to the handbook's own layer model; failing one rule
@@ -111,8 +171,8 @@ network, 2–4 seconds on a typical repository.
 .venv/bin/python cli/audit.py ./repo --semantic
 ```
 
-Adds the five judgment passes — trust boundary, TCB bloat, metadata leakage, claim-vs-code,
-and key rotation — each of which is put through an independent agent that tries to refute it.
+Adds the five judgment passes (trust boundary, TCB bloat, metadata leakage, claim-vs-code,
+and key rotation), each of which is put through an independent agent that tries to refute it.
 Survivors are `CONFIRMED`, findings that can be neither confirmed nor refuted ship as
 `PLAUSIBLE` and are labelled, and refuted ones are dropped and kept in the run log. This takes
 6–14 minutes and costs money; [the ablation](docs/ablation.md) explains when it is worth it.
@@ -173,7 +233,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for what a new rule has to carry before i
     fail-on: high
 ```
 
-Pin the tag, not `@main` — `@main` moves under you, which is the defect this tool reports
+Pin the tag, not `@main`. `@main` moves under you, which is the defect this tool reports
 as `BT-CFG04`.
 
 Findings land inline on the pull-request diff via SARIF, so a hardcoded mnemonic shows up as
@@ -198,7 +258,7 @@ worse than no gate:
 | exit | meaning |
 |---|---|
 | 0 | the audit ran and found nothing at or above `--fail-on` |
-| 1 | the audit **could not run** — bad path, missing dependency. Never a pass. |
+| 1 | the audit **could not run**: bad path, missing dependency. Never a pass. |
 | 2 | the audit ran and found something at or above `--fail-on` |
 
 `--fail-on` defaults to `never` on the CLI (so interactive use stays exit 0) and to `high` in
@@ -209,7 +269,7 @@ the Action.
 Mapped to the handbook's own threat numbering. `Layer` is the lowest
 [security layer](https://bluethroatlabs.com/docs/layers-of-security-for-tees) that requires
 the rule to pass; failing one caps the protocol below it. This table is generated from the
-catalog by `catalog/table.py` — a rule that is not in the catalog cannot be in this list.
+catalog by `catalog/table.py`. A rule that is not in the catalog cannot be in this list.
 
 | # | Rule | What it detects | Threat | Layer | Severity | Confidence |
 |---|---|---|---|---|---|---|
@@ -233,16 +293,16 @@ catalog by `catalog/table.py` — a rule that is not in the catalog cannot be in
 | 18 | [`T09A`](catalog/rules/BT-T09A-eif-embedded-secret.yaml) | Secret material recoverable from the built EIF ramdisk | 9 | 1 | critical | high |
 | 19 | [`T09B`](catalog/rules/BT-T09B-dockerfile-secret.yaml) | Secret introduced through Dockerfile ENV, ARG, or copied build context | 9 | 1 | critical | high |
 | 20 | [`T10`](catalog/rules/BT-T10-unauthenticated-parent-response.yaml) | Data relayed by the parent consumed without verifying its signature | 10 | 1 | critical | medium |
-| 21 | [`CFG01`](catalog/rules/BT-CFG01-debug-mode-launch.yaml) | Enclave launched in debug mode, voiding cryptographic attestation | — | 2 | critical | high |
-| 22 | [`CFG02`](catalog/rules/BT-CFG02-zero-pcr-accepted.yaml) | Verifier accepts an all-zero PCR map | — | 2 | critical | high |
-| 23 | [`CFG03`](catalog/rules/BT-CFG03-pcr-policy-eif-mismatch.yaml) | PCR value pinned in KMS policy does not match the PCR recomputed from the EIF | — | 2 | high | high |
-| 24 | [`CFG04`](catalog/rules/BT-CFG04-nondeterministic-build.yaml) | Enclave image build is not reproducible, so PCR values cannot be independently confirmed | — | 2 | medium | medium |
-| 25 | [`CFG05`](catalog/rules/BT-CFG05-no-key-rotation.yaml) | No key rotation path, so a single compromise is permanent | — | 2 | medium | low |
-| 26 | [`DS01`](catalog/rules/BT-DS01-no-onchain-code-governance.yaml) | dstack deployment without KmsAuth or AppAuth code governance | — | 2 | high | medium |
-| 27 | [`DS02`](catalog/rules/BT-DS02-hardware-bound-sealing.yaml) | Keys sealed to hardware rather than derived from application identity | — | 4 | medium | low |
-| 28 | [`DS03`](catalog/rules/BT-DS03-kms-simple-duplication.yaml) | dstack-KMS configured for simple duplication rather than threshold sharing | — | 4 | high | high |
-| 29 | [`DS04`](catalog/rules/BT-DS04-no-rtmr-policy-check.yaml) | Measured boot values not compared against an expected policy | — | 2 | critical | medium |
-| 30 | [`DS05`](catalog/rules/BT-DS05-gateway-no-domain-binding.yaml) | Zero Trust TLS domain binding not established for the workload | — | 2 | medium | low |
+| 21 | [`CFG01`](catalog/rules/BT-CFG01-debug-mode-launch.yaml) | Enclave launched in debug mode, voiding cryptographic attestation | n/a | 2 | critical | high |
+| 22 | [`CFG02`](catalog/rules/BT-CFG02-zero-pcr-accepted.yaml) | Verifier accepts an all-zero PCR map | n/a | 2 | critical | high |
+| 23 | [`CFG03`](catalog/rules/BT-CFG03-pcr-policy-eif-mismatch.yaml) | PCR value pinned in KMS policy does not match the PCR recomputed from the EIF | n/a | 2 | high | high |
+| 24 | [`CFG04`](catalog/rules/BT-CFG04-nondeterministic-build.yaml) | Enclave image build is not reproducible, so PCR values cannot be independently confirmed | n/a | 2 | medium | medium |
+| 25 | [`CFG05`](catalog/rules/BT-CFG05-no-key-rotation.yaml) | No key rotation path, so a single compromise is permanent | n/a | 2 | medium | low |
+| 26 | [`DS01`](catalog/rules/BT-DS01-no-onchain-code-governance.yaml) | dstack deployment without KmsAuth or AppAuth code governance | n/a | 2 | high | medium |
+| 27 | [`DS02`](catalog/rules/BT-DS02-hardware-bound-sealing.yaml) | Keys sealed to hardware rather than derived from application identity | n/a | 4 | medium | low |
+| 28 | [`DS03`](catalog/rules/BT-DS03-kms-simple-duplication.yaml) | dstack-KMS configured for simple duplication rather than threshold sharing | n/a | 4 | high | high |
+| 29 | [`DS04`](catalog/rules/BT-DS04-no-rtmr-policy-check.yaml) | Measured boot values not compared against an expected policy | n/a | 2 | critical | medium |
+| 30 | [`DS05`](catalog/rules/BT-DS05-gateway-no-domain-binding.yaml) | Zero Trust TLS domain binding not established for the workload | n/a | 2 | medium | low |
 | 31 | [`CS01`](catalog/rules/BT-CS01-attestation-token-unverified.yaml) | Confidential Space attestation token decoded but never verified | 6 | 2 | critical | high |
 | 32 | [`CS02`](catalog/rules/BT-CS02-platform-claims-unchecked.yaml) | Attestation verified but the platform claims are never compared | 1 | 2 | high | medium |
 | 33 | [`CS03`](catalog/rules/BT-CS03-attestation-fail-open.yaml) | Attestation failure is caught and the workload starts anyway | 0 | 2 | high | medium |
@@ -258,7 +318,7 @@ catalog by `catalog/table.py` — a rule that is not in the catalog cannot be in
 | 43 | [`OS01`](catalog/rules/BT-OS01-firmware-not-tdx-target.yaml) | TDX guest firmware built from the general-purpose OVMF target | 5 | 2 | high | medium |
 | 44 | [`OS02`](catalog/rules/BT-OS02-secure-boot-not-enabled.yaml) | Firmware recipe defines a secure-boot option and leaves it off | 5 | 2 | medium | medium |
 | 45 | [`OS03`](catalog/rules/BT-OS03-development-image-features.yaml) | Development image features reachable from a production TEE image | 5 | 1 | high | medium |
-| 46 | [`LYR01`](catalog/rules/BT-LYR01-layer-scorecard.yaml) | Effective security layer versus claimed security layer | — | 0 | info | medium |
+| 46 | [`LYR01`](catalog/rules/BT-LYR01-layer-scorecard.yaml) | Effective security layer versus claimed security layer | n/a | 0 | info | medium |
 
 `BT-CS*` applies to any Google Cloud Confidential Space workload; `BT-EC*` is gated on
 EigenCompute specifically; `BT-OS*` carries no platform gate at all, because an OS image
@@ -270,13 +330,13 @@ the real ones. The EigenCompute security model is written up in
 source rather than from a docs page.
 
 Every rule cites its source, states when it is wrong (`false_positives` is a required field),
-and carries a status the validator checks against reality — a rule claiming `benchmarked`
+and carries a status the validator checks against reality. A rule claiming `benchmarked`
 with no row in the benchmark results fails the build.
 
 ### Out of scope, deliberately
 
-The handbook's attack-categorisation table — Spectre, Rowhammer, Plundervolt, EMFI, and the
-2025 memory-bus attacks (WireTap, Battering RAM, TEE.fail) — is real and matters for
+The handbook's attack-categorisation table (Spectre, Rowhammer, Plundervolt, EMFI, and the
+2025 memory-bus attacks WireTap, Battering RAM and TEE.fail) is real and matters for
 architecture decisions, but none of it is statically detectable. It informs the layer
 scorecard as context and is never reported as a finding.
 
@@ -301,7 +361,7 @@ Mutants vary the *shape* of each defect, not just the file, because a rule that 
 only its author's idiom scores full recall against one mutant and then misses the same bug in
 real code. That has paid for itself twice: introducing shape variation dropped an early
 17/17 to 32/35 and exposed a gap in the certificate-chain rule, and taking the newer rules
-from one shape to three found three more detector bugs — including that `BT-CS02` missed
+from one shape to three found three more detector bugs, including that `BT-CS02` missed
 the commonest form of its own defect, claims read and logged but never compared.
 
 **The most useful thing this project produced is not a detection rate.** It is
@@ -313,7 +373,7 @@ existed to grade against.
 ## Design
 
 **Deterministic detectors first, model second.** Of 46 catalogued rules, 36 need no model
-call — they are parse, AST, or binary-format checks. Six are hybrid, four require genuine
+call. They are parse, AST, or binary-format checks. Six are hybrid, four require genuine
 judgment.
 
 The [ablation](docs/ablation.md) measured that split across five real repositories, and the
@@ -321,13 +381,13 @@ result is blunt: **on every threat class both layers implement, the model layer 
 the deterministic layer missed.** Zero, across all 20 passes. Deterministic runs finish in
 2–4 seconds; the same audits with `--semantic` take 6–14 minutes and cost real money.
 
-So `--semantic` is worth paying for exactly the rules no pattern matcher can implement —
+So `--semantic` is worth paying for exactly the rules no pattern matcher can implement:
 T00 trust boundary, T05 TCB bloat, T08 metadata leakage, LYR01 claim-vs-code, plus a
-semantic pass for the hybrid CFG05 key rotation, five passes in all — and is wasted
+semantic pass for the hybrid CFG05 key rotation, five passes in all. It is wasted
 everywhere else. That is the recommendation the tool makes about itself.
 
 **Every finding carries evidence.** A `file:line` with quoted source, or two hashes. Semantic
-findings go through an adversarial pass — an independent agent that tries to *refute* them.
+findings go through an adversarial pass, an independent agent that tries to *refute* them.
 Survivors are `CONFIRMED`; findings that cannot be confirmed or refuted ship as `PLAUSIBLE`,
 labelled; refuted ones are dropped and kept in the run log.
 
@@ -357,7 +417,7 @@ bench/      fixtures, mutation harness, real-repo corpus, ablation
   timing correlation is a runtime distribution; static analysis sees the encoder.
 - **Deployment configuration is unreachable.** The KMS policy in a repository is not
   necessarily the policy attached to the live key.
-- **`BT-T07D` and `BT-T10` are new and largely untriaged** on real code — they ship at LOW
+- **`BT-T07D` and `BT-T10` are new and largely untriaged** on real code, so they ship at LOW
   confidence for exactly that reason.
 - **No image measurement on EigenCompute.** There is no EIF and there are no PCRs, so the
   Rust core does not run there. Workload identity is the image digest in the attestation
@@ -387,12 +447,12 @@ rather than per pull request:
 ```sh
 cargo install cargo-fuzz
 cd core
-# first dir is the writable corpus, second is the read-only seeds — passing only seeds/
+# first dir is the writable corpus, second is the read-only seeds; passing only seeds/
 # makes libFuzzer write its evolved corpus into your curated one
 cargo +nightly fuzz run eif fuzz/corpus/eif fuzz/seeds/eif -- -max_total_time=300
 ```
 
-Four targets — `eif`, `cpio`, `decompress`, `secrets`. The seeds are carved from the built
+Four targets: `eif`, `cpio`, `decompress`, `secrets`. The seeds are carved from the built
 fixtures rather than random, which matters more than it sounds: seeded, the EIF target
 reaches coverage 6655; unseeded it reaches 88, because it never gets past the magic check.
 
@@ -415,7 +475,7 @@ rules no pattern matcher can implement, and wasted everywhere else.
 
 **A rule fired on correct code. Is that a bug?**
 Possibly, and every rule declares its own false-positive modes in its `false_positives`
-field — read that first. If it is a genuine miss of that description, it is a bug: the clean
+field, and read that first. If it is a genuine miss of that description, it is a bug: the clean
 fixture trees exist precisely to catch rules that fire on correct code, and three rules have
 already been caught that way.
 
