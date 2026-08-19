@@ -50,6 +50,23 @@ jobs:
       - name: coverage
         run: .venv/bin/python catalog/coverage.py
 
+      # The README's rule table was maintained by hand and drifted: it claimed 42 rules
+      # when there were 46, and BT-CS04 shipped without ever appearing in it. It is
+      # generated now, and this is what keeps it generated.
+      - name: readme rule table is current
+        run: |
+          .venv/bin/python catalog/table.py > /tmp/table.md
+          .venv/bin/python - <<'PY'
+          import pathlib, sys
+          table = pathlib.Path("/tmp/table.md").read_text().strip()
+          readme = pathlib.Path("README.md").read_text()
+          if table not in readme:
+              print("README.md rule table is stale. Regenerate it with:")
+              print("  .venv/bin/python catalog/table.py")
+              sys.exit(1)
+          print("README rule table matches the catalog")
+          PY
+
   lint:
     name: lint
     runs-on: ubuntu-latest
@@ -63,6 +80,10 @@ jobs:
       # zips that would silently truncate.
       - name: ruff
         run: .venv/bin/ruff check .
+
+      # The semantic layer's only enforced boundary. Pure function, no SDK needed.
+      - name: audit-root sandbox
+        run: .venv/bin/python agent/test_sandbox.py
 
       - uses: dtolnay/rust-toolchain@stable
         with:
