@@ -22,5 +22,7 @@ false_positives: >
   Clock reads used for latency metrics, log timestamps, or cache TTLs are not security-relevant and
   will be flagged identically to expiry checks. Triage requires deciding whether the value reaches
   an authorisation decision, which the deterministic pass cannot do alone.
+# The threat needs this code to run inside the enclave.
+assumes: enclave_runtime
 confidence: low
 status: benchmarked

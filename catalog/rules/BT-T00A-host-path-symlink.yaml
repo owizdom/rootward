@@ -33,5 +33,7 @@ false_positives: >
   ones; the rule scopes itself to files that also reference a host-shared, 9p, vsock, or
   mounted-input path, which limits but does not eliminate this. A repository that centralises
   its path validation in a helper the pattern does not recognise will also be reported.
+# The threat needs this code to run inside the enclave.
+assumes: enclave_runtime
 confidence: medium
 status: implemented

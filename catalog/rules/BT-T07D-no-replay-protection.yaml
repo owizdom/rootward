@@ -23,5 +23,7 @@ false_positives: >
   freshness is enforced in a layer the detector does not parse.
 # The finding is that something is missing, so no single line is the defect.
 claim: absence
+# The threat needs this code to run inside the enclave.
+assumes: enclave_runtime
 confidence: low
 status: implemented

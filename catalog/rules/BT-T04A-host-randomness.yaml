@@ -24,5 +24,7 @@ false_positives: >
   configured enclave the OS RNG may already be seeded from NSM. The rule is therefore precise about
   the dangerous pattern (entropy crossing the boundary) and imprecise about generic rng calls,
   which need the file to be confirmed as enclave-side first.
+# The threat needs this code to run inside the enclave.
+assumes: enclave_runtime
 confidence: medium
 status: benchmarked

@@ -21,5 +21,7 @@ false_positives: >
   Flags panic handlers in code paths that provably never hold secret material, and flags
   development-only backtrace configuration that is stripped in release builds. Build-profile
   awareness is not implemented, so debug-gated handlers are over-reported.
+# The threat needs this code to run inside the enclave.
+assumes: enclave_runtime
 confidence: medium
 status: benchmarked

@@ -30,5 +30,7 @@ false_positives: >
   authentication the detector does not recognise, will be reported. Public-by-design
   telemetry from a workload that holds no secrets is also a legitimate pattern this cannot
   distinguish from the dangerous one.
+# The threat needs this code to run inside the enclave.
+assumes: enclave_runtime
 confidence: medium
 status: implemented

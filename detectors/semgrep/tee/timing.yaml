@@ -44,6 +44,14 @@ rules:
       - metavariable-regex:
           metavariable: $LHS
           regex: ^(?!.*\.len\(\)$)(?!.*\.length$).*
+      # Comparing a *digest* of the secret against a stored expected digest leaks only the
+      # digest, and the expected value is already known to whoever holds the config. dstack
+      # checks `launch_token_hash(token) != expected` and its own error string says "use a
+      # random token since launch_token_hash is public"; a timing channel there hands an
+      # attacker something they can compute offline. Forging still needs a preimage.
+      - metavariable-regex:
+          metavariable: $LHS
+          regex: (?i)^(?!.*\b\w*_?(hash|digest)\b).*$
       # Comparing against an enum variant, a SCREAMING_CASE constant, a string or byte
       # literal, an array literal, or a number is a format or magic-value check, never a
       # secret comparison. dstack supplied one of each: `!= Digest::SHA384`,
@@ -82,6 +90,14 @@ rules:
       - metavariable-regex:
           metavariable: $LHS
           regex: ^(?!.*\.len\(\)$)(?!.*\.length$).*
+      # Comparing a *digest* of the secret against a stored expected digest leaks only the
+      # digest, and the expected value is already known to whoever holds the config. dstack
+      # checks `launch_token_hash(token) != expected` and its own error string says "use a
+      # random token since launch_token_hash is public"; a timing channel there hands an
+      # attacker something they can compute offline. Forging still needs a preimage.
+      - metavariable-regex:
+          metavariable: $LHS
+          regex: (?i)^(?!.*\b\w*_?(hash|digest)\b).*$
       # Comparing against an enum variant, a SCREAMING_CASE constant, a string or byte
       # literal, an array literal, or a number is a format or magic-value check, never a
       # secret comparison. dstack supplied one of each: `!= Digest::SHA384`,
@@ -122,6 +138,14 @@ rules:
       - metavariable-regex:
           metavariable: $LHS
           regex: ^(?!.*\.len\(\)$)(?!.*\.length$).*
+      # Comparing a *digest* of the secret against a stored expected digest leaks only the
+      # digest, and the expected value is already known to whoever holds the config. dstack
+      # checks `launch_token_hash(token) != expected` and its own error string says "use a
+      # random token since launch_token_hash is public"; a timing channel there hands an
+      # attacker something they can compute offline. Forging still needs a preimage.
+      - metavariable-regex:
+          metavariable: $LHS
+          regex: (?i)^(?!.*\b\w*_?(hash|digest)\b).*$
       # Comparing against an enum variant, a SCREAMING_CASE constant, a string or byte
       # literal, an array literal, or a number is a format or magic-value check, never a
       # secret comparison. dstack supplied one of each: `!= Digest::SHA384`,
@@ -159,6 +183,14 @@ rules:
       - metavariable-regex:
           metavariable: $LHS
           regex: ^(?!.*\.len\(\)$)(?!.*\.length$).*
+      # Comparing a *digest* of the secret against a stored expected digest leaks only the
+      # digest, and the expected value is already known to whoever holds the config. dstack
+      # checks `launch_token_hash(token) != expected` and its own error string says "use a
+      # random token since launch_token_hash is public"; a timing channel there hands an
+      # attacker something they can compute offline. Forging still needs a preimage.
+      - metavariable-regex:
+          metavariable: $LHS
+          regex: (?i)^(?!.*\b\w*_?(hash|digest)\b).*$
       # Comparing against an enum variant, a SCREAMING_CASE constant, a string or byte
       # literal, an array literal, or a number is a format or magic-value check, never a
       # secret comparison. dstack supplied one of each: `!= Digest::SHA384`,

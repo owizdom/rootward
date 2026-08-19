@@ -225,12 +225,31 @@ def in_inline_test_block(root: Path, rel: str, line: int) -> bool:
     return any(a <= line <= b for a, b in _rust_test_spans(text))
 
 
-def split_non_production(findings: list, root: Path) -> tuple[list, list]:
-    """Returns (production, suppressed)."""
+def split_non_production(findings: list, root: Path, catalog: dict) -> tuple[list, list]:
+    """Returns (production, suppressed).
+
+    Three reasons a finding is set aside, all of them about *where* the code is rather than
+    what it says: a non-production path, an inline Rust test module, or a rule whose threat
+    needs the enclave applied to a file that demonstrably runs on the host.
+    """
+    import boundary as boundary_mod
+
+    bound = boundary_mod.Boundary(root)
     prod, supp = [], []
     for f in findings:
-        non_prod = bool(NON_PRODUCTION.search(f.file)) or in_inline_test_block(root, f.file, f.line)
-        (supp if non_prod else prod).append(f)
+        why = None
+        if NON_PRODUCTION.search(f.file):
+            why = "non-production path"
+        elif in_inline_test_block(root, f.file, f.line):
+            why = "inline test module"
+        elif (catalog.get(f.rule_id) or {}).get("assumes") == "enclave_runtime":
+            if bound.classify(f.file) == boundary_mod.HOST:
+                why = "host-side tooling, and this rule's threat needs the enclave"
+        if why:
+            f.metadata["suppressed_because"] = why
+            supp.append(f)
+        else:
+            prod.append(f)
     return prod, supp
 
 
@@ -300,6 +319,8 @@ def run_semgrep(root: Path, semgrep_bin: str) -> tuple[list[Finding], list[str]]
             evidence = _source_line(abs_path, r["start"]["line"])
 
         if cid.startswith("BT-T03-") and not leaks_a_value(evidence):
+            continue
+        if cid.startswith("BT-T00A-") and guards_symlinks(abs_path):
             continue
 
         findings.append(
@@ -672,6 +693,28 @@ INTERPOLATION = re.compile(r"\$\{([^}]*)\}")
 QUOTED = re.compile(r"`[^`]*`|\"[^\"]*\"|'[^']*'")
 
 
+SYMLINK_GUARD = re.compile(r"(?i)(O_NOFOLLOW|symlink_metadata\s*\(|\.is_symlink\s*\()")
+
+
+def guards_symlinks(path: Path) -> bool:
+    """Does this file reject symlinks anywhere in it?
+
+    The semgrep rule's exclusions are function-scoped, and the guard is often not in the
+    same function as the read. dstack copies every host-shared file through an `O_NOFOLLOW`
+    open in `HostShared::copy`, unmounts the 9p share, and only then reads from the local
+    copy in `HostShared::load`. Both reads in `load` were reported as following a
+    host-controlled symlink; by the time either ran the share was gone.
+
+    File-scoped and therefore blunt: a file that guards one path and not another is let off.
+    That is the right way round for a rule whose false positives land on code that already
+    did the work.
+    """
+    try:
+        return bool(SYMLINK_GUARD.search(path.read_text(encoding="utf-8", errors="replace")))
+    except OSError:
+        return False
+
+
 def leaks_a_value(line: str) -> bool:
     """Does this log call put a secret *value* into the sink, or just mention one?
 
@@ -1036,7 +1079,7 @@ def main() -> int:
     findings = sort_for_report(apply_confidence_demotion(dedupe(findings), catalog))
     suppressed: list[Finding] = []
     if not args.include_tests:
-        findings, suppressed = split_non_production(findings, root)
+        findings, suppressed = split_non_production(findings, root, catalog)
     scorecard = layer_scorecard(catalog, findings, platform)
 
     result = {
@@ -1055,10 +1098,14 @@ def main() -> int:
 
     # A suppressed finding that nobody is told about is a finding the report lied about.
     if suppressed:
+        reasons: dict[str, int] = {}
+        for f in suppressed:
+            key = f.metadata.get("suppressed_because", "non-production path")
+            reasons[key] = reasons.get(key, 0) + 1
+        detail = "; ".join(f"{n} for {why}" for why, n in sorted(reasons.items()))
         by_rule = ", ".join(sorted({f.rule_id.split("-")[1] for f in suppressed}))
         result["not_verified"].append(
-            f"{len(suppressed)} finding(s) in test, mock, simulator, fixture or sample "
-            f"paths were suppressed ({by_rule}). These are usually test data doing its job. "
+            f"{len(suppressed)} finding(s) were suppressed ({detail}), across {by_rule}. "
             f"Re-run with --include-tests to see them."
         )
 

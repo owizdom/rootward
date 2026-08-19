@@ -19,6 +19,7 @@ import re
 from pathlib import Path
 
 from model import (
+    DEFINITION_SITE,
     Confidence,
     Finding,
     Severity,
@@ -182,6 +183,22 @@ def _colocated_anchor(text: str) -> int | None:
     return None
 
 
+def _read_anchor(text: str) -> int | None:
+    """Line of a message read that sits within PROXIMITY_LINES of a vsock surface."""
+    lines = text.splitlines()
+    surfaces = [i for i, ln in enumerate(lines) if VSOCK_SURFACE.search(ln)]
+    if not surfaces:
+        return None
+    for i, ln in enumerate(lines):
+        if not MESSAGE_READ.search(ln):
+            continue
+        if BINDING_ONLY.match(ln) or DEFINITION_SITE.match(ln):
+            continue
+        if any(abs(a - i) <= PROXIMITY_LINES for a in surfaces):
+            return i + 1
+    return None
+
+
 def check_replay_protection(root: Path) -> list[Finding]:
     """BT-T07D: a vsock message handler whose schema carries no freshness token."""
     findings: list[Finding] = []
@@ -193,15 +210,24 @@ def check_replay_protection(root: Path) -> list[Finding]:
         # keep suppression on the fuller one.
         trigger = strip_imports(live)
 
-        # Scope: this file must actually read messages off a vsock surface.
+        # Scope: this file must actually read messages off a vsock surface, and the read has
+        # to be near the surface rather than merely in the same file.
         if not (VSOCK_SURFACE.search(trigger) and MESSAGE_READ.search(trigger)):
             continue
         if FRESHNESS_ENFORCED.search(live):
             continue
 
+        # Anchor on the read, not the surface. The surface's first mention is typically a
+        # struct field (`listener: vsock::VsockListener,`) or a connect call, and citing one
+        # of those says the defect is the existence of vsock. The claim is about a message
+        # arriving with nothing that makes it single-use, so the citation is the read.
+        anchor = _read_anchor(trigger)
+        if anchor is None:
+            continue
+
         carries_token = bool(FRESHNESS.search(live))
         lines = raw.splitlines()
-        line = _line_of(trigger, VSOCK_SURFACE)
+        line = anchor
 
         findings.append(
             Finding(

@@ -25,5 +25,7 @@ false_positives: >
   Comparisons on public values that merely appear secret by name (a request id, a public key, a
   content hash) are flagged. Constant-time comparison of a public value is harmless, so the cost of
   a false positive here is low, which is why the rule is deliberately tuned toward recall.
+# The threat needs this code to run inside the enclave.
+assumes: enclave_runtime
 confidence: high
 status: benchmarked

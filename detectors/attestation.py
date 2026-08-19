@@ -131,7 +131,14 @@ CHAIN_VERIFY = re.compile(
     r"verify\w*_chain|build_chain|validate_chain|chain_verify|check_chain|"
     r"verify_directly_issued_by|"
     r"webpki|EndEntityCert|verify_for_usage|TrustAnchor|anchor_from_trusted_cert|"
-    r"verify_certificate_chain|verify_attestation"
+    r"verify_certificate_chain|"
+    # Delegation counts. dstack-attest holds a pinned `root_ca`, builds an
+    # `nsm_qvl::QuoteVerifier` from it, and hands the document to
+    # `verify_aws_nitro_tpm_attestation_doc`. Requiring the literal token
+    # `verify_attestation` missed all three and reported the file as never validating a
+    # chain, next to a comment explaining that its PCRs come from the signature-verified
+    # report. A rule about a missing check has to recognise the check being made elsewhere.
+    r"QuoteVerifier|verify\w*attestation\w*|root_ca|RootCa\w*|new_prod"
     r")\b"
 )
 # ROOT_MATERIAL alone proves only that a root is available, not that it is consulted.
@@ -185,6 +192,45 @@ def _first_match_line(lines: list[str], pattern: re.Pattern) -> int:
     return 0
 
 
+# Evidence that this file *decides* something on the strength of the document, rather than
+# moving it between shapes. A `match` arm that renames `attestation_doc` into another enum
+# variant is a type conversion; it has no business validating a certificate chain and cannot
+# be accused of failing to. dstack's `platform_from_legacy_quote` is exactly that, and it was
+# reported as a critical.
+TRUST_DECISION = re.compile(
+    r"(?i)("
+    r"\b(if|unless|assert|require|ensure|guard)\b[^\n]{0,80}\b(valid|verif\w*|trust\w*|"
+    r"expected|allow\w*|match\w*|equal)\b|"
+    r"\b(bail|panic|raise|throw|return\s+Err|reject|deny|abort)\b|"
+    r"\.(is_ok|is_err|unwrap_or_else|ok_or|expect)\s*\("
+    r")"
+)
+
+
+# How far a trust decision may sit from the attestation handling and still be part of it.
+DECISION_PROXIMITY = 30
+
+
+def _decision_anchor(text: str) -> int | None:
+    """The attestation line nearest a trust decision, or None if there is no such pair.
+
+    Returns the line to cite. Citing the file's *first* mention of the noun put this rule's
+    evidence on a `match` arm in a type-conversion function 800 lines above the code that
+    actually decides anything, which reads as though the tool had not looked.
+    """
+    lines = text.splitlines()
+    nouns = [i for i, ln in enumerate(lines) if ATTESTATION_NOUN.search(ln)]
+    if not nouns:
+        return None
+    for i, ln in enumerate(lines):
+        if not TRUST_DECISION.search(ln):
+            continue
+        near = [n for n in nouns if abs(n - i) <= DECISION_PROXIMITY]
+        if near:
+            return min(near, key=lambda n: abs(n - i)) + 1
+    return None
+
+
 def check_chain_validation(root: Path) -> list[Finding]:
     """BT-T06: attestation parsed without walking the chain to a pinned AWS root."""
     findings: list[Finding] = []
@@ -208,6 +254,12 @@ def check_chain_validation(root: Path) -> list[Finding]:
         trigger = strip_imports(live)
         if not (ATTESTATION_NOUN.search(trigger) and ATTESTATION_TRUST_VERB.search(trigger)):
             continue
+        # ...and it has to act on what it read, near where it read it. File-scoped was not
+        # enough: dstack's conversion function satisfied it with a `return Err` in an
+        # unrelated error path 75 lines away.
+        anchor = _decision_anchor(trigger)
+        if anchor is None:
+            continue
         if CHAIN_VERIFY.search(live) or KNOWN_VALIDATOR.search(live):
             continue
 
@@ -218,7 +270,7 @@ def check_chain_validation(root: Path) -> list[Finding]:
         unused_chain = bool(CHAIN_MATERIAL.search(live))
 
         lines = text.splitlines()
-        line = _first_match_line(lines, ATTESTATION_NOUN)
+        line = anchor
         findings.append(
             Finding(
                 rule_id="BT-T06-no-root-cert-validation",

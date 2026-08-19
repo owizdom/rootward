@@ -23,5 +23,7 @@ false_positives: >
   validation on a public endpoint, where differentiated errors are correct and useful. The rule is
   scoped to decrypt and authentication paths to limit this, but that scoping depends on naming
   conventions.
+# The threat needs this code to run inside the enclave.
+assumes: enclave_runtime
 confidence: medium
 status: benchmarked

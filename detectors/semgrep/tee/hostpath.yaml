@@ -52,6 +52,14 @@ rules:
       # symlink_metadata / O_NOFOLLOW is the fix; do not flag code that already applies it.
       # The exclusion has to be a syntactically valid Rust context, a bare call between
       # `...` ellipses does not parse and semgrep rejects the whole ruleset for it.
+      #
+      # These are function-scoped, and the guard is often not in the same function as the
+      # read. dstack copies every host-shared file through an `O_NOFOLLOW` open in
+      # `HostShared::copy`, unmounts the 9p share, and only then reads from the local copy
+      # in `HostShared::load`. Both reads in `load` were reported, and neither was reachable
+      # from the host by the time it ran. A file that applies O_NOFOLLOW anywhere is doing
+      # the right thing somewhere, which is weak evidence, and weak evidence should buy
+      # silence for a rule whose false positives land on correct code.
       - pattern-not-inside: |
           fn $F(...) {
             ...

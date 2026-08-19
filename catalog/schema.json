@@ -150,6 +150,14 @@
         "absence"
       ],
       "description": "presence (default): the cited line is the defect. absence: the finding is that something is missing from the file, so no single line can be the defect and the rule cannot honestly claim high confidence."
+    },
+    "assumes": {
+      "type": "string",
+      "enum": [
+        "enclave_runtime",
+        "any"
+      ],
+      "description": "enclave_runtime: the threat only exists if this code runs inside the enclave, so the rule is suppressed on files classified as host-side tooling. any (default): the finding stands wherever the code runs."
     }
   }
 }
