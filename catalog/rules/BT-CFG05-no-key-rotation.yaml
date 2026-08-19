@@ -21,5 +21,7 @@ false_positives: >
   Absence of evidence is not evidence of absence: rotation may be handled operationally, in
   infrastructure code, or in a separate repository the audit does not see. Report as an open
   question rather than a defect when the repository has no deployment surface.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: low
 status: implemented

@@ -27,5 +27,7 @@ false_positives: >
   mitigates this by also scanning for KMS RecipientAttestation conditions and dstack AppAuth
   registration, but a project that pins measurements in an unscanned deployment repo will still
   be flagged.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: medium
 status: benchmarked

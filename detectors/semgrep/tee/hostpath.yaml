@@ -41,6 +41,14 @@ rules:
       - metavariable-regex:
           metavariable: $SRC
           regex: (?i).*(host|shared|guest|mount|9p|vsock|incoming|upload|external|untrusted).*
+      # ...and not a hardcoded literal. A path compiled into the binary is not host-supplied
+      # whatever it is named: `fs::read_to_string("/proc/self/mountinfo")` matched on the
+      # word "mount" and was reported as following a host-controlled symlink. Interpolated
+      # forms still match, because `f"{HOST_SHARED}/x"` and `format!("{}/x", dir)` do not
+      # start with a quote.
+      - metavariable-regex:
+          metavariable: $SRC
+          regex: ^(?!["']).*
       # symlink_metadata / O_NOFOLLOW is the fix; do not flag code that already applies it.
       # The exclusion has to be a syntactically valid Rust context, a bare call between
       # `...` ellipses does not parse and semgrep rejects the whole ruleset for it.
@@ -83,6 +91,14 @@ rules:
       - metavariable-regex:
           metavariable: $SRC
           regex: (?i).*(host|shared|guest|mount|9p|vsock|incoming|upload|external|untrusted).*
+      # ...and not a hardcoded literal. A path compiled into the binary is not host-supplied
+      # whatever it is named: `fs::read_to_string("/proc/self/mountinfo")` matched on the
+      # word "mount" and was reported as following a host-controlled symlink. Interpolated
+      # forms still match, because `f"{HOST_SHARED}/x"` and `format!("{}/x", dir)` do not
+      # start with a quote.
+      - metavariable-regex:
+          metavariable: $SRC
+          regex: ^(?!["']).*
       # Write-mode opens are excluded. The rationale here is reading attacker-controlled
       # content INTO the enclave; writing through a host-planted symlink is a real but
       # different issue, and meta-dstack's host-side tooling supplied the false positive

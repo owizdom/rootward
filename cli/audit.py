@@ -145,9 +145,23 @@ NON_PRODUCTION = re.compile(
 CONFIDENCE_DEMOTION = {"high": 0, "medium": 1, "low": 2}
 
 
-def apply_confidence_demotion(findings: list) -> list:
-    """Lower each finding's severity by its detector's uncertainty. Returns the list."""
+def apply_confidence_demotion(findings: list, catalog: dict) -> list:
+    """Lower each finding's severity by its detector's uncertainty. Returns the list.
+
+    Also enforces the ceiling an absence claim implies. High confidence is defined in the
+    report as "the cited line is the defect", and a rule whose finding is that something is
+    *missing* can never satisfy that: it cites a line to show the reader where it looked,
+    not the defect itself. BT-T06 was emitting high confidence on that basis and printing
+    Critical, on a match arm in a type-conversion function and twice on
+    `attestation_doc: Vec::new()` inside `#[cfg(test)]` blocks. None of the three was real.
+    """
     for f in findings:
+        rule = catalog.get(f.rule_id) or {}
+        if rule.get("claim") == "absence" and f.confidence is Confidence.HIGH:
+            f.confidence = Confidence.MEDIUM
+            f.metadata["confidence_capped"] = (
+                "absence claims cite where the rule looked, not the defect"
+            )
         steps = CONFIDENCE_DEMOTION.get(f.confidence.value, 1)
         if steps == 0:
             continue
@@ -163,11 +177,60 @@ def apply_confidence_demotion(findings: list) -> list:
     return findings
 
 
-def split_non_production(findings: list) -> tuple[list, list]:
+# Rust puts unit tests inline, in a `#[cfg(test)] mod tests` block at the bottom of the
+# production file. A path-based filter cannot see that, so on a Rust codebase the entire
+# test suite was audited as production code. Two of the three criticals in the first dstack
+# report were test helpers building fake attestations out of `vec![0x11; 20]`, sitting
+# inside such a block, in a file whose path looks entirely like production.
+#
+# Go's `_test.go` and Python's `if __name__ == "__main__"` harnesses are already handled by
+# path and by NON_PRODUCTION respectively; this is the gap Rust leaves.
+CFG_TEST = re.compile(r"^\s*#\[cfg\(test\)\]")
+
+
+def _rust_test_spans(text: str) -> list[tuple[int, int]]:
+    """Line ranges (1-indexed, inclusive) covered by `#[cfg(test)]` items.
+
+    Brace counting rather than parsing. It only has to be right about whether a line is
+    inside a test module, and a miscount fails toward reporting, which is the safe side.
+    """
+    spans, lines = [], text.splitlines()
+    i, n = 0, len(lines)
+    while i < n:
+        if not CFG_TEST.match(lines[i]):
+            i += 1
+            continue
+        start, depth, opened = i, 0, False
+        j = i
+        while j < n:
+            depth += lines[j].count("{") - lines[j].count("}")
+            if "{" in lines[j]:
+                opened = True
+            if opened and depth <= 0:
+                break
+            j += 1
+        spans.append((start + 1, min(j, n - 1) + 1))
+        i = j + 1
+    return spans
+
+
+def in_inline_test_block(root: Path, rel: str, line: int) -> bool:
+    path = root / rel
+    if path.suffix != ".rs" or line <= 0:
+        return False
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return any(a <= line <= b for a, b in _rust_test_spans(text))
+
+
+def split_non_production(findings: list, root: Path) -> tuple[list, list]:
     """Returns (production, suppressed)."""
     prod, supp = [], []
     for f in findings:
-        (supp if NON_PRODUCTION.search(f.file) else prod).append(f)
+        non_prod = bool(NON_PRODUCTION.search(f.file)) or in_inline_test_block(root, f.file, f.line)
+        (supp if non_prod else prod).append(f)
     return prod, supp
 
 
@@ -970,10 +1033,10 @@ def main() -> int:
             "leakage, BT-CFG05 key rotation, BT-LYR01 layer claims) did not run; pass --semantic to enable them"
         )
 
-    findings = sort_for_report(apply_confidence_demotion(dedupe(findings)))
+    findings = sort_for_report(apply_confidence_demotion(dedupe(findings), catalog))
     suppressed: list[Finding] = []
     if not args.include_tests:
-        findings, suppressed = split_non_production(findings)
+        findings, suppressed = split_non_production(findings, root)
     scorecard = layer_scorecard(catalog, findings, platform)
 
     result = {

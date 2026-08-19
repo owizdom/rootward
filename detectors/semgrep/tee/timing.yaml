@@ -50,7 +50,7 @@ rules:
       # `!= pe::IMAGE_NT_SIGNATURE`, `!= b"TDVF"`, `!= [0u8; 48]`, `.len() != 96`.
       - metavariable-regex:
           metavariable: $RHS
-          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$)(?!b?["'])(?!\[)(?!\d)(?!null$)(?!undefined$)(?!None$)(?!nil$).*
+          regex: ^(?!\w+::[A-Z][A-Z0-9_]+)(?!\w+\.[A-Z][A-Z0-9_]+$)(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$)(?!Some\()(?!b?["'])(?!\[)(?!\d)(?!null$)(?!undefined$)(?!None$)(?!nil$).*
 
   - id: tee-timing-oracle-compare-go
     languages: [go]
@@ -88,7 +88,7 @@ rules:
       # `!= pe::IMAGE_NT_SIGNATURE`, `!= b"TDVF"`, `!= [0u8; 48]`, `.len() != 96`.
       - metavariable-regex:
           metavariable: $RHS
-          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$)(?!b?["'])(?!\[)(?!\d)(?!null$)(?!undefined$)(?!None$)(?!nil$).*
+          regex: ^(?!\w+::[A-Z][A-Z0-9_]+)(?!\w+\.[A-Z][A-Z0-9_]+$)(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$)(?!Some\()(?!b?["'])(?!\[)(?!\d)(?!null$)(?!undefined$)(?!None$)(?!nil$).*
       - pattern-not: subtle.ConstantTimeCompare(...) != $R
       - pattern-not: hmac.Equal(...) == $R
 
@@ -128,7 +128,7 @@ rules:
       # `!= pe::IMAGE_NT_SIGNATURE`, `!= b"TDVF"`, `!= [0u8; 48]`, `.len() != 96`.
       - metavariable-regex:
           metavariable: $RHS
-          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$)(?!b?["'])(?!\[)(?!\d)(?!null$)(?!undefined$)(?!None$)(?!nil$).*
+          regex: ^(?!\w+::[A-Z][A-Z0-9_]+)(?!\w+\.[A-Z][A-Z0-9_]+$)(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$)(?!Some\()(?!b?["'])(?!\[)(?!\d)(?!null$)(?!undefined$)(?!None$)(?!nil$).*
       - pattern-not: secrets.compare_digest(...) == $R
 
   - id: tee-timing-oracle-compare-js
@@ -165,5 +165,5 @@ rules:
       # `!= pe::IMAGE_NT_SIGNATURE`, `!= b"TDVF"`, `!= [0u8; 48]`, `.len() != 96`.
       - metavariable-regex:
           metavariable: $RHS
-          regex: ^(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$)(?!b?["'])(?!\[)(?!\d)(?!null$)(?!undefined$)(?!None$)(?!nil$).*
+          regex: ^(?!\w+::[A-Z][A-Z0-9_]+)(?!\w+\.[A-Z][A-Z0-9_]+$)(?![A-Z][A-Za-z0-9]*::)(?![A-Z][A-Z0-9_]{2,}$)(?!Some\()(?!b?["'])(?!\[)(?!\d)(?!null$)(?!undefined$)(?!None$)(?!nil$).*
       - pattern-not: crypto.timingSafeEqual(...) == $R

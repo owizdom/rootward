@@ -22,7 +22,11 @@ from platform_detect import Platform
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}
 TEXTY = {".rs", ".go", ".py", ".ts", ".js", ".mjs", ".json", ".yaml", ".yml", ".toml", ".sh", ".sol"}
 
-GOVERNANCE = re.compile(r"\b(KmsAuth|AppAuth)\b")
+# Renamed upstream. dstack ships these as DstackKms.sol and DstackApp.sol now, and
+# greping only the old names reported a repository that contains the contracts as
+# having no code governance at all. Both spellings, because a deployment written
+# against the older interface is still a deployment with governance.
+GOVERNANCE = re.compile(r"\b(KmsAuth|AppAuth|DstackKms|DstackApp|IAppAuth)\b")
 # Registering an app / allowlisting a code hash, the operations that make the contracts
 # load-bearing rather than merely referenced.
 GOVERNANCE_USE = re.compile(
@@ -113,6 +117,29 @@ def _iter_text(root: Path):
 def _first_line(text: str, pattern: re.Pattern) -> int:
     m = pattern.search(text)
     return text.count("\n", 0, m.start()) + 1 if m else 0
+
+
+# Is this repository dstack itself, rather than something built on it?
+#
+# BT-DS01, DS02 and DS05 are rules for a *deployment*: register your app with the governance
+# contracts, derive keys through dstack-KMS instead of sealing them to hardware, bind your
+# gateway domain. Run them against the dstack monorepo and they say the platform should use
+# the platform. Five DS02 findings on dstack were the `tpm2` and `tpm-attest` crates, which
+# are the code that implements sealing, and one was `Unseal = 0x0000015E`, a TPM command
+# code in an enum.
+PLATFORM_SELF = re.compile(
+    r"(?i)(^|/)(dstack-kms|dstack-vmm|dstack-gateway)(/|$)"
+    r"|kms/auth-eth/contracts/"
+    r"|(^|/)(DstackKms|DstackApp|KmsAuth|AppAuth)\.sol$"
+)
+
+
+def is_platform_itself(root: Path) -> bool:
+    """True when the tree contains dstack's own KMS, VMM, gateway or governance contracts."""
+    for path in root.rglob("*"):
+        if path.is_file() and PLATFORM_SELF.search(str(path.relative_to(root))):
+            return True
+    return False
 
 
 def check_governance(root: Path) -> list[Finding]:
@@ -312,6 +339,13 @@ def run(root: Path, platform: Platform | None = None) -> list[Finding]:
     """No-ops unless the repo actually uses dstack."""
     if platform is not None and not platform.dstack:
         return []
+    # Rules about how a deployment should *use* dstack cannot be asked of dstack. The rules
+    # about how the platform is configured (KMS mode, RTMR policy) still apply.
+    if is_platform_itself(root):
+        return [
+            *check_kms_mode(root),
+            *check_rtmr_policy(root),
+        ]
     return [
         *check_governance(root),
         *check_key_derivation(root),

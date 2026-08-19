@@ -142,6 +142,14 @@
       ],
       "default": "draft",
       "description": "draft = catalogued only. implemented = detector exists and passes fixtures. benchmarked = precision/recall measured on the mutation corpus."
+    },
+    "claim": {
+      "type": "string",
+      "enum": [
+        "presence",
+        "absence"
+      ],
+      "description": "presence (default): the cited line is the defect. absence: the finding is that something is missing from the file, so no single line can be the defect and the rule cannot honestly claim high confidence."
     }
   }
 }

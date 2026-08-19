@@ -21,5 +21,7 @@ false_positives: >
   Read-only and idempotent operations do not need replay protection, and the detector must infer
   which handlers change state. Expect over-reporting on query paths and under-reporting where
   freshness is enforced in a layer the detector does not parse.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: low
 status: implemented

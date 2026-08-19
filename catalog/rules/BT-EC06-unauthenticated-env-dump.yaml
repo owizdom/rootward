@@ -27,5 +27,7 @@ false_positives: >
   file is invisible here. The rule checks for auth near the specific handler that reaches the
   enumeration rather than anywhere in the file, which cuts both ways: it catches an open debug
   route beside a guarded one, and it misses a global auth hook.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: medium
 status: benchmarked

@@ -21,5 +21,7 @@ remediation: >
 false_positives: >
   Governance contract addresses may live in deployment infrastructure outside the audited
   repository. Absence in-repo is a finding worth raising but is not proof of absence in production.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: medium
 status: implemented

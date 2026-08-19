@@ -20,5 +20,7 @@ false_positives: >
   Flags nondeterminism that does not actually affect the measured layers, and cannot prove
   reproducibility either way without performing two builds. Reported as a caveat on BT-CFG03
   rather than as an independent vulnerability.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: medium
 status: benchmarked

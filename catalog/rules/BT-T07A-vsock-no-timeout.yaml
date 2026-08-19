@@ -21,5 +21,7 @@ false_positives: >
   A socket whose timeout is configured centrally, in a connection factory or a wrapper type, is
   flagged at each use site because the deterministic pass does not follow construction across
   functions.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: medium
 status: benchmarked

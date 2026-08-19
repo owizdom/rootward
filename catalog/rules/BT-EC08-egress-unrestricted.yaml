@@ -26,5 +26,7 @@ false_positives: >
   manifest, in which case a manifest with no egress block is not the whole picture. A manifest
   is also not the deployment: every field it carries can be overridden by a flag on ecloud app
   deploy, so a clean manifest is weak evidence in the other direction.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: medium
 status: benchmarked

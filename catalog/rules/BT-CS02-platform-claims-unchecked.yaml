@@ -28,5 +28,7 @@ false_positives: >
   check, so a project with a central token validator will show gaps in the file that fetches.
   The rule reports which specific claims it could not find rather than a bare verdict, so a
   reader can confirm against their own validator quickly.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: medium
 status: benchmarked

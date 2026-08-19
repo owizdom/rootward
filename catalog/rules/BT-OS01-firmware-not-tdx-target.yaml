@@ -28,5 +28,7 @@ false_positives: >
   somewhere in the build tree before it fires, but it cannot tell which artefact a given
   recipe is for, so a mixed repository can produce a finding about firmware that never boots
   an enclave.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: medium
 status: benchmarked

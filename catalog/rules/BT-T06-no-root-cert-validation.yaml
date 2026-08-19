@@ -27,5 +27,7 @@ false_positives: >
   Fires on code that delegates chain validation to a library call the pattern does not recognise,
   which is the common case for anyone using a maintained crate. The detector allowlists the known
   validating libraries, so a project using an unlisted or vendored one is over-reported.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: medium
 status: benchmarked

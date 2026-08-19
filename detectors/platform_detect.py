@@ -48,7 +48,7 @@ NITRO_SIGNALS: list[tuple[str, re.Pattern, int]] = [
 DSTACK_SIGNALS: list[tuple[str, re.Pattern, int]] = [
     ("dstack tooling", re.compile(r"(?i)\bdstack[-_](kms|gateway|vmm|os|util|types)\b"), STRONG),
     ("tappd socket", re.compile(r"(?i)\btappd\b"), STRONG),
-    ("governance contracts", re.compile(r"\b(KmsAuth|AppAuth)\b"), STRONG),
+    ("governance contracts", re.compile(r"\b(KmsAuth|AppAuth|DstackKms|DstackApp)\b"), STRONG),
     ("RTMR", re.compile(r"\bRTMR\d?\b"), STRONG),
     ("dstack reference", re.compile(r"(?i)\bdstack\b"), WEAK),
     ("app-compose manifest", re.compile(r"(?i)app[-_]compose\.(json|ya?ml)"), WEAK),
@@ -103,9 +103,17 @@ EIGENCOMPUTE_SIGNALS: list[tuple[str, re.Pattern, int]] = [
     ("eigenx CLI (deprecated)", re.compile(r"\beigenx\s+app\s+\w+"), WEAK),
 ]
 
+# Code, dependencies and deployment configuration. Not prose.
+#
+# `.md` and `.txt` used to be in here, and on the dstack monorepo the platform evidence
+# came back as CODE_OF_CONDUCT.md, REUSE.toml, CHANGELOG.md and CLAUDE.md. A changelog that
+# mentions Confidential Space was enough to detect Confidential Space in a TDX repository,
+# which then ran an entire inapplicable rule family against it. What platform a project
+# targets is a fact about what it imports, links and calls, and a document that discusses
+# a platform is not a project that runs on one.
 SCAN_SUFFIXES = {
     ".rs", ".go", ".py", ".ts", ".js", ".mjs", ".json", ".yaml", ".yml",
-    ".toml", ".sh", ".bash", ".tf", ".md", ".txt", "",
+    ".toml", ".sh", ".bash", ".tf", "",
 }
 SCAN_NAMES = {"Dockerfile", "Makefile", "docker-compose.yml", "docker-compose.yaml"}
 

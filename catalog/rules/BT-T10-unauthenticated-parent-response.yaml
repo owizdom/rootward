@@ -30,5 +30,7 @@ false_positives: >
   a caller, a middleware layer, or a different module, so a codebase that authenticates
   responses centrally and passes plain values inward will be over-reported. The rule is a
   prefilter for the semantic pass and is not a conclusion on its own.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: medium
 status: implemented

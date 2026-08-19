@@ -30,5 +30,7 @@ false_positives: >
   here. The rule only fires when a token is obtained in the same file and no verification call
   appears anywhere in it, and test files and type declarations are excluded, but a project
   that splits fetch and verify across modules is a legitimate miss in the other direction.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: high
 status: benchmarked

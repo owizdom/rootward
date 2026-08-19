@@ -103,7 +103,10 @@ def run(root: Path) -> list[Finding]:
             continue
 
         lines = raw.splitlines()
-        line = _line_of(raw, PUBLIC_FLAG if flag else LOG_RELAY)
+        # Anchor in the same view the trigger fired on. Searching `raw` here put the
+        # citation on `use docker_logs::parse_duration;`, an import that `live` had already
+        # blanked precisely because it is not the thing being reported.
+        line = _line_of(live, PUBLIC_FLAG if flag else LOG_RELAY)
 
         findings.append(
             Finding(

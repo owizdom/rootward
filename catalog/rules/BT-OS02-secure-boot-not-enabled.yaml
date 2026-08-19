@@ -24,5 +24,7 @@ false_positives: >
   confidential VM asserts it through the attestation token's secboot claim, not through the
   guest firmware build. Where that is the case the recipe is correct as written and the
   finding is noise. The rule stays quiet when the recipe enables the option anywhere.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: medium
 status: benchmarked

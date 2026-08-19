@@ -19,5 +19,7 @@ remediation: >
 false_positives: >
   Internal services with no public domain do not need this. Enable only for workloads that
   actually terminate external traffic.
+# The finding is that something is missing, so no single line is the defect.
+claim: absence
 confidence: low
 status: implemented
