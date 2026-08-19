@@ -227,7 +227,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for what a new rule has to carry before i
 ### Integration
 
 ```yaml
-- uses: owizdom/rootward@v0.2.0
+- uses: owizdom/rootward@v0.2.1
   with:
     path: .
     fail-on: high
@@ -244,7 +244,7 @@ permissions:
   security-events: write
 steps:
   - uses: actions/checkout@v4
-  - uses: owizdom/rootward@v0.2.0
+  - uses: owizdom/rootward@v0.2.1
     id: audit
     with: { path: ., fail-on: high }
   - uses: github/codeql-action/upload-sarif@v3
