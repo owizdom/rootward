@@ -6,6 +6,23 @@ The version this matters most for is the Action: pin `owizdom/rootward@v0.2.0` r
 `@main`, because `@main` moves under you, which is the defect this tool reports as
 `BT-CFG04`.
 
+## v0.2.1: 2026-08-19
+
+### Changed
+
+- Removed every em dash from what the tool emits and ships: source, docs, rule prose, and
+  the report template. The finding header was the visible one, rendering as
+  `### BT-T09B-dockerfile-secret [em dash] critical` on every finding in every report. The
+  four that remain are in `bench/fixtures/`, which is synthetic code under audit rather than
+  our own prose.
+
+### Fixed
+
+- `CONTRIBUTING.md` still told contributors to hand-edit the README rule table, which
+  `catalog/table.py` generates and CI gates.
+- The fuzz workflow could not run on a fresh checkout: `fuzz/corpus/<target>` is gitignored,
+  and libFuzzer requires the writable corpus directory to exist.
+
 ## v0.2.0: 2026-08-19
 
 First tagged release. Renamed from `tee-audit`; GitHub keeps a redirect from the old URL,
