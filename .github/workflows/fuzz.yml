@@ -1,0 +1,53 @@
+# Fuzzing the binary parsers.
+#
+# Separate from ci.yml on purpose. cargo-fuzz needs a nightly toolchain and the sanitizer
+# runtime, and a nightly regression should not be able to redden a pull request that did
+# not touch the Rust core. This runs nightly on a schedule and on demand, and it is the
+# job that is allowed to be slow.
+name: fuzz
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: seconds per target
+        default: "300"
+
+jobs:
+  fuzz:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [eif, cpio, decompress, secrets]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+      - name: install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      # First dir is the writable corpus, second is the read-only seeds. Passing seeds/
+      # as the only dir makes libFuzzer write its evolved corpus into it, which turns a
+      # curated 8-file corpus into a few thousand files on the first run.
+      - name: fuzz ${{ matrix.target }}
+        working-directory: core
+        run: |
+          cargo fuzz run ${{ matrix.target }} \
+            fuzz/corpus/${{ matrix.target }} fuzz/seeds/${{ matrix.target }} \
+            -- -max_total_time=${{ inputs.seconds || 300 }} -max_len=16384
+
+      # A crash is a file in artifacts/. Upload it so the input that caused it is
+      # recoverable rather than only a stack trace in a log.
+      - name: upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: core/fuzz/artifacts/
+          if-no-files-found: ignore

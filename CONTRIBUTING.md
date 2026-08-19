@@ -8,7 +8,7 @@ a way no amount of adding rules would have.
 ## Setup
 
 ```sh
-git clone https://github.com/owizdom/tee-audit && cd tee-audit
+git clone https://github.com/owizdom/rootward && cd rootward
 uv venv                                          # or: python3 -m venv .venv
 uv pip install pyyaml jsonschema semgrep
 (cd core && cargo build --release --bins)
@@ -172,3 +172,33 @@ security engineer's time and discredits every other finding in the report.
 
 Open an issue with the rule id, the `file:line` it fired on, and the source it fired on. If the
 code is public, a link is enough. These get priority.
+
+## Fuzzing the Rust core
+
+Anything that reads bytes someone else produced is fuzzed. `cargo-fuzz` needs nightly, so
+it is not part of the per-pull-request gate — `.github/workflows/fuzz.yml` runs it nightly
+and on demand.
+
+```sh
+cargo install cargo-fuzz
+cd core
+cargo +nightly fuzz run <target> fuzz/corpus/<target> fuzz/seeds/<target> -- -max_total_time=300
+```
+
+Targets are `eif`, `cpio`, `decompress`, and `secrets`.
+
+Two things to know before you touch it:
+
+**The first corpus directory is writable, the second is read-only.** `cargo fuzz run eif
+fuzz/seeds/eif` writes libFuzzer's evolved corpus *into* the seed directory. That turned a
+curated 8-file corpus into 1985 files the first time it was run that way.
+
+**Seeds are carved from the built fixtures, not invented.** `bench/fixtures/build.py`
+produces real EIFs; the seeds are those files and the ramdisk sections carved out of them.
+Seeded, the EIF target reaches coverage 6655. Unseeded it reaches 88 — random bytes almost
+never produce the `.eif` magic, so an unseeded run tests the magic check and nothing behind
+it, while looking exactly like a passing run.
+
+A new crash arrives as a file in `core/fuzz/artifacts/<target>/`. Reproduce it with
+`cargo +nightly fuzz run <target> <that file>`, then add it to `fuzz/seeds/<target>/` with
+the fix so it stays covered.

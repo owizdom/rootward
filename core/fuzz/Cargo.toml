@@ -1,0 +1,52 @@
+# Fuzz targets for the binary parsers.
+#
+# Everything in the Rust core reads attacker-influenced bytes: an EIF is built by whoever
+# built the image, and a CPIO ramdisk inside it is arbitrary. The unit tests cover the
+# shapes we thought of; these cover the ones we did not.
+#
+# Its own workspace so `cargo test`, `cargo clippy` and `cargo fmt --check` in the parent
+# never try to build it -- libfuzzer-sys needs nightly and the sanitizer runtime.
+[package]
+name = "rootward_core-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.rootward_core]
+path = ".."
+
+[[bin]]
+name = "cpio"
+path = "fuzz_targets/cpio.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "decompress"
+path = "fuzz_targets/decompress.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "eif"
+path = "fuzz_targets/eif.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "secrets"
+path = "fuzz_targets/secrets.rs"
+test = false
+doc = false
+bench = false

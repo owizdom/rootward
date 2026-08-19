@@ -1,0 +1,6 @@
+# libFuzzer's working state. The seed corpus in seeds/ is checked in; the evolved corpus
+# is machine- and run-specific and would be a large, churning binary diff.
+corpus/
+artifacts/
+coverage/
+target/
