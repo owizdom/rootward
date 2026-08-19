@@ -327,7 +327,25 @@ rules:
       threat: 6
       layer_required: 2
       confidence: HIGH
-    pattern: 'InsecureSkipVerify: true'
+    # `InsecureSkipVerify: true` paired with a VerifyPeerCertificate callback is RA-TLS,
+    # not disabled verification. The certificate is self-signed by construction, so chain
+    # verification cannot apply, and trust comes from the attestation the callback checks.
+    # dstack's own SDK does exactly this and was reported as a critical, which is the most
+    # expensive kind of false positive: it is in the one file a reader would check first.
+    patterns:
+      - pattern: 'InsecureSkipVerify: true'
+      - pattern-not-inside: |
+          &tls.Config{
+            ...,
+            VerifyPeerCertificate: $CB,
+            ...,
+          }
+      - pattern-not-inside: |
+          tls.Config{
+            ...,
+            VerifyPeerCertificate: $CB,
+            ...,
+          }
 
   - id: tee-tls-verification-disabled-js
     languages: [javascript, typescript]

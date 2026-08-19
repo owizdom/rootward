@@ -120,6 +120,8 @@ def _styles():
                   leading=17, leftIndent=6 * mm),
         "toc2": S("t2", parent=base["Normal"], fontName="Times-Roman", fontSize=10,
                   leading=15, leftIndent=13 * mm, textColor="#333333"),
+        "locsm": S("ls", parent=base["Normal"], fontName="Courier", fontSize=7,
+                   leading=9.5, textColor="#333333"),
     }
 
 
@@ -428,25 +430,69 @@ def render_pdf(result: dict, out_path: Path, catalog: dict | None = None) -> Pat
     # ------------------------------------------------- 7. executive summary ----
     s.append(PageBreak())
     H("7. Executive summary")
-    rows = [["Severity", "Findings"]]
+    distinct = len({f["rule_id"] for f in findings})
+    s.append(P(
+        f"A static security review of <b>{escape(target)}</b> was performed with rootward "
+        f"at the commit named in section 6. A total of <b>{len(findings)}</b> findings were "
+        f"reported across <b>{distinct}</b> distinct rules."))
+
+    s.append(Spacer(1, 3 * mm))
+    s.append(Paragraph("Review Summary", st["h2"]))
+    repo = result.get("repository") or ""
+    s.append(_table(
+        [["Target", target],
+         ["Repository", repo or "local checkout"],
+         ["Commit", (commit or "not a git checkout")[:40]],
+         ["Date", datetime.now(UTC).strftime("%d %B %Y")],
+         ["Platform", str(result.get("platform", {}).get("summary", "unknown"))]],
+        [32 * mm, 108 * mm],
+        [("FONT", (0, 0), (0, -1), "Times-Bold", 9.5)]))
+
+    s.append(Spacer(1, 4 * mm))
+    s.append(Paragraph("Findings Count", st["h2"]))
+    rows = [["Severity", "Amount"]]
     for sev in SEVERITY_ORDER:
         if counts.get(sev):
             rows.append([sev.capitalize(), str(counts[sev])])
-    rows.append(["Total", str(len(findings))])
-    s.append(_table(rows, [40 * mm, 30 * mm],
+    rows.append(["Total Findings", str(len(findings))])
+    s.append(_table(rows, [40 * mm, 26 * mm],
                     [("FONT", (0, -1), (-1, -1), "Times-Bold", 9.5)]))
-    s.append(Spacer(1, 5 * mm))
+
     if ordered:
-        rows = [["ID", "Title", "Severity"]]
+        s.append(Spacer(1, 4 * mm))
+        s.append(Paragraph("Summary of Findings", st["h2"]))
+        # Location is a column, not a detail. Without it a reader cannot tell whether six
+        # rows of one rule are six call sites or one defect counted six times, and that is
+        # the first question anyone asks of a generated table.
+        rows = [["ID", "Title", "Location", "Severity"]]
         for f in ordered:
             t = str((catalog.get(f["rule_id"], {}).get("title")) or f["rule_id"])
-            rows.append([labels[id(f)], Paragraph(escape(t), st["toc2"]),
+            loc = f"{f['file']}:{f['line']}"
+            rows.append([labels[id(f)],
+                         Paragraph(escape(t), st["toc2"]),
+                         Paragraph(escape(loc), st["locsm"]),
                          f["severity"].capitalize()])
-        s.append(_table(rows, [16 * mm, 100 * mm, 24 * mm]))
-    s.append(Spacer(1, 4 * mm))
-    s.append(P(
-        "Every finding below carries the source line it was derived from. A finding is a "
-        "place to look, and the cited line is what makes it checkable rather than a claim."))
+        s.append(_table(rows, [13 * mm, 58 * mm, 55 * mm, 19 * mm]))
+
+        # Same data by rule, so repetition is visible as repetition.
+        by_rule = {}
+        for f in ordered:
+            by_rule.setdefault(f["rule_id"], []).append(f)
+        if len(by_rule) < len(ordered):
+            s.append(Spacer(1, 4 * mm))
+            s.append(Paragraph("Findings by rule", st["h2"]))
+            s.append(P(
+                "The same findings grouped by the rule that produced them. A rule with "
+                "several instances is several call sites, each cited separately above, not "
+                "one defect reported repeatedly."))
+            rows = [["Rule", "Instances", "IDs"]]
+            for rid, group in sorted(by_rule.items(),
+                                     key=lambda kv: (order.get(kv[1][0]["severity"], 9),
+                                                     -len(kv[1]))):
+                t = str((catalog.get(rid, {}).get("title")) or rid)
+                rows.append([Paragraph(escape(t), st["toc2"]), str(len(group)),
+                             Paragraph(", ".join(labels[id(x)] for x in group), st["locsm"])])
+            s.append(_table(rows, [72 * mm, 20 * mm, 53 * mm]))
 
     # -------------------------------------------------------- 8. findings ----
     s.append(PageBreak())
