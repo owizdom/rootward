@@ -17,11 +17,14 @@ dependencies = [
 # Python analyzers rather than failing when semgrep is unavailable.
 semgrep = ["semgrep>=1.100"]
 
-# The four judgment rules. Optional because 32 of 42 rules never need a model call, and
+# The four judgment rules. Optional because 36 of 46 rules never need a model call, and
 # nobody should pay for inference to run a parser.
 semantic = ["claude-agent-sdk>=0.1"]
 
-all = ["semgrep>=1.100", "claude-agent-sdk>=0.1"]
+# --format pdf. Pure Python, no system libraries, so it installs anywhere the tool runs.
+pdf = ["reportlab>=4"]
+
+all = ["semgrep>=1.100", "claude-agent-sdk>=0.1", "reportlab>=4"]
 
 # Lint, run in CI. Separate from `all` because auditing does not need it.
 dev = ["ruff>=0.6"]

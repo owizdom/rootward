@@ -95,6 +95,8 @@ your protocol. It clears the floor so a human starts above it.
   audit root by a `PreToolUse` hook before it runs, symlinks resolved, unknown tools denied.
 - **Fuzzed binary parsers**: four cargo-fuzz targets over the EIF, CPIO, decompression and
   secret-scanning paths, seeded from the real fixtures.
+- **Reports as PDF**: `--format pdf` for the version that goes to a client rather than a
+  terminal, rendered from the same result object as the markdown.
 
 ## Usage
 
@@ -118,7 +120,13 @@ Survivors are `CONFIRMED`, findings that can be neither confirmed nor refuted sh
 ```sh
 .venv/bin/python cli/audit.py ./repo --format json      # machine-readable
 .venv/bin/python cli/audit.py ./repo --fail-on high     # exit 2 on a High or above
+.venv/bin/python cli/audit.py ./repo --format pdf       # a document you can hand to a client
 ```
+
+`--format pdf` writes `rootward-report.pdf` in the working directory, or wherever `--out`
+points. It renders the same result object the markdown report is built from, so the two
+cannot disagree, and it needs `reportlab` (pure Python, no system libraries). Without it the
+run exits 1 and says so rather than writing an empty file.
 
 Run it from a clone. There is no `pip install`: the tool resolves its rule catalog, its
 semgrep ruleset and its Rust binary relative to its own location.

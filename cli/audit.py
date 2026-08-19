@@ -815,10 +815,16 @@ def main() -> int:
              "in it is executed, imported, or modified.",
     )
     ap.add_argument(
-        "--format", choices=["md", "json", "sarif"], default="md",
+        "--format", choices=["md", "json", "sarif", "pdf"], default="md",
         help="md (default) is the human report; json carries the same data plus refuted "
              "findings; sarif is for GitHub code scanning, which annotates the offending "
-             "line in a pull-request diff.",
+             "line in a pull-request diff; pdf writes the same report as a document, for "
+             "handing to someone who is not going to read a terminal.",
+    )
+    ap.add_argument(
+        "--out", metavar="PATH", default=None,
+        help="where to write --format pdf (default: rootward-report.pdf in the working "
+             "directory). Ignored by the text formats, which go to stdout.",
     )
     ap.add_argument(
         "--semgrep", default="semgrep",
@@ -919,6 +925,19 @@ def main() -> int:
         print(json.dumps(result, indent=2))
     elif args.format == "sarif":
         print(render_sarif(result, catalog))
+    elif args.format == "pdf":
+        # A binary format cannot share stdout with the report, so it goes to a file and the
+        # path is announced on stderr. stdout stays clean for anything piping this.
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import pdf as pdf_render
+
+        out = Path(args.out) if args.out else Path.cwd() / "rootward-report.pdf"
+        try:
+            written = pdf_render.render_pdf(result, out)
+        except pdf_render.PdfUnavailable as exc:
+            print(f"rootward: {exc}", file=sys.stderr)
+            return 1
+        print(f"wrote {written}", file=sys.stderr)
     else:
         print(render_markdown(result))
 

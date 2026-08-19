@@ -6,6 +6,15 @@ The version this matters most for is the Action: pin `owizdom/rootward@v0.2.0` r
 `@main`, because `@main` moves under you, which is the defect this tool reports as
 `BT-CFG04`.
 
+## Unreleased
+
+### Added
+
+- `--format pdf`, with `--out` for the path. Renders the same result object the markdown
+  report is built from, so the two layouts cannot drift. Needs `reportlab` (pure Python);
+  without it the run exits 1 and says so rather than writing an empty file. The exit
+  contract is unchanged, so `--fail-on` still gates CI in this format.
+
 ## v0.2.1: 2026-08-19
 
 ### Changed

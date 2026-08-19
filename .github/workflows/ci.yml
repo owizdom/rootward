@@ -147,10 +147,22 @@ jobs:
         working-directory: core
         run: cargo build --release --bins
 
-      - run: uv venv && uv pip install pyyaml jsonschema semgrep
+      - run: uv venv && uv pip install pyyaml jsonschema semgrep reportlab
 
       - name: build binary fixtures
         run: .venv/bin/python bench/fixtures/build.py
+
+      # PDF is a published output format, so it gets the same treatment as the Action: if
+      # nobody runs it, it breaks quietly and a stranger finds out.
+      - name: pdf output renders
+        env:
+          PATH: ${{ github.workspace }}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+        run: |
+          .venv/bin/python cli/audit.py bench/fixtures/eigencompute-vulnerable \
+            --format pdf --out /tmp/report.pdf
+          [ -s /tmp/report.pdf ] || { echo "no pdf written"; exit 1; }
+          head -c 5 /tmp/report.pdf | grep -q '%PDF-' || { echo "not a pdf"; exit 1; }
+          echo "pdf ok: $(wc -c < /tmp/report.pdf) bytes"
 
       # The exit contract is what every CI gate built on this tool depends on, so it is
       # asserted rather than assumed: 2 means findings, 0 means clean, 1 means the audit
