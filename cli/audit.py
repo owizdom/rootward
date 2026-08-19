@@ -979,7 +979,7 @@ def main() -> int:
 
         out = Path(args.out) if args.out else Path.cwd() / "rootward-report.pdf"
         try:
-            written = pdf_render.render_pdf(result, out)
+            written = pdf_render.render_pdf(result, out, catalog)
         except pdf_render.PdfUnavailable as exc:
             print(f"rootward: {exc}", file=sys.stderr)
             return 1

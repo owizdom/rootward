@@ -124,7 +124,9 @@ Survivors are `CONFIRMED`, findings that can be neither confirmed nor refuted sh
 ```
 
 `--format pdf` writes `rootward-report.pdf` in the working directory, or wherever `--out`
-points. It renders the same result object the markdown report is built from, so the two
+points. It is laid out the way a security review is normally read: cover, contents,
+scope and review commit, risk classification, executive summary, then numbered findings
+(`[C-01]`, `[H-01]`) each with a description, the cited evidence, and a recommendation. It renders the same result object the markdown report is built from, so the two
 cannot disagree, and it needs `reportlab` (pure Python, no system libraries). Without it the
 run exits 1 and says so rather than writing an empty file.
 
