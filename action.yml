@@ -1,4 +1,4 @@
-name: "tee-audit"
+name: "rootward"
 description: "Audit a Web3 TEE protocol (AWS Nitro Enclaves, dstack, EigenCompute) for the failure modes that actually get them rekt"
 author: "owizdom"
 
@@ -26,7 +26,7 @@ inputs:
       Also write SARIF here, for actions/upload-sarif. Set empty to skip.
       Requires `security-events: write` on the job to upload.
     required: false
-    default: "tee-audit.sarif"
+    default: "rootward.sarif"
   semgrep:
     description: "Install and use semgrep. Without it the code-pattern rules do not run."
     required: false
@@ -47,10 +47,10 @@ runs:
   using: "composite"
   steps:
     # No self-checkout. GitHub already places this action's own repository at
-    # $GITHUB_ACTION_PATH, both for `uses: owizdom/tee-audit@v1` and for a local `uses: ./`.
+    # $GITHUB_ACTION_PATH, both for `uses: owizdom/rootward@v1` and for a local `uses: ./`.
     # Checking out again was not just redundant: `github.action_ref` is unset for a local
     # `./` use and picked up the ref of an unrelated action, so the step tried to clone
-    # tee-audit at "v4".
+    # rootward at "v4".
     - uses: actions/setup-python@v5
       with:
         python-version: "3.11"
@@ -106,7 +106,7 @@ runs:
         echo "sarif=$SARIF"      >> "$GITHUB_OUTPUT"
 
         {
-          echo "## tee-audit"
+          echo "## rootward"
           echo
           if [ "$CODE" = "1" ]; then
             echo "The audit could **not run**. This is not a pass — see the log."

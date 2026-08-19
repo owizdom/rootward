@@ -5,9 +5,9 @@ than pattern matching. Everything here is offline. Nothing dials AWS, and no att
 fetched from a running enclave.
 
 ```
-tee-audit-core inspect <file.eif>     # measurements + sections + ramdisk secret scan
-tee-audit-core measure <file.eif>     # measurements only
-tee-audit-core scan <file>...         # secret-scan build context (Dockerfile, .env, scripts)
+rootward-core inspect <file.eif>     # measurements + sections + ramdisk secret scan
+rootward-core measure <file.eif>     # measurements only
+rootward-core scan <file>...         # secret-scan build context (Dockerfile, .env, scripts)
 ```
 
 Always emits one JSON object on stdout. Errors are `{"error": "..."}` with exit 1, so the

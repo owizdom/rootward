@@ -1,6 +1,6 @@
 [project]
-name = "tee-audit"
-version = "0.1.0"
+name = "rootward"
+version = "0.2.0"
 description = "Static auditor for Web3 protocols on cloud TEEs (AWS Nitro Enclaves, dstack, EigenCompute / GCP Confidential Space)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,8 +29,8 @@ dev = ["ruff>=0.6"]
 # No [project.scripts] and no [build-system], deliberately.
 #
 # This project is run from a clone, not installed. cli/audit.py resolves catalog/rules/,
-# detectors/semgrep/tee/ and core/target/release/tee-audit-core relative to __file__, so an
-# installed copy in site-packages would find none of them. A `tee-audit` console script was
+# detectors/semgrep/tee/ and core/target/release/rootward-core relative to __file__, so an
+# installed copy in site-packages would find none of them. A `rootward` console script was
 # declared here for a while and never worked: `package = false` means uv skips building the
 # project entirely, so the entry point was silently never created.
 #

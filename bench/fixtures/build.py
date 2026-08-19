@@ -117,7 +117,7 @@ def _write_clean_policy() -> None:
     # tree, and the fixture gate failed with a false positive that never reproduced locally.
     root = HERE.parent.parent / "core" / "target"
     core = next(
-        (p for p in (root / "release" / "tee-audit-core", root / "debug" / "tee-audit-core")
+        (p for p in (root / "release" / "rootward-core", root / "debug" / "rootward-core")
          if p.exists()),
         None,
     )

@@ -1,4 +1,4 @@
-//! Rust core for tee-audit: the parts of a TEE audit that are binary-format or
+//! Rust core for rootward: the parts of a TEE audit that are binary-format or
 //! cryptographic work rather than pattern matching.
 //!
 //! Three jobs:

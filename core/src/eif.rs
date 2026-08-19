@@ -325,7 +325,7 @@ mod tests {
     }
 
     fn write_tmp(name: &str, bytes: &[u8]) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join("tee-audit-eif-tests");
+        let dir = std::env::temp_dir().join("rootward-eif-tests");
         std::fs::create_dir_all(&dir).unwrap();
         let p = dir.join(name);
         let mut f = File::create(&p).unwrap();
@@ -484,11 +484,11 @@ mod tests {
                 // it is here to prove that, and to keep the fixture shaped like a real
                 // image rather than a minimal one.
                 const METADATA: &[u8] = br#"{
-                    "ImageName": "tee-audit-fixture",
+                    "ImageName": "rootward-fixture",
                     "ImageVersion": "0.1.0",
                     "BuildMetadata": {
                         "BuildTime": "2026-01-01T00:00:00.000000000+00:00",
-                        "BuildTool": "tee-audit-test",
+                        "BuildTool": "rootward-test",
                         "BuildToolVersion": "0.1.0",
                         "OperatingSystem": "linux",
                         "KernelVersion": "6.1"

@@ -1,4 +1,4 @@
-//! `tee-audit-core` — the Rust half of the auditor, as a subprocess that speaks JSON.
+//! `rootward-core` — the Rust half of the auditor, as a subprocess that speaks JSON.
 //!
 //! Deliberately a binary rather than a PyO3 extension module. The Python side calls this
 //! a handful of times per audit to do chunky work (parse one EIF, scan one build context),
@@ -9,9 +9,9 @@
 //! child dying on a malformed image.
 //!
 //! Usage:
-//!   tee-audit-core inspect <file.eif>       full report: measurements, sections, findings
-//!   tee-audit-core measure <file.eif>       measurements only
-//!   tee-audit-core scan <file> [file...]    secret-scan arbitrary text files
+//!   rootward-core inspect <file.eif>       full report: measurements, sections, findings
+//!   rootward-core measure <file.eif>       measurements only
+//!   rootward-core scan <file> [file...]    secret-scan arbitrary text files
 //!
 //! Always emits a JSON object on stdout. Errors are `{"error": "..."}` with exit code 1,
 //! so the caller parses one shape either way.
@@ -28,7 +28,7 @@ fn fail(msg: impl std::fmt::Display) -> ExitCode {
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(cmd) = args.first() else {
-        return fail("usage: tee-audit-core <inspect|measure|scan> <path>...");
+        return fail("usage: rootward-core <inspect|measure|scan> <path>...");
     };
 
     match cmd.as_str() {
@@ -36,7 +36,7 @@ fn main() -> ExitCode {
             let Some(path) = args.get(1) else {
                 return fail("inspect needs a path");
             };
-            match tee_audit_core::eif::inspect(Path::new(path)) {
+            match rootward_core::eif::inspect(Path::new(path)) {
                 Ok(report) => match serde_json::to_string(&report) {
                     Ok(s) => {
                         println!("{s}");
@@ -52,12 +52,12 @@ fn main() -> ExitCode {
             let Some(path) = args.get(1) else {
                 return fail("measure needs a path");
             };
-            match tee_audit_core::eif::measurements(Path::new(path)) {
+            match rootward_core::eif::measurements(Path::new(path)) {
                 Ok(m) => {
                     let body = serde_json::json!({
                         "measurements": m,
                         // So a caller can tell "no second ramdisk" from "not computed".
-                        "empty_register": tee_audit_core::eif::empty_register(),
+                        "empty_register": rootward_core::eif::empty_register(),
                     });
                     println!("{body}");
                     ExitCode::SUCCESS
@@ -76,7 +76,7 @@ fn main() -> ExitCode {
             let mut warnings: Vec<String> = Vec::new();
             for p in paths {
                 match std::fs::read(p) {
-                    Ok(bytes) => findings.extend(tee_audit_core::secrets::scan_bytes(p, &bytes)),
+                    Ok(bytes) => findings.extend(rootward_core::secrets::scan_bytes(p, &bytes)),
                     Err(e) => warnings.push(format!("{p}: {e}")),
                 }
             }

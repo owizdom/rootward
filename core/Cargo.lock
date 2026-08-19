@@ -1627,6 +1627,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rootward_core"
+version = "0.2.0"
+dependencies = [
+ "aws-nitro-enclaves-image-format",
+ "flate2",
+ "hex",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "rustc_version"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1988,19 +2001,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "tee_audit_core"
-version = "0.1.0"
-dependencies = [
- "aws-nitro-enclaves-image-format",
- "flate2",
- "hex",
- "regex",
- "serde",
- "serde_json",
- "sha2 0.10.9",
 ]
 
 [[package]]

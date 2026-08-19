@@ -1,6 +1,6 @@
 [package]
-name = "tee_audit_core"
-version = "0.1.0"
+name = "rootward_core"
+version = "0.2.0"
 edition = "2021"
 # Stated here rather than only in prose so cargo enforces it. The optional `differential`
 # feature needs 1.94.1 -- an AWS SDK transitive requirement -- which is newer than this
@@ -11,10 +11,10 @@ license = "Apache-2.0"
 description = "EIF parsing, ramdisk inspection, and secret scanning for TEE audits"
 
 [lib]
-name = "tee_audit_core"
+name = "rootward_core"
 
 [[bin]]
-name = "tee-audit-core"
+name = "rootward-core"
 path = "src/main.rs"
 
 [dependencies]
