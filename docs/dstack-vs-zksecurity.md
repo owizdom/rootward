@@ -5,7 +5,7 @@ dstack between 26 May and 13 June 2025 and published
 [the report](https://phala.com/dstack/dstack-audit.pdf). Running against the same commit
 produces a number that cannot be tuned into existence.
 
-**Result: 1 of 14 re-found, 1 partial, 12 missed.** The reasons are the useful part, and one
+**Result: 2 of 14 re-found, 1 partial, 11 missed.** The reasons are the useful part, and one
 of them is a bug in this tool that nearly hid the hit.
 
 ## Setup
@@ -82,14 +82,43 @@ value reaching a log call, and could not see a configuration that exposes an ent
 **Since shipped:** that companion rule is `BT-T03C-stream-exposure`, and it now fires on
 this repository three times.
 
-## Why the other 12 were missed
+## The second hit: the only High, OVMF built as Config-A
 
-**Different repository (5: #00, #01, #05, #0c, part of #0a).** These live in `meta-dstack`,
-the Yocto layer, which the corpus did not audit at the time of this comparison. It does
-now, pinned at the same commit zkSecurity read, and returns one finding — which measures the
-gap rather than closing it. The report's only High — OVMF built with
-Config-A, leaving the VMM inside the TCB — is a BitBake recipe choosing `OvmfPkgX64.dsc`
-over `IntelTdxX64.dsc`. Nothing in this catalog models firmware build configuration.
+zkSecurity's only High is guest firmware built from the general-purpose OVMF target rather
+than the Intel TDX one, which leaves the virtual machine monitor inside the TCB of a guest
+whose whole threat model treats the host as adversarial.
+
+`BT-OS01` finds it at `meta-dstack/recipes-core/dstack-ovmf/dstack-ovmf_git.bb:208`, the
+line that runs the build:
+
+```
+${S}/OvmfPkg/build.sh $PARALLEL_JOBS -a $OVMF_ARCH -b RELEASE -t ${FIXED_GCCVER} ${PACKAGECONFIG_CONFARGS}
+```
+
+`OvmfPkg/build.sh` with no `IntelTdx` target anywhere in the recipe. Same commit
+(`5b63aec3`), same repository, and the evidence is the invocation rather than a mention of
+it — the rule prefers a build line over a path because this recipe also rewrites
+`OvmfPkg/build.sh` in a `sed` a hundred lines earlier, and pointing a reader at the `sed`
+would make a correct finding look wrong.
+
+This is the rule class every previous version of this document listed as the open gap. It
+is worth being clear about what that means for the number at the top: the gap was named
+here first and the rule was written afterwards, against a repository whose answer was
+already known. It is a re-find, not a blind find, and one shape of one defect.
+
+`BT-OS02` also fires, at line 12 of the same recipe — `PACKAGECONFIG ??= ""` with a
+`[secureboot]` option declared at line 15 and never added to the default, which the recipe
+confirms itself at line 206 with `bbnote "Building without Secure Boot."`. Whether that
+corresponds to one of the four remaining meta-dstack findings is not known: the report's
+per-finding text for those is not reproduced here, so it is left unmapped rather than
+counted.
+
+## Why the other 11 were missed
+
+**Different repository (4: #00, #01, #0c, part of #0a).** These live in `meta-dstack`, the
+Yocto layer, which the corpus did not audit at the time of this comparison. It does now,
+pinned at the same commit zkSecurity read. The fifth of that group — the report's only
+High — is no longer among them; it is the second hit, above.
 
 **Components absent at this commit (4: #04, #06, #07, #0b).** `dcap-qvl` and `app-compose`
 are not directories in the dstack tree at `be9d0476` — verified, not assumed.
@@ -127,6 +156,8 @@ finding, which no internal benchmark would have surfaced.
 host-supplied filesystem paths and now fires on this repository. Whether it lands on the
 same call site zkSecurity identified has not been verified line-for-line and is not claimed.
 
-What remains open is the rule class this comparison exposed and nothing has closed: OS
-image and firmware build configuration, which is where five of the fourteen findings live,
-including the only High.
+The rule class this comparison exposed is now closed enough to be measured: `BT-OS01`–
+`OS03` read BitBake and EDK II, `BT-OS01` re-finds the High, and `BT-OS02` adds a second
+finding in the same recipe. Three rules are not coverage of a Yocto layer — they are the
+three defects there was an external answer for, and the four meta-dstack findings that are
+not the High remain unmatched.

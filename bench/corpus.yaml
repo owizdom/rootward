@@ -36,10 +36,10 @@ repos:
     platform: dstack
     note: >-
       Five of the fourteen zkSecurity findings live here rather than in dstack, including
-      the only High (OVMF built with Config-A, leaving the VMM inside the TCB). The catalog
-      has no rules for OS image or firmware build configuration, so the expected result is
-      that this repository is largely unreachable — auditing it makes that gap measurable
-      instead of assumed.
+      the only High (OVMF built with Config-A, leaving the VMM inside the TCB). This
+      repository is what BT-OS01 through OS03 were written against: OS01 re-finds the High
+      at dstack-ovmf_git.bb:208, OS02 fires at line 12 of the same recipe. The other four
+      findings here are still unreached, so the expected result is two, not five.
 
   - name: aws-nitro-enclaves-samples
     url: https://github.com/aws-samples/aws-nitro-enclaves-workshop
