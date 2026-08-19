@@ -1,8 +1,8 @@
-# BT-T07C — non-constant-time comparison of a secret-derived value.
+# BT-T07C: non-constant-time comparison of a secret-derived value.
 #
 # The highest-precision rule in the catalog, and deliberately tuned toward recall: a
 # constant-time comparison of a public value costs nothing, so a false positive here is
-# cheap. Missing one is not — byte-comparison short-circuits on first mismatch, which turns
+# cheap. Missing one is not, byte-comparison short-circuits on first mismatch, which turns
 # an exponential brute force into a linear one at ~256 queries per byte, and the parent
 # instance sits close enough to the enclave to measure the difference cleanly.
 
@@ -37,7 +37,7 @@ rules:
       - pattern-not: $LHS.len() != $RHS
       # Do not flag the recommended fix. Comparing the *result* of a constant-time
       # primitive is how those APIs are used, and the operand name still matches the
-      # secret-ish regex — so without this the rule fires hardest on correct code.
+      # secret-ish regex, so without this the rule fires hardest on correct code.
       - pattern-not: $A.ct_eq($B) == $R
       - pattern-not: $A.ct_eq($B) != $R
       # A length comparison leaks only the length, not the value.

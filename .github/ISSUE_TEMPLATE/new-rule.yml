@@ -14,7 +14,7 @@ body:
     attributes:
       label: Source
       description: >
-        Every rule cites one — a handbook section, a published audit, a CVE, a postmortem.
+        Every rule cites one, a handbook section, a published audit, a CVE, a postmortem.
         Must be an https URI.
     validations:
       required: true

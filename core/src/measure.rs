@@ -6,7 +6,7 @@
 //!
 //! The reason is dependency surface. That crate has no feature flags and pulls
 //! `aws-config`, `aws-sdk-kms`, `tokio`, `hyper`, `rustls`, and `openssl` as mandatory
-//! dependencies — 545 crates transitively — because it also handles KMS-backed *signing*.
+//! dependencies (545 crates transitively) because it also handles KMS-backed *signing*.
 //! This tool only ever reads. Shipping a network stack and a KMS client inside an auditor
 //! whose own threat model is "parse a file supplied by a hostile host" is a poor trade.
 //!
@@ -109,7 +109,7 @@ impl Measurements {
     /// PCR0, PCR1, PCR2 as lowercase hex.
     ///
     /// PCR8 is deliberately absent. Computing it requires CBOR-decoding the signature
-    /// section, PEM-parsing the signing certificate, and re-encoding it as DER — which
+    /// section, PEM-parsing the signing certificate, and re-encoding it as DER, which
     /// means an X.509 stack, which means openssl, which is the dependency this module
     /// exists to avoid. `signature_present` on the report records that the image is
     /// signed; the report's NOT-VERIFIED section records that PCR8 was not computed.

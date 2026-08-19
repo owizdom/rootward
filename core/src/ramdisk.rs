@@ -1,8 +1,8 @@
 //! Reader for the newc (SVR4) cpio archives that make up an EIF ramdisk.
 //!
 //! Implemented here rather than pulled from a crate on purpose. This parser runs over
-//! attacker-influenceable bytes — the whole point of BT-T09A is that an EIF is a build
-//! artifact sitting on a host we treat as hostile — and newc is a small enough format
+//! attacker-influenceable bytes, the whole point of BT-T09A is that an EIF is a build
+//! artifact sitting on a host we treat as hostile, and newc is a small enough format
 //! that a bounds-checked reader is less risk than an unvetted dependency.
 //!
 //! Format: a 110-byte ASCII header, then the NUL-terminated filename, then the file
@@ -86,7 +86,7 @@ impl std::error::Error for RamdiskError {}
 
 /// Gunzip a ramdisk section. Uses MultiGzDecoder because initramfs images are
 /// conventionally several gzip members concatenated, and a plain GzDecoder silently
-/// stops after the first one — which would look like a small, clean ramdisk rather
+/// stops after the first one, which would look like a small, clean ramdisk rather
 /// than a parse failure.
 pub fn decompress(bytes: &[u8]) -> Result<Vec<u8>, RamdiskError> {
     if bytes.len() >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b {

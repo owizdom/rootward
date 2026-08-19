@@ -17,7 +17,7 @@
 //! Sections are walked **sequentially** from the end of the header rather than by seeking
 //! to `section_offsets`, because that is what `EifReader` does when it computes
 //! measurements. Walking a different order would produce a different PCR0 for the same
-//! file, which is precisely the bug class BT-CFG03 exists to detect — so this parser has
+//! file, which is precisely the bug class BT-CFG03 exists to detect, so this parser has
 //! to agree with the reference implementation, not merely with the format description.
 
 use serde::Serialize;
@@ -85,7 +85,7 @@ pub struct Header {
 pub struct EifReport {
     pub path: String,
     pub header: Header,
-    /// PCR0/PCR1/PCR2, lowercase hex. PCR8 is never present — see `measure::Measurements::finish`.
+    /// PCR0/PCR1/PCR2, lowercase hex. PCR8 is never present; see `measure::Measurements::finish`.
     pub measurements: BTreeMap<String, String>,
     /// True when the image carries a signature section, meaning a PCR8 exists that this
     /// tool did not compute.
@@ -480,7 +480,7 @@ mod tests {
             ("three-ramdisks-and-metadata", {
                 // Metadata must deserialize into EifIdentityInfo or EifReader errors out
                 // before it reaches the measurements. It contributes to no hasher in
-                // either implementation, so its content cannot affect the comparison —
+                // either implementation, so its content cannot affect the comparison
                 // it is here to prove that, and to keep the fixture shaped like a real
                 // image rather than a minimal one.
                 const METADATA: &[u8] = br#"{

@@ -117,12 +117,12 @@ def main() -> int:
         rules.append(rule)
 
     # A `status` field nobody checks drifts. Every rule in this catalog claimed `draft` for
-    # weeks while 24 of them were implemented and 15 had measured numbers — exactly the
+    # weeks while 24 of them were implemented and 15 had measured numbers, exactly the
     # stale-metadata rot this tool exists to catch in other people's repositories.
     errors.extend(_status_errors(rules))
 
     if errors:
-        print(f"FAIL — {len(errors)} problem(s) in {len(paths)} rule(s):\n", file=sys.stderr)
+        print(f"FAIL: {len(errors)} problem(s) in {len(paths)} rule(s):\n", file=sys.stderr)
         for err in errors:
             print(f"  {err}", file=sys.stderr)
         return 1
@@ -138,7 +138,7 @@ def main() -> int:
     def fmt(d: dict[str, int], order: list[str]) -> str:
         return "  ".join(f"{k}={d[k]}" for k in order if k in d)
 
-    print(f"OK — {len(rules)} rules, all with source citations")
+    print(f"OK: {len(rules)} rules, all with source citations")
     print(f"  detection:  {fmt(by_detection, ['deterministic', 'hybrid', 'semantic'])}")
     print(f"  severity:   {fmt(by_severity, ['critical', 'high', 'medium', 'low', 'info'])}")
     print(f"  status:     {fmt(by_status, ['draft', 'implemented', 'benchmarked'])}")

@@ -13,7 +13,7 @@ or refuted ship as `PLAUSIBLE`, labelled; refuted ones are dropped from the repo
 in the run log.
 
 This is a sound design and it works. On one dstack run the refuter killed 6 of 10 findings,
-each with a specific line citation — including one it dropped because the *clean control
+each with a specific line citation, including one it dropped because the *clean control
 fixture* contained the identical line, so the line could not be the defect.
 
 Then it deleted a true positive.
@@ -22,7 +22,7 @@ Then it deleted a true positive.
 
 Auditing dstack at the commit zkSecurity audited, `BT-T00` produced this:
 
-> `dstack-util/src/system_setup.rs:140` — the env ciphertext is read straight from the
+> `dstack-util/src/system_setup.rs:140`, the env ciphertext is read straight from the
 > host-shared 9p directory (mounted at line 173) and flows to `decrypt_env_vars` (line 626)
 > → `dh_decrypt` (line 595).
 
@@ -38,8 +38,8 @@ real line numbers. It names the right primitive. Everything it says about the co
 And the conclusion is wrong.
 
 AEAD gives **integrity**, not **authenticity of origin**. zkSecurity's finding #03 turns on
-exactly that distinction: the attacker fetches the application's public key — trivially
-available from the KMS — encrypts a payload of their own, and every tag validates perfectly
+exactly that distinction: the attacker fetches the application's public key, trivially
+available from the KMS, encrypts a payload of their own, and every tag validates perfectly
 because the attacker computed it. The tag proves the ciphertext was not corrupted in transit.
 It proves nothing about who wrote it.
 
@@ -62,7 +62,7 @@ considerably.
 
 ## How it was caught
 
-Not by a benchmark. Not by review. By **external ground truth** — zkSecurity had published
+Not by a benchmark. Not by review. By **external ground truth**, zkSecurity had published
 their findings, so there was an answer sheet to grade against.
 
 That is not a satisfying answer, because most audits do not have one. But it is the honest
@@ -79,8 +79,8 @@ The refuter prompt now names the class explicitly rather than trusting general r
 > deleted a real finding:
 >
 > - *"The data is encrypted, so the host cannot tamper with it."* Encryption is not
->   authentication of origin. Where the encryption key is public — an ECIES-style scheme
->   whose recipient public key the host can fetch — the host encrypts its own payload and
+>   authentication of origin. Where the encryption key is public, an ECIES-style scheme
+>   whose recipient public key the host can fetch, the host encrypts its own payload and
 >   every AEAD tag validates correctly.
 > - *"An AEAD tag, checksum, or hash is verified."* Ask which key that check is under and who
 >   holds it. Integrity against corruption is not authenticity against an attacker who can
@@ -99,13 +99,13 @@ Plus an asymmetry instruction, which matters as much as the specific guards:
 > held by a specific party.
 >
 > Confirming a finding asserts a security engineer should spend time on it. Refuting one
-> asserts they should not, and that mistake is made silently — the finding simply disappears
+> asserts they should not, and that mistake is made silently, the finding simply disappears
 > from the report.
 
 ## The result
 
 With the guards in place the same finding returns **confirmed**, and the refuter's reasoning
-is now better than the original finding's — and better than the published report's:
+is now better than the original finding's, and better than the published report's:
 
 > Line 140 reads the env ciphertext from the host-writable 9p share (copied at
 > `system_setup.rs:180`; host writes it at `vmm/src/main_service.rs:258`), and `dh_decrypt`
@@ -113,7 +113,7 @@ is now better than the original finding's — and better than the published repo
 > attacker-controlled first 32 bytes of that file.
 
 That last clause is the mechanism, and zkSecurity's report does not spell it out. The key is
-derived from bytes the attacker supplies, so of course the tag validates — the attacker chose
+derived from bytes the attacker supplies, so of course the tag validates, the attacker chose
 the key.
 
 ## What transfers
@@ -126,7 +126,7 @@ Three things, for anyone building LLM-assisted audit or review tooling:
 
 2. **Name the specific wrong arguments.** General instructions to be rigorous did not prevent
    this; an explicit list of plausible-but-invalid moves did. The failure was not sloppiness,
-   it was a *sophisticated* argument that happened to be inapplicable — and you cannot
+   it was a *sophisticated* argument that happened to be inapplicable, and you cannot
    prompt your way out of that with "be careful".
 
 3. **Make the cost asymmetry explicit in the prompt.** A verifier that does not know which
@@ -137,9 +137,9 @@ Two harness bugs surfaced alongside this and are worth listing, because both pro
 silently degraded output:
 
 - A `max_budget_usd` cap of $2 killed two of four semantic passes on a real repository. They
-  were reported as *failed*, correctly, in the NOT-VERIFIED section — and were still misread
+  were reported as *failed*, correctly, in the NOT-VERIFIED section, and were still misread
   as clean results on first pass. Reporting a failure is not the same as making it hard to
   ignore.
 - One run had all 16 refutations error simultaneously during a credential refresh. Every
-  finding shipped as `PLAUSIBLE` — unverified output wearing a label that implies it was
+  finding shipped as `PLAUSIBLE`, unverified output wearing a label that implies it was
   checked. Refutations now retry, and a run that cannot verify says so per finding.

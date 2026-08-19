@@ -15,7 +15,7 @@ rationale: >
   offending line at all: a configuration or relay that exposes an entire stdout/stderr
   stream to the host, so every future log statement inside the enclave becomes an egress
   channel regardless of what it prints. The defect is architectural rather than local, which
-  is exactly why a value-level pattern misses it — and why an auditor that only reports
+  is exactly why a value-level pattern misses it, and why an auditor that only reports
   lines will report the wrong thing.
 attack: >
   zkSecurity finding #08 against dstack: unrestricted exposure of stdout/stderr from CVM

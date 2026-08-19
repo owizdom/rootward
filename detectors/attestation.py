@@ -1,4 +1,4 @@
-"""Attestation verification analysis — BT-T06, BT-CFG02, BT-CFG03.
+"""Attestation verification analysis. BT-T06, BT-CFG02, BT-CFG03.
 
 All three are absence checks, which is why they are here rather than in semgrep: the defect
 is that something required is missing, and a pattern matcher can only find what is present.
@@ -44,7 +44,7 @@ DECLARATION_ONLY = re.compile(r"\.d\.ts$")
 
 # --- phase 1: does this file handle attestation documents at all? ---------------
 #
-# Split into a noun and a verb. Naming an attestation type is not doing attestation work —
+# Split into a noun and a verb. Naming an attestation type is not doing attestation work
 # an FFI binding that passes a document through, or a struct with a `pcr0` field, mentions
 # every noun and performs no verification. Requiring both halves is what keeps this rule
 # off the shims and on the code that actually decides whether to trust a document.
@@ -81,11 +81,11 @@ def _is_auditable(rel: str) -> bool:
 # Split into two signals rather than one, because the mutation benchmark showed a single
 # OR-of-everything pattern is defeated by a leftover constant: deleting the chain-walking
 # code while leaving `AWS_NITRO_ROOT_CERT` defined still looked safe. Possessing a root
-# certificate is not the same as using it, and the realistic regression is exactly that —
+# certificate is not the same as using it, and the realistic regression is exactly that
 # verification gets refactored away and the constant stays behind.
 #
 # Audited implementations that own verification themselves. A file that delegates to one
-# of these is not missing a safeguard — the safeguard is in the library. Corpus A surfaced
+# of these is not missing a safeguard, the safeguard is in the library. Corpus A surfaced
 # this: Evervault's own Kotlin and wasm bindings import `validate_expected_pcrs` from the
 # core crate and were flagged for not re-implementing checks the crate already performs.
 KNOWN_VALIDATOR = re.compile(
@@ -101,10 +101,10 @@ KNOWN_VALIDATOR = re.compile(
 # call left `chain = [... for c in doc["cabundle"]]` behind, the old combined pattern still
 # matched on "cabundle", and the rule went quiet on a genuinely broken verifier.
 #
-# CHAIN_MATERIAL — the bundle is accessed. Necessary, nowhere near sufficient.
+# CHAIN_MATERIAL: the bundle is accessed. Necessary, nowhere near sufficient.
 CHAIN_MATERIAL = re.compile(r"(?i)\b(cabundle|ca_?bundle|cert_?chain)\b")
 
-# CHAIN_VERIFY — the chain is actually checked against something. This is the load-bearing
+# CHAIN_VERIFY: the chain is actually checked against something. This is the load-bearing
 # signal; the rule stays quiet only when one of these (or a KNOWN_VALIDATOR) is present.
 CHAIN_VERIFY = re.compile(
     r"(?i)\b("
@@ -119,7 +119,7 @@ ROOT_MATERIAL = re.compile(r"(?i)\b(root_?cert|root_?ca|aws_?root|nitro_?root|tr
 # --- BT-CFG02: is an all-zero PCR map rejected? --------------------------------
 #
 # Naming a PCR is not consuming one. Corpus A flagged `pcr0: Option<String>` in a Kotlin
-# binding struct and a wasm getter attribute — files that carry PCR values across an FFI
+# binding struct and a wasm getter attribute, files that carry PCR values across an FFI
 # boundary and verify nothing. The rule needs evidence the values are actually *compared*.
 HANDLES_PCRS = re.compile(r"(?i)\b(pcr0|pcr_?map|pcrs?\[|recipientattestation|imagesha384)\b")
 COMPARES_PCRS = re.compile(
@@ -165,7 +165,7 @@ def _first_match_line(lines: list[str], pattern: re.Pattern) -> int:
 
 
 def check_chain_validation(root: Path) -> list[Finding]:
-    """BT-T06 — attestation parsed without walking the chain to a pinned AWS root."""
+    """BT-T06: attestation parsed without walking the chain to a pinned AWS root."""
     findings: list[Finding] = []
     for path in _iter_code(root):
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -194,12 +194,12 @@ def check_chain_validation(root: Path) -> list[Finding]:
                 message=(
                     (
                         "File assembles a certificate chain from the attestation document's "
-                        "cabundle and never verifies it against anything — the chain is "
+                        "cabundle and never verifies it against anything, the chain is "
                         "built and discarded. This is the shape left behind when the "
                         "verification call is removed and the plumbing around it survives. "
                         if unused_chain
                         else "File parses attestation documents and defines root certificate "
-                        "material, but never verifies a certificate chain — the root is "
+                        "material, but never verifies a certificate chain, the root is "
                         "present and unused. "
                         if orphaned_root
                         else "File parses attestation documents but contains no certificate "
@@ -228,7 +228,7 @@ def check_chain_validation(root: Path) -> list[Finding]:
 
 
 def check_zero_pcr_rejected(root: Path) -> list[Finding]:
-    """BT-CFG02 — verifier does not reject the all-zero PCR map a debug enclave emits."""
+    """BT-CFG02: verifier does not reject the all-zero PCR map a debug enclave emits."""
     findings: list[Finding] = []
     for path in _iter_code(root):
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -255,7 +255,7 @@ def check_zero_pcr_rejected(root: Path) -> list[Finding]:
                     "PCR values are consumed with no explicit rejection of an all-zero map "
                     "and no hardcoded pin. Debug-mode enclaves report PCRs that are "
                     "entirely zeros, so a verifier that does not reject them accepts any "
-                    "debug enclave as genuine — and a debug enclave is exactly what a "
+                    "debug enclave as genuine, and a debug enclave is exactly what a "
                     "developer runs locally, so this passes every test."
                 ),
                 severity=Severity.CRITICAL,
@@ -315,7 +315,7 @@ def _policy_pins(root: Path) -> dict[str, list[tuple[str, str]]]:
 
 
 def check_pcr_policy_matches_eif(root: Path, core_bin: Path | None) -> list[Finding]:
-    """BT-CFG03 — recomputed PCR does not match the value pinned in a KMS policy.
+    """BT-CFG03: recomputed PCR does not match the value pinned in a KMS policy.
 
     The strongest check available statically, because neither side is inferred. Requires a
     built .eif to be present; when there is none the check simply does not run, and the
@@ -366,7 +366,7 @@ def check_pcr_policy_matches_eif(root: Path, core_bin: Path | None) -> list[Find
                             "cannot obtain its keys. Note that a non-reproducible build "
                             "(BT-CFG04) makes a mismatch expected rather than suspicious, "
                             "and the nitro-cli and hypervisor parsers have been observed to "
-                            "disagree — treat this as a lead to investigate."
+                            "disagree, treat this as a lead to investigate."
                         ),
                         severity=Severity.HIGH,
                         confidence=Confidence.HIGH,
@@ -429,7 +429,7 @@ MIN_VOCAB_HITS = 8
 
 
 def check_attestation_without_root(root: Path) -> list[Finding]:
-    """BT-CS04 — the repository presents attestation it does not have.
+    """BT-CS04: the repository presents attestation it does not have.
 
     A repository-level question, not a file-level one, and the only rule here that is.
     The failure is not a missing check inside a verification routine: it is that no
@@ -438,7 +438,7 @@ def check_attestation_without_root(root: Path) -> list[Finding]:
 
     The shape that motivated it: a TEE-side gateway that signs every response with a
     secp256k1 key, emits `X-Eigen-Signature`, ships a `verify` package, and uses the word
-    "attestation" eighty times — with no metadata-server call, no quote, no JWT, and no
+    "attestation" eighty times, with no metadata-server call, no quote, no JWT, and no
     certificate chain anywhere in the tree. The signature is real. What it proves is that
     whoever holds the key signed the bytes, which is what any web server can say. It does
     not bind the response to a measured workload on attested hardware, which is the entire
@@ -494,7 +494,7 @@ def check_attestation_without_root(root: Path) -> list[Finding]:
             message=(
                 "This project presents attestation it does not perform. It produces and "
                 "verifies something it calls an attestation, and the word appears throughout "
-                "— but there is no attestation token fetch, no TDX or SGX quote, no NSM "
+                ", but there is no attestation token fetch, no TDX or SGX quote, no NSM "
                 "document, no certificate chain to a hardware root, and no platform SDK that "
                 "would do any of that on its behalf. What the signature proves is that "
                 "whoever holds the signing key signed the bytes. It does not prove the code "

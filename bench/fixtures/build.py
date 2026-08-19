@@ -3,7 +3,7 @@
 
 Run: python3 bench/fixtures/build.py
 
-EIFs are gitignored — they are build artifacts, and committing megabytes of binary to a
+EIFs are gitignored; they are build artifacts, and committing megabytes of binary to a
 security repo invites exactly the "what is actually in this file" question the tool exists
 to answer. Generating them keeps every fixture inspectable as source.
 
@@ -103,7 +103,7 @@ def main() -> None:
 def _write_clean_policy() -> None:
     """Regenerate the clean fixture's KMS policy so its pinned PCRs match its own EIF.
 
-    This is not fixture bookkeeping — it is what a correct deployment does. The policy has
+    This is not fixture bookkeeping; it is what a correct deployment does. The policy has
     to be derived from the build output, or the two drift and BT-CFG03 fires. Hardcoding
     placeholder PCRs in the "clean" fixture made it fail its own check, which is the same
     mistake a real team makes when the policy is maintained by hand.
@@ -111,9 +111,9 @@ def _write_clean_policy() -> None:
     import json
     import subprocess
 
-    # Release first, then debug — the same order audit.py uses. Hardcoding `debug` meant CI,
+    # Release first, then debug, the same order audit.py uses. Hardcoding `debug` meant CI,
     # which builds `--release`, silently skipped this step: the clean fixture kept its
-    # placeholder PCRs, they did not match the generated EIF, BT-CFG03 fired on the clean
+    # placeholder PCRs; they did not match the generated EIF, BT-CFG03 fired on the clean
     # tree, and the fixture gate failed with a false positive that never reproduced locally.
     root = HERE.parent.parent / "core" / "target"
     core = next(
@@ -150,7 +150,7 @@ def _write_clean_policy() -> None:
                 "Condition": {
                     "StringEqualsIgnoreCase": {
                         # PCR1 (kernel+bootstrap) and PCR2 (application) pinned separately,
-                        # rather than PCR0 alone — see BT-T02.
+                        # rather than PCR0 alone, see BT-T02.
                         "kms:RecipientAttestation:PCR1": measured["PCR1"],
                         "kms:RecipientAttestation:PCR2": measured["PCR2"],
                     }

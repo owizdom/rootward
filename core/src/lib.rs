@@ -7,7 +7,7 @@
 //!   * scan what is inside for secret material, without ever emitting the secret
 //!
 //! Everything here is offline. Nothing dials AWS, and no attestation is fetched from a
-//! running enclave — that is out of scope for this tool by design.
+//! running enclave. that is out of scope for this tool by design.
 
 pub mod eif;
 pub mod measure;

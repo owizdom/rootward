@@ -8,7 +8,7 @@ body:
         These get priority. Five separate false-positive classes have been fixed because
         someone reported one, and each made the tool better in a way adding rules would not.
 
-        **Please redact any real secret** before pasting — reports quote raw source lines.
+        **Please redact any real secret** before pasting, reports quote raw source lines.
   - type: input
     id: rule
     attributes:
@@ -38,7 +38,7 @@ body:
     attributes:
       label: Why this code is correct
       description: >
-        What makes this a safe pattern? This is the part that turns a report into a fix —
+        What makes this a safe pattern? This is the part that turns a report into a fix
         it usually becomes the rule's `false_positives` note.
     validations:
       required: true

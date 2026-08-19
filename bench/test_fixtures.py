@@ -8,7 +8,7 @@ Two assertions per fixture set, and the second matters more than the first:
   * every defect planted in a `vulnerable` tree is found   (recall)
   * the matching `clean` tree produces nothing at all      (precision)
 
-The clean trees have already caught three rules that fired on *correct* code — a
+The clean trees have already caught three rules that fired on *correct* code, a
 digest-pinned Docker base image read as a private key, yum-style `pkg-version` pins read as
 unpinned, and `subtle.ConstantTimeCompare(...) == 1` read as a timing oracle. All three
 would have made the tool noisiest on the best-maintained repositories, and none was visible
@@ -71,7 +71,7 @@ EXPECTED: dict[str, dict] = {
         "must_find": set(),
         "expect_zero": True,
     },
-    # A Yocto layer and nothing else — no application code, no SDK, no platform marker.
+    # A Yocto layer and nothing else, no application code, no SDK, no platform marker.
     # The expected platform really is "none": the OS rules read the machine the workload
     # runs on rather than the workload, and this asserts they are not gated behind a
     # platform the way every other family is.
@@ -120,7 +120,7 @@ FOREIGN: dict[str, set[str]] = {
 }
 
 # The OS rules run on every platform, so they are foreign to every tree that does not
-# build an OS image — which is all six of the others. A rule with no platform gate is the
+# build an OS image, which is all six of the others. A rule with no platform gate is the
 # one most likely to start firing somewhere nobody was looking.
 for _name in ("vulnerable", "clean", "dstack-vulnerable", "dstack-clean",
               "eigencompute-vulnerable", "eigencompute-clean"):
@@ -171,7 +171,7 @@ def main() -> int:
         leaked = FOREIGN.get(name, set()) & found
         if leaked:
             failures.append(
-                f"{name}: PLATFORM LEAK {sorted(leaked)} — these belong to another "
+                f"{name}: PLATFORM LEAK {sorted(leaked)}, these belong to another "
                 f"platform's profile and must not fire on a {spec['platform']} repo"
             )
 
@@ -179,7 +179,7 @@ def main() -> int:
             for f in result["findings"]:
                 failures.append(
                     f"{name}: FALSE POSITIVE {f['rule_id']} at {f['file']}:{f['line']} "
-                    f"— {f['evidence'][:80]}"
+                    f", {f['evidence'][:80]}"
                 )
 
         if "max_layer" in spec and layer > spec["max_layer"]:
@@ -197,12 +197,12 @@ def main() -> int:
         print()
 
     if failures:
-        print(f"FAIL — {len(failures)} problem(s):\n")
+        print(f"FAIL: {len(failures)} problem(s):\n")
         for f in failures:
             print(f"  {f}")
         return 1
 
-    print("OK — all fixture expectations met")
+    print("OK: all fixture expectations met")
     return 0
 
 

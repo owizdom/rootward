@@ -1,4 +1,4 @@
-"""KMS key policy analysis — BT-T01 (no measurement pinning) and BT-T02 (PCR0-only).
+"""KMS key policy analysis. BT-T01 (no measurement pinning) and BT-T02 (PCR0-only).
 
 This is the detector semgrep cannot be: both rules turn on something being *absent*. A
 policy that grants `kms:Decrypt` and carries no `RecipientAttestation` condition is a
@@ -122,8 +122,8 @@ def analyze_policy(path: Path, doc: dict, rel: str) -> list[Finding]:
                     ),
                     message=(
                         "KMS key policy releases key material without any attestation "
-                        "condition. A correctly signed attestation from any enclave — "
-                        "including one running replaced code — satisfies this policy, so "
+                        "condition. A correctly signed attestation from any enclave, "
+                        "including one running replaced code, satisfies this policy, so "
                         "the measurement guarantee is not enforced anywhere KMS can see."
                     ),
                     severity=Severity.CRITICAL,
@@ -144,7 +144,7 @@ def analyze_policy(path: Path, doc: dict, rel: str) -> list[Finding]:
                     message=(
                         "Policy pins PCR0 (or ImageSha384) alone. PCR0 covers kernel, "
                         "bootstrap and application together, so a routine kernel patch "
-                        "forces a policy rotation — and the usual resolution is to loosen "
+                        "forces a policy rotation, and the usual resolution is to loosen "
                         "the pin. Pin PCR1 and PCR2 separately, and PCR8 when images are "
                         "signed."
                     ),

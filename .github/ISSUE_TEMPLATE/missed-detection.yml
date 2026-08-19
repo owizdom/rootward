@@ -27,7 +27,7 @@ body:
     id: impact
     attributes:
       label: What an attacker gets
-      description: The concrete consequence — what they read, forge, or spend.
+      description: The concrete consequence, what they read, forge, or spend.
     validations:
       required: true
   - type: input

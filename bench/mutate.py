@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mutation harness — measured recall instead of estimated recall.
+"""Mutation harness, measured recall instead of estimated recall.
 
     .venv/bin/python bench/mutate.py [--base NAME] [--json]
 
@@ -76,7 +76,7 @@ class Mutation:
 
     Platform-specific rules can only be planted in a tree of that platform: an EigenCompute
     mutant applied to the Nitro tree finds none of its target text, reports `inapplicable`,
-    and is then dropped from scoring — a permanent recall hole that looks like a clean run.
+    and is then dropped from scoring, a permanent recall hole that looks like a clean run.
     Every mutant names its tree so that cannot happen silently.
     """
 
@@ -84,7 +84,7 @@ class Mutation:
     """Further (find, replace) pairs applied in order after the first.
 
     Some defects take more than one edit to plant. The KMS policy pins PCR1 *and* PCR2, so
-    a single swap leaves the other pin standing and the rule is correct to stay quiet — the
+    a single swap leaves the other pin standing and the rule is correct to stay quiet, the
     first version of those two mutants made exactly that mistake and read as rule misses.
     """
 
@@ -93,7 +93,7 @@ class Mutation:
 
     Off by default and used sparingly: a literal either applies or is reported inapplicable,
     which is the property that keeps a silently-matching-nothing mutation from looking like
-    a recall failure. It is switched on only where the target text is *generated* — the KMS
+    a recall failure. It is switched on only where the target text is *generated*, the KMS
     fixture's PCR values come from the built EIF, so they cannot be written out literally.
     """
 
@@ -243,7 +243,7 @@ MUTATIONS: list[Mutation] = [
     # then misses the same bug in real code, which is precisely what the zkSecurity
     # comparison caught for BT-T00 (it read the vulnerable function and said nothing).
 
-    # T07C — the recommended fix removed in three different dialects.
+    # T07C: the recommended fix removed in three different dialects.
     Mutation(
         "T07C", "enclave.rs",
         "hmac_tag.ct_eq(expected).into()",
@@ -257,7 +257,7 @@ MUTATIONS: list[Mutation] = [
         "timingSafeEqual replaced with ===",
     ),
 
-    # T03 — secret reaching a sink, in each language's idiom.
+    # T03: secret reaching a sink, in each language's idiom.
     Mutation(
         "T03", "enclave.rs",
         'eprintln!("derived session key fingerprint={}", fingerprint(session_key));',
@@ -271,7 +271,7 @@ MUTATIONS: list[Mutation] = [
         "secret passed to console.log",
     ),
 
-    # T06B — verification disabled, three libraries.
+    # T06B: verification disabled, three libraries.
     Mutation(
         "T06B", "handler.py",
         "def fetch(url):\n    return requests.get(url)",
@@ -279,7 +279,7 @@ MUTATIONS: list[Mutation] = [
         "unverified ssl context constructed",
     ),
 
-    # T04B — host clock reached through different call shapes.
+    # T04B: host clock reached through different call shapes.
     Mutation(
         "T04B", "enclave.rs",
         "pub fn check_lease(valid_until: u64, attested_now: u64) -> bool {\n    valid_until < attested_now\n}",
@@ -293,7 +293,7 @@ MUTATIONS: list[Mutation] = [
         "expiry compared against Date.now",
     ),
 
-    # T07A — the timeout removed from a listener as well as a client socket.
+    # T07A: the timeout removed from a listener as well as a client socket.
     Mutation(
         "T07A", "enclave.rs",
         "use subtle::ConstantTimeEq;",
@@ -301,7 +301,7 @@ MUTATIONS: list[Mutation] = [
         "vsock listener bound with no timeout",
     ),
 
-    # T07B — the oracle phrased differently.
+    # T07B: the oracle phrased differently.
     Mutation(
         "T07B", "handler.py",
         'raise ValueError("decryption failed")',
@@ -309,7 +309,7 @@ MUTATIONS: list[Mutation] = [
         "padding named in a differently-worded error",
     ),
 
-    # T03B — backtrace egress in two languages.
+    # T03B: backtrace egress in two languages.
     Mutation(
         "T03B", "relay.go",
         'func audit(keyFingerprint string) {',
@@ -317,7 +317,7 @@ MUTATIONS: list[Mutation] = [
         "stack dump added to a panic path",
     ),
 
-    # T02 — the policy loosened to a single register rather than stripped entirely.
+    # T02: the policy loosened to a single register rather than stripped entirely.
     # Both pins must go: the clean policy pins PCR1 AND PCR2, so swapping one leaves the
     # other and the policy is still not PCR0-only. The first version of this mutant made
     # that mistake and read as a rule miss when the rule was right.
@@ -331,7 +331,7 @@ MUTATIONS: list[Mutation] = [
         regex=True,
     ),
 
-    # T04A — entropy taken from across the boundary.
+    # T04A: entropy taken from across the boundary.
     Mutation(
         "T04A", "handler.py",
         "def listen():",
@@ -339,7 +339,7 @@ MUTATIONS: list[Mutation] = [
         "RNG seeded from a message",
     ),
 
-    # CFG01 — debug mode reached through a variable rather than a literal flag.
+    # CFG01: debug mode reached through a variable rather than a literal flag.
     Mutation(
         "CFG01", "run-enclave.sh",
         "nitro-cli run-enclave --cpu-count 2 --memory 512 --eif-path app.eif",
@@ -347,7 +347,7 @@ MUTATIONS: list[Mutation] = [
         "debug mode passed through a shell variable",
     ),
 
-    # CFG04 — determinism broken by an unpinned install rather than the base image.
+    # CFG04: determinism broken by an unpinned install rather than the base image.
     Mutation(
         "CFG04", "Dockerfile",
         "RUN yum install -y python3-3.9.16 openssl-3.0.8",
@@ -355,7 +355,7 @@ MUTATIONS: list[Mutation] = [
         "package versions unpinned",
     ),
 
-    # T09B — a secret in ARG rather than ENV.
+    # T09B: a secret in ARG rather than ENV.
     Mutation(
         "T09B", "Dockerfile",
         "COPY . /app",
@@ -363,7 +363,7 @@ MUTATIONS: list[Mutation] = [
         "private key passed as a build ARG",
     ),
 
-    # T06 — chain validation replaced by a bare signature check on a different shape.
+    # T06: chain validation replaced by a bare signature check on a different shape.
     Mutation(
         "T06", "attest.py",
         "    verify_cert_chain(chain, root)",
@@ -371,7 +371,7 @@ MUTATIONS: list[Mutation] = [
         "chain validation call neutered but constant left behind",
     ),
 
-    # CFG02 — the zero check weakened rather than deleted.
+    # CFG02: the zero check weakened rather than deleted.
     Mutation(
         "CFG02", "attest.py",
         '    if all(b == 0 for v in pcrs.values() for b in v):\n'
@@ -381,7 +381,7 @@ MUTATIONS: list[Mutation] = [
         "zero-PCR check made unreachable",
     ),
 
-    # T01 — conditions kept but pointed at non-attestation keys. Same trap as T02: both
+    # T01: conditions kept but pointed at non-attestation keys. Same trap as T02: both
     # pins have to be replaced or an attestation condition survives and the rule is
     # correct to stay quiet.
     Mutation(
@@ -1094,14 +1094,14 @@ def render_markdown(scores: dict[str, dict], rows: list[dict], bases: dict) -> s
     total_fp = sum(s["fp"] for s in scores.values())
 
     lines = [
-        "# Benchmark results — mutation corpus",
+        "# Benchmark results: mutation corpus",
         "",
         "Generated by `bench/mutate.py`. Ground truth is exact by construction: the harness",
         "plants one catalogued defect in a clean tree and asks whether that rule fires.",
         "",
         "Mutants are planted per platform: a rule gated on EigenCompute cannot be exercised",
         "in a Nitro tree, and a mutant that finds none of its target text reports",
-        "`inapplicable` and is then dropped from scoring — a recall hole that reads as a",
+        "`inapplicable` and is then dropped from scoring, a recall hole that reads as a",
         "clean run. Every mutant names the tree it belongs to.",
         "",
         "The OS image rules are the exception, and `osimage-clean` is a Yocto layer with no",
@@ -1120,7 +1120,7 @@ def render_markdown(scores: dict[str, dict], rows: list[dict], bases: dict) -> s
         f"- **false positives: {total_fp}**",
         "",
         "`precision` counts a rule firing on a mutant that planted a *different* defect as a",
-        "false positive — that finding did not exist on the clean tree, so the rule owns it.",
+        "false positive, that finding did not exist on the clean tree, so the rule owns it.",
         "",
         "| rule | platform | recall | precision | mutants | FP | defect shapes tested |",
         "|---|---|---|---|---|---|---|",
@@ -1141,15 +1141,15 @@ def render_markdown(scores: dict[str, dict], rows: list[dict], bases: dict) -> s
     misses = [r for r in rows if r["status"] == "ok" and not r["detected"]]
     if misses:
         lines += ["", "## Misses", ""]
-        lines += [f"- `{r['rule']}` — {r['note']} (`{r['target']}`)" for r in misses]
+        lines += [f"- `{r['rule']}`, {r['note']} (`{r['target']}`)" for r in misses]
 
     skipped = [r for r in rows if r["status"] != "ok"]
     if skipped:
         lines += ["", "## Inapplicable mutants", "",
                   "These did not apply against the current fixture tree and are reported",
-                  "rather than silently dropped — a mutation that matches nothing would",
+                  "rather than silently dropped, a mutation that matches nothing would",
                   "otherwise look like a recall failure.", ""]
-        lines += [f"- `{r['rule']}` — {r['note']} (`{r['target']}`)" for r in skipped]
+        lines += [f"- `{r['rule']}`, {r['note']} (`{r['target']}`)" for r in skipped]
 
     lines.append("")
     return "\n".join(lines)

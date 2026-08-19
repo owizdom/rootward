@@ -2,7 +2,7 @@
 
 Rules, bug reports, and false-positive reports are all welcome. **A false-positive report is
 the most valuable thing you can send.** Five separate false-positive classes have been fixed
-because someone ran this against correct code and it fired — each one made the tool better in
+because someone ran this against correct code and it fired, each one made the tool better in
 a way no amount of adding rules would have.
 
 ## Setup
@@ -15,7 +15,7 @@ uv pip install pyyaml jsonschema semgrep
 .venv/bin/python bench/fixtures/build.py
 ```
 
-Order matters — `bench/fixtures/build.py` measures the built EIF, so the Rust core has to
+Order matters, `bench/fixtures/build.py` measures the built EIF, so the Rust core has to
 exist first. It exits loudly if you get that wrong.
 
 **Put `.venv/bin` on your `PATH` before running the benchmarks.** The audit subprocess finds
@@ -46,7 +46,7 @@ neither runs in CI. You do not need to run them for a normal change.
 Six steps, in this order. The validator enforces most of it, so out-of-order work fails the
 build rather than shipping wrong.
 
-### 1. Catalog entry — `catalog/rules/BT-XXNN-short-slug.yaml`
+### 1. Catalog entry, `catalog/rules/BT-XXNN-short-slug.yaml`
 
 The filename must equal the `id`. The schema sets `additionalProperties: false`, so an
 unrecognised field fails the build.
@@ -66,7 +66,7 @@ Two constraints that will stop you cold if you don't know them:
   and `sev-snp` are legal in the schema but `detectors/platform_detect.py` cannot detect them,
   so a rule gated only on those can never fire.
 
-Start at `status: draft`. Copy `catalog/rules/BT-EC01-key-from-public-input.yaml` — it is the
+Start at `status: draft`. Copy `catalog/rules/BT-EC01-key-from-public-input.yaml`; it is the
 most complete example.
 
 ### 2. The detector
@@ -74,15 +74,15 @@ most complete example.
 Four backends. Whichever you pick, `catalog/coverage.py` has to be able to *see* it, or step 5
 fails.
 
-**semgrep** — a rule in `detectors/semgrep/tee/*.yaml` carrying `metadata.catalog-id: <your
+**semgrep**, a rule in `detectors/semgrep/tee/*.yaml` carrying `metadata.catalog-id: <your
 id>`. A semgrep result without a `catalog-id` is silently dropped. Convention is one rule per
 language, `tee-<name>-{rust,go,python,js}`.
 
-**Python** — a function in `detectors/*.py` returning `Finding` from `detectors/model.py`.
+**Python**, a function in `detectors/*.py` returning `Finding` from `detectors/model.py`.
 Coverage detection is a literal regex: write `rule_id="BT-..."` with **double quotes, on one
 line, as a literal**. `rule_id=SOME_CONST` is invisible to it.
 
-Reuse the helpers rather than writing new ones — each exists because a rule was fooled:
+Reuse the helpers rather than writing new ones, each exists because a rule was fooled:
 
 | helper | exists because |
 |---|---|
@@ -92,15 +92,15 @@ Reuse the helpers rather than writing new ones — each exists because a rule wa
 | `quote_line`, `read_lines` | evidence has to be the real source line |
 
 A **new module** also needs wiring into `cli/audit.py` in two places: the import block and the
-call list. Match one of the three existing `run()` shapes — `run(root)`, `run(root, core_bin)`,
+call list. Match one of the three existing `run()` shapes, `run(root)`, `run(root, core_bin)`,
 or `run(root, platform)` for platform-gated rules.
 
-**Rust core** — add the id to the hardcoded map in `catalog/coverage.py`.
+**Rust core**, add the id to the hardcoded map in `catalog/coverage.py`.
 
-**Semantic** — add a prompt and an entry to `PASSES` in `agent/prompts.py`, plus a severity in
+**Semantic**, add a prompt and an entry to `PASSES` in `agent/prompts.py`, plus a severity in
 `agent/semantic.py`. Coverage regex-parses that `PASSES` block, so keep its formatting.
 
-### 3. Both fixtures — the step that catches the most bugs
+### 3. Both fixtures, the step that catches the most bugs
 
 Add your defect to the matching `*-vulnerable/` tree, **and make sure the paired `*-clean/`
 tree stays silent.** Trees are `clean`/`vulnerable` (Nitro), `dstack-*`, `eigencompute-*`.
@@ -108,7 +108,7 @@ tree stays silent.** Trees are `clean`/`vulnerable` (Nitro), `dstack-*`, `eigenc
 The clean trees are asserted to produce **zero** findings. This is where three rules that fired
 on correct code were caught before shipping, and where the fix for four more started. If you
 are adding a platform-specific rule, write the clean fixture *first* and confirm it audits to
-zero before you write the detector — you will find out immediately whether an existing rule
+zero before you write the detector, you will find out immediately whether an existing rule
 misfires on your idiom.
 
 Then edit `bench/test_fixtures.py`:
@@ -129,12 +129,12 @@ only recognises its author's idiom scores 100% against one mutant and then misse
 in real code.
 
 `find` is literal by default. A mutation that matches nothing reports `inapplicable` and is
-dropped from scoring — a silent recall hole — so only set `regex=True` for generated text. Use
+dropped from scoring (a silent recall hole) so only set `regex=True` for generated text. Use
 `also_expects=(...)` for defects that genuinely cannot be planted in isolation.
 
 ### 5. Run the gates
 
-See above. `catalog/coverage.py` exits 0 for an uncovered rule but **exits 1 for an orphan** —
+See above. `catalog/coverage.py` exits 0 for an uncovered rule but **exits 1 for an orphan**
 a detector citing a catalog id that does not exist.
 
 ### 6. Promote the status
@@ -153,7 +153,8 @@ So land as `implemented`, then regenerate the results file and promote:
 PATH="$PWD/.venv/bin:$PATH" .venv/bin/python bench/mutate.py --markdown docs/benchmark-results.md
 ```
 
-Finally, add your rule to the coverage table in `README.md` — it is hand-maintained.
+The rule table in `README.md` is generated by `catalog/table.py` and gated in CI, so there
+is nothing to add by hand. Regenerate it and paste the output over the existing table.
 
 ## House style
 
@@ -162,7 +163,7 @@ fact (two hashes, an absent condition key). A finding without evidence is an ass
 unverified assertions are the thing this tool exists to catch.
 
 **Comments explain why, not what.** The valuable comments in this codebase record the incident
-that produced the code — which false positive, which repository, which wrong assumption. If you
+that produced the code, which false positive, which repository, which wrong assumption. If you
 fix a misfire, say what it fired on.
 
 **Prefer the gap to the fabrication.** A missed finding is a gap. A false positive wastes a
@@ -176,7 +177,7 @@ code is public, a link is enough. These get priority.
 ## Fuzzing the Rust core
 
 Anything that reads bytes someone else produced is fuzzed. `cargo-fuzz` needs nightly, so
-it is not part of the per-pull-request gate — `.github/workflows/fuzz.yml` runs it nightly
+it is not part of the per-pull-request gate, `.github/workflows/fuzz.yml` runs it nightly
 and on demand.
 
 ```sh
@@ -195,7 +196,7 @@ curated 8-file corpus into 1985 files the first time it was run that way.
 
 **Seeds are carved from the built fixtures, not invented.** `bench/fixtures/build.py`
 produces real EIFs; the seeds are those files and the ramdisk sections carved out of them.
-Seeded, the EIF target reaches coverage 6655. Unseeded it reaches 88 — random bytes almost
+Seeded, the EIF target reaches coverage 6655. Unseeded it reaches 88, random bytes almost
 never produce the `.eif` magic, so an unseeded run tests the magic check and nothing behind
 it, while looking exactly like a passing run.
 

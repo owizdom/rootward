@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Corpus A runner — the auditor against real repositories.
+"""Corpus A runner, the auditor against real repositories.
 
     .venv/bin/python bench/corpus.py [--only NAME] [--json] [--keep]
 
@@ -8,7 +8,7 @@ the full deterministic audit, and prints what came back.
 
 There is no pass/fail here on purpose. Fixtures and mutants have ground truth; a real
 repository does not, and inventing an expected result then tuning until it matches turns a
-benchmark into a mirror. What this produces is a finding list a human reads — the number
+benchmark into a mirror. What this produces is a finding list a human reads, the number
 that matters is how many of them survive that reading.
 
 The one real assertion is `attestation-doc-validation`: it is a correct attestation
@@ -174,7 +174,7 @@ def main() -> int:
             if banned in by_rule:
                 control_failures.append(
                     f"{name}: {banned} fired on a negative control "
-                    f"({by_rule[banned]} finding(s)) — the detector is wrong, not the repo"
+                    f"({by_rule[banned]} finding(s)), the detector is wrong, not the repo"
                 )
 
         entry = {

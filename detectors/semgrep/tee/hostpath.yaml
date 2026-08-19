@@ -1,4 +1,4 @@
-# BT-T00A — a host-supplied filesystem path used without rejecting symbolic links.
+# BT-T00A: a host-supplied filesystem path used without rejecting symbolic links.
 #
 # The concrete recall gap the zkSecurity comparison exposed. Their finding #02: dstack's
 # `fs_err::copy` inherits `std::fs::copy`'s link-following behaviour, so a malicious host
@@ -16,7 +16,7 @@ rules:
       Filesystem copy or read on a host-supplied path with no symlink rejection. std::fs and
       fs_err both dereference symbolic links, so an operator can substitute an expected input
       with a link to /proc/kcore or /proc/self/mem and have the enclave copy live kernel
-      memory — which at early boot holds TDX injected randomness and ASLR offsets. Use
+      memory: which at early boot holds TDX injected randomness and ASLR offsets. Use
       symlink_metadata to reject links, and open with O_NOFOLLOW so the check cannot be raced.
     metadata:
       catalog-id: BT-T00A-host-path-symlink
@@ -42,7 +42,7 @@ rules:
           metavariable: $SRC
           regex: (?i).*(host|shared|guest|mount|9p|vsock|incoming|upload|external|untrusted).*
       # symlink_metadata / O_NOFOLLOW is the fix; do not flag code that already applies it.
-      # The exclusion has to be a syntactically valid Rust context — a bare call between
+      # The exclusion has to be a syntactically valid Rust context, a bare call between
       # `...` ellipses does not parse and semgrep rejects the whole ruleset for it.
       - pattern-not-inside: |
           fn $F(...) {

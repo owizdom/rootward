@@ -1,4 +1,4 @@
-# Ablation — model layer vs deterministic-only
+# Ablation: model layer vs deterministic-only
 
 > **Scope note.** This run predates EigenCompute support and covers the five
 > Nitro and dstack repositories only. The conclusion below is about those; the
@@ -102,8 +102,8 @@ adds has to be worth minutes and dollars, which is the actual decision a user ma
 ## Reading
 
 All 20 semantic passes completed on this run. An earlier run had 5 of 20 die with a
-transient SDK error — reported as failed rather than empty, but still costing the run its
-coverage — which is why the finder passes retry. The comparison below is on complete data.
+transient SDK error, reported as failed rather than empty, but still costing the run its
+coverage: which is why the finder passes retry. The comparison below is on complete data.
 
 
 On every threat class that **both** layers implement, the model layer found
@@ -115,4 +115,4 @@ bloat, T08 metadata leakage, LYR01 claim-vs-code).
 The semantic-only rules are the layer's actual justification. On dstack at the
 zkSecurity-audited commit, `T00` produced the finding that matched their #03 with a
 data-flow trace the published report does not contain, and the deterministic layer
-produced nothing in that class — see `docs/dstack-vs-zksecurity.md`.
+produced nothing in that class; see `docs/dstack-vs-zksecurity.md`.

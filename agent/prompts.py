@@ -2,7 +2,7 @@
 
 These four rules are the ones no pattern matcher can decide. Each prompt does three things:
 establishes the TEE threat model the judgment depends on, states exactly what would count as
-evidence, and forbids the failure mode that makes an LLM auditor worse than no auditor —
+evidence, and forbids the failure mode that makes an LLM auditor worse than no auditor
 plausible findings with no citation.
 
 The shared preamble is deliberately blunt about the cost asymmetry. A missed finding is a
@@ -114,7 +114,7 @@ FINDING_SCHEMA = {
 }
 
 TRUST_BOUNDARY = """\
-Rule BT-T00 — the parent instance is treated as trusted rather than adversarial.
+Rule BT-T00, the parent instance is treated as trusted rather than adversarial.
 
 Find places where data arriving from the parent (over vsock, from a relayed HTTP response, \
 from a KMS proxy response, or as a process argument or environment variable) is used to make \
@@ -127,11 +127,11 @@ at face value.
 
 Does NOT qualify: unvalidated input on a health check, a metrics endpoint, a log level, or \
 anything that cannot change a security outcome. Validation performed in a helper the caller \
-invokes still counts as validation — follow the call before reporting.
+invokes still counts as validation, follow the call before reporting.
 """
 
 TCB_BLOAT = """\
-Rule BT-T05 — the trusted computing base carries logic that does not need confidentiality.
+Rule BT-T05, the trusted computing base carries logic that does not need confidentiality.
 
 Assess what runs INSIDE the enclave boundary. Only operations that must see plaintext, or \
 that hold key material, need to be there. Everything else can run outside with its results \
@@ -143,11 +143,11 @@ metrics/telemetry agents, admin interfaces, general business logic.
 
 This is a judgment call reported as evidence, not a defect. Use confidence "low" unless the \
 component is both clearly inside the enclave and clearly unnecessary there. If the enclave is \
-already minimal, return an empty list — that is the expected result for a well-built one.
+already minimal, return an empty list. that is the expected result for a well-built one.
 """
 
 METADATA_LEAKAGE = """\
-Rule BT-T08 — observable request metadata correlates with confidential payload contents.
+Rule BT-T08, observable request metadata correlates with confidential payload contents.
 
 Encryption hides payload contents, not payload shape. Look for places where an observer on \
 the parent could infer something about a secret from what they CAN see: the byte length of a \
@@ -166,10 +166,10 @@ demonstrate from the code.
 """
 
 LAYER_CLASSIFIER = """\
-Rule BT-LYR01 — classify this codebase against the handbook's security layers, and compare \
+Rule BT-LYR01, classify this codebase against the handbook's security layers, and compare \
 that to what the project claims.
 
-The ladder is cumulative — each layer requires everything below it:
+The ladder is cumulative, each layer requires everything below it:
 
   Layer 0  no TEE at all
   Layer 1  TEE only, no verified attestation (the handbook says: never use in production)
@@ -185,15 +185,15 @@ citing evidence for each layer you credit.
 
 Report the gap as findings only where the claim exceeds the implementation, citing the claim's \
 location as the file/line. A hybrid architecture, where different operations sit at different \
-layers, is legitimate — say so rather than scoring it down, as long as the boundaries are \
+layers, is legitimate, say so rather than scoring it down, as long as the boundaries are \
 explicit.
 """
 
 KEY_LIFECYCLE = """\
-Rule BT-CFG05 — no key rotation path, so a single compromise is permanent.
+Rule BT-CFG05, no key rotation path, so a single compromise is permanent.
 
 Determine whether this system can rotate the keys it holds, quarantine a compromised \
-enclave, or re-provision after a breach — as a routine operation rather than as incident \
+enclave, or re-provision after a breach, as a routine operation rather than as incident \
 improvisation.
 
 Look for and cite: a rotation function or endpoint; a key version or epoch carried in \
@@ -209,8 +209,8 @@ Be careful with absence here, because absence of evidence is weak evidence. Rota
 frequently operational, lives in a deployment repository, or is a runbook rather than code. \
 Use confidence "low" and phrase the finding as an open question unless the repository \
 clearly owns its own key lifecycle. The 2025 memory-bus attacks (WireTap, Battering RAM, \
-TEE.fail) are why this matters — a design whose keys never change assumes the hardware \
-guarantee holds forever, and that assumption now has published counterexamples — but do \
+TEE.fail) are why this matters, a design whose keys never change assumes the hardware \
+guarantee holds forever, and that assumption now has published counterexamples, but do \
 NOT report those attacks themselves. They are out of scope.
 """
 
@@ -227,12 +227,12 @@ You are the adversarial check on a security finding another agent produced. Your
 REFUTE it. A finding that survives you is worth reporting; one that does not must be dropped.
 
 You have the codebase. Read the cited file and the code around it before deciding anything.
-Read ONLY files inside the repository under audit — never a parent or sibling directory.
+Read ONLY files inside the repository under audit, never a parent or sibling directory.
 
 The finding is refuted if ANY of these hold:
 - The cited line does not exist, or does not say what the finding claims it says.
 - The data in question does not actually cross the enclave trust boundary.
-- Validation, authentication, or a constant-time primitive is applied elsewhere on the path — \
+- Validation, authentication, or a constant-time primitive is applied elsewhere on the path, \
 check the callers and callees before concluding it is absent.
 - The code is unreachable, is test-only, or is behind a disabled feature flag.
 - The claimed attack requires a capability the threat model does not grant the parent, such \
@@ -243,8 +243,8 @@ Do NOT refute on any of these grounds. Each is a plausible-sounding argument tha
 deleted a real finding:
 
 - "The data is encrypted, so the host cannot tamper with it." Encryption is not \
-authentication of origin. Where the encryption key is public — an ECIES-style scheme whose \
-recipient public key the host can fetch — the host encrypts its own payload and every AEAD \
+authentication of origin. Where the encryption key is public, an ECIES-style scheme whose \
+recipient public key the host can fetch, the host encrypts its own payload and every AEAD \
 tag validates correctly. This exact reasoning wrongly refuted a finding that an independent \
 audit had separately confirmed.
 - "An AEAD tag, checksum, or hash is verified." Ask which key that check is under and who \
@@ -262,7 +262,7 @@ elsewhere. Do not refute on a cryptographic argument you have not traced to a sp
 held by a specific party.
 
 Confirming a finding asserts a security engineer should spend time on it. Refuting one \
-asserts they should not, and that mistake is made silently — the finding simply disappears \
+asserts they should not, and that mistake is made silently, the finding simply disappears \
 from the report. Weigh them accordingly.
 
 Return: refuted (bool), reason (one or two sentences), and the file:line you checked to \

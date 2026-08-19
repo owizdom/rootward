@@ -1,4 +1,4 @@
-"""Build and launch configuration — BT-CFG01 (debug mode), BT-CFG04 (build determinism),
+"""Build and launch configuration. BT-CFG01 (debug mode), BT-CFG04 (build determinism),
 BT-T09B (secrets in the Dockerfile).
 
 BT-CFG01 is the highest value-per-line check in the whole tool. A debug-mode enclave
@@ -20,7 +20,7 @@ from model import Confidence, Finding, Severity, quote_line, read_lines
 SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build", "__pycache__"}
 
 # Paths that look like local development rather than deployment. Debug mode there is
-# expected, so the finding is downgraded rather than dropped — "it's only in a dev script"
+# expected, so the finding is downgraded rather than dropped, "it's only in a dev script"
 # is exactly what someone says about the script that turns out to be wired into CI.
 DEV_HINTS = re.compile(r"(?i)(^|/)(test|tests|dev|devel|local|example|examples|sample|samples|fixture)s?(/|$|[._-])")
 
@@ -81,7 +81,7 @@ def _walk(root: Path, patterns: list[str]):
 
 
 def check_debug_mode(root: Path) -> list[Finding]:
-    """BT-CFG01 — enclave launched with attestation disabled."""
+    """BT-CFG01: enclave launched with attestation disabled."""
     findings: list[Finding] = []
     targets = ["*.sh", "*.bash", "Makefile", "*.mk", "*.yml", "*.yaml", "*.tf", "*.py", "*.js", "*.ts"]
 
@@ -110,7 +110,7 @@ def check_debug_mode(root: Path) -> list[Finding]:
                         "be used for cryptographic attestation, and expose the enclave "
                         "console to the parent."
                         + (
-                            " Path looks development-only, so this may be intended — "
+                            " Path looks development-only, so this may be intended, "
                             "confirm it is not reachable from a deployment path."
                             if dev
                             else ""
@@ -126,7 +126,7 @@ def check_debug_mode(root: Path) -> list[Finding]:
 
 
 def check_build_determinism(root: Path) -> list[Finding]:
-    """BT-CFG04 — image cannot be independently rebuilt to the same PCR0."""
+    """BT-CFG04: image cannot be independently rebuilt to the same PCR0."""
     findings: list[Finding] = []
 
     for path in _walk(root, ["Dockerfile", "Dockerfile.*", "*.dockerfile"]):
@@ -183,7 +183,7 @@ def check_build_determinism(root: Path) -> list[Finding]:
 
 
 def check_dockerfile_secrets(root: Path, core_bin: Path | None = None) -> list[Finding]:
-    """BT-T09B — secrets introduced via ENV, ARG, or a copied build context.
+    """BT-T09B: secrets introduced via ENV, ARG, or a copied build context.
 
     Delegates the actual matching to the Rust core so build-context scanning and ramdisk
     scanning use one implementation, and so a Dockerfile secret and the same secret found
@@ -219,13 +219,13 @@ def check_dockerfile_secrets(root: Path, core_bin: Path | None = None) -> list[F
                 rule_id="BT-T09B-dockerfile-secret",
                 file=rel,
                 line=raw["line"],
-                # The core never returns the secret, only its digest — so evidence here is
+                # The core never returns the secret, only its digest, so evidence here is
                 # the line with the value elided, not the raw source.
                 evidence=f"{raw['kind']} (sha256:{raw['digest']}, {raw['value_len']} chars, entropy {raw['entropy']:.2f})",
                 message=(
                     "Secret material in the build context. A build ARG persists in image "
                     "history, an ENV persists in the running filesystem, and a copied .env "
-                    "lands in the ramdisk verbatim — where anyone with access to the parent "
+                    "lands in the ramdisk verbatim, where anyone with access to the parent "
                     "can extract it from the EIF. Provision secrets at runtime after "
                     "attestation instead."
                 ),

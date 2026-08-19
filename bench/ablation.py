@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ablation — does the model layer earn its cost?
+"""Ablation: does the model layer earn its cost?
 
     .venv/bin/python bench/ablation.py [--only NAME] [--markdown PATH]
 
@@ -9,7 +9,7 @@ findings by threat class.
 The question is not "is the LLM good". It is narrower and answerable: **for each threat
 class, does the model layer surface anything the deterministic layer does not, and what did
 that cost?** Where the answer is no, the honest move is to say so and stop paying for the
-model call on that class — which is the finding this project committed to publishing before
+model call on that class, which is the finding this project committed to publishing before
 it knew what the number would be.
 
 The comparison is deliberately unfair to the model layer in one respect: deterministic runs
@@ -81,8 +81,8 @@ def compare(name: str, path: Path) -> dict:
 
     # Refuted findings never reach the report but are the clearest evidence the verification
     # layer is doing work rather than rubber-stamping. A refutation rate of zero is ambiguous
-    # on its own — it means either "the verifier checked and agreed" or "the verifier never
-    # ran" — and those were confused by hand once already, so the two are counted separately.
+    # on its own. it means either "the verifier checked and agreed" or "the verifier never
+    # ran", and those were confused by hand once already, so the two are counted separately.
     refuted = sem.get("refuted", [])
     kept = [f for f in sem["findings"] if f["detector"].startswith("agent:")]
     refuter_errors = sum(
@@ -117,7 +117,7 @@ def _verdict_counts(findings: list[dict]) -> dict[str, int]:
 
 def render(results: list[dict]) -> str:
     lines = [
-        "# Ablation — model layer vs deterministic-only",
+        "# Ablation: model layer vs deterministic-only",
         "",
         # Emitted here rather than hand-written into the markdown. A scope note added by
         # hand to a generated file survives exactly until the next run deletes it, and this
@@ -158,7 +158,7 @@ def render(results: list[dict]) -> str:
         if r.get("refuter_errors"):
             lines.append(
                 f"- **{r['refuter_errors']} of {r['semantic_kept']} refutations failed to "
-                f"run.** Those findings ship as PLAUSIBLE without having been checked — a "
+                f"run.** Those findings ship as PLAUSIBLE without having been checked, a "
                 f"refutation rate of zero here means the verifier was unavailable, not that "
                 f"it agreed."
             )
@@ -203,7 +203,7 @@ def render(results: list[dict]) -> str:
             "",
         ]
         lines += [
-            f"- `{row['class']}` — {len(row['only_semantic'])} additional at "
+            f"- `{row['class']}`, {len(row['only_semantic'])} additional at "
             + ", ".join(f"`{f}:{ln}`" for f, ln in row["only_semantic"][:4])
             for row in added
         ]
@@ -213,7 +213,7 @@ def render(results: list[dict]) -> str:
         "The semantic-only rules are the layer's actual justification. On dstack at the",
         "zkSecurity-audited commit, `T00` produced the finding that matched their #03 with a",
         "data-flow trace the published report does not contain, and the deterministic layer",
-        "produced nothing in that class — see `docs/dstack-vs-zksecurity.md`.",
+        "produced nothing in that class; see `docs/dstack-vs-zksecurity.md`.",
         "",
     ]
     return "\n".join(lines)

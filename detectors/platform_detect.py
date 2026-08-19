@@ -1,4 +1,4 @@
-"""Platform detection — Nitro Enclaves, dstack, Confidential Space, EigenCompute, or none.
+"""Platform detection. Nitro Enclaves, dstack, Confidential Space, EigenCompute, or none.
 
 Four tiers, two of them layered: EigenCompute runs on Google Cloud Confidential Space, so
 detecting the deployment layer implies the substrate. The generic Confidential Space rules
@@ -9,8 +9,8 @@ of inapplicable findings is worse than no report: it trains the reader to skim. 
 evidence-based and reported alongside the result, so a reader can see *why* the tool decided
 a repo was dstack and overrule it when the guess is wrong.
 
-Deliberately conservative. When nothing indicates a TEE platform at all, that is itself
-worth saying — auditing a repo that turns out not to use enclaves should produce "no TEE
+Deliberately conservative. When nothing indicates a TEE platform at all. that is itself
+worth saying, auditing a repo that turns out not to use enclaves should produce "no TEE
 platform detected", not a clean bill of health.
 """
 
@@ -68,7 +68,7 @@ CONFIDENTIAL_SPACE_SIGNALS: list[tuple[str, re.Pattern, int]] = [
     # The EAT claim names Confidential Space puts in the token. Distinctive as a set;
     # `submods` and `eat_nonce` in particular appear nowhere else.
     # `eat_nonce` and `submods` are EAT claims Google Confidential Space emits; nothing
-    # else produces them. `tcb_status` deliberately is NOT here — it is generic Intel DCAP
+    # else produces them. `tcb_status` deliberately is NOT here; it is generic Intel DCAP
     # vocabulary that dstack's KMS also uses, and including it flipped a pure-TDX project
     # into Confidential Space on one match.
     ("Confidential Space EAT claims", re.compile(r"\b(eat_nonce|submods)\b"), STRONG),
@@ -80,7 +80,7 @@ CONFIDENTIAL_SPACE_SIGNALS: list[tuple[str, re.Pattern, int]] = [
     ("TDX hardware model claim", re.compile(r"\b(INTEL_TDX|hwmodel|secboot)\b"), WEAK),
 ]
 
-# EigenCompute (EigenCloud) — `ecloud` is the current CLI; `eigenx` is the deprecated one
+# EigenCompute (EigenCloud), `ecloud` is the current CLI; `eigenx` is the deprecated one
 # and is kept as a weak signal so older repos still resolve.
 EIGENCOMPUTE_SIGNALS: list[tuple[str, re.Pattern, int]] = [
     ("ecloud CLI deploy", re.compile(
@@ -227,7 +227,7 @@ def detect(root: Path, max_files: int = 4000) -> Platform:
 
         A TEE app commonly probes several platforms' endpoints and falls back between them.
         bobIsAlive is deployed on EigenCompute and carries an `ecloud.toml`, yet one
-        fallback block in `agents/tee.ts` mentions both a dstack endpoint and Phala — two
+        fallback block in `agents/tee.ts` mentions both a dstack endpoint and Phala, two
         distinct weak signals, one file, and dstack was reported as a detected platform.
         Two hints in the same file are one piece of evidence about that file, not two
         independent corroborations, which is the same reasoning that already stops a single

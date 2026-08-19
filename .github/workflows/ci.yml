@@ -46,7 +46,7 @@ jobs:
         run: .venv/bin/python catalog/validate.py
 
       # Reports what is catalogued vs implemented, and fails on a detector referencing a
-      # catalog id that does not exist — which would emit a finding no rule explains.
+      # catalog id that does not exist, which would emit a finding no rule explains.
       - name: coverage
         run: .venv/bin/python catalog/coverage.py
 
@@ -115,7 +115,7 @@ jobs:
       - name: build binary fixtures
         run: .venv/bin/python bench/fixtures/build.py
 
-      # Recall on the vulnerable trees, and — the number that matters — zero findings on
+      # Recall on the vulnerable trees, and (the number that matters) zero findings on
       # the clean trees. Three rules have already shipped-and-been-caught firing on
       # correct code; this is what keeps that from recurring.
       - name: fixture regression

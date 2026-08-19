@@ -3,10 +3,10 @@
 Notable changes per release. Dates are the tag date.
 
 The version this matters most for is the Action: pin `owizdom/rootward@v0.2.0` rather than
-`@main`, because `@main` moves under you — which is the defect this tool reports as
+`@main`, because `@main` moves under you, which is the defect this tool reports as
 `BT-CFG04`.
 
-## v0.2.0 — 2026-08-19
+## v0.2.0: 2026-08-19
 
 First tagged release. Renamed from `tee-audit`; GitHub keeps a redirect from the old URL,
 but the Rust crate (`rootward_core`), its binary (`rootward-core`), and the
@@ -23,7 +23,7 @@ but the Rust crate (`rootward_core`), its binary (`rootward-core`), and the
   every response with a real key, ships a verification library, uses the word throughout its
   documentation, and performs no quote fetch, token verification, or chain walk anywhere.
 - **An enforced sandbox on the semantic layer** (`agent/sandbox.py`). Every tool call goes
-  through a `PreToolUse` hook that resolves each path — symlinks included — and denies
+  through a `PreToolUse` hook that resolves each path (symlinks included) and denies
   anything outside the audit root, plus any tool that is not `Read`, `Grep`, or `Glob`.
 - **Fuzzing** (`core/fuzz/`). Four cargo-fuzz targets over the EIF, CPIO, decompression and
   secret-scanning paths, seeded from the built fixtures, run nightly by
@@ -36,7 +36,7 @@ but the Rust crate (`rootward_core`), its binary (`rootward-core`), and the
 
 - **The semantic layer could read outside the audit root, and the documentation said it
   could not.** `allowed_tools` is not a capability boundary under
-  `permission_mode="bypassPermissions"` — measured, not assumed: an agent configured that
+  `permission_mode="bypassPermissions"`, measured, not assumed: an agent configured that
   way and asked for a file outside its `cwd` called `Bash`, ran `cat`, and returned the
   contents. The hook above closes it; `SECURITY.md` now describes what is actually enforced.
 - **`BT-OS02` missed the repository it was written for.** Defining
@@ -58,13 +58,13 @@ but the Rust crate (`rootward_core`), its binary (`rootward-core`), and the
 
 - **External validation goes from 1 of 14 re-found to 2 of 14.** `BT-OS01` finds
   zkSecurity's only High on `meta-dstack` at `dstack-ovmf_git.bb:208`, at the commit their
-  report names. It is a re-find rather than a blind find — the gap was documented first and
-  the rule written against a known answer — and `docs/dstack-vs-zksecurity.md` says so.
+  report names. It is a re-find rather than a blind find, the gap was documented first and
+  the rule written against a known answer, and `docs/dstack-vs-zksecurity.md` says so.
 - Mutation recall 74/74 → **83/83**, still zero false positives, now across 30 rules and
   four clean fixture trees.
 - README restructured; the rule table is generated rather than maintained.
 
-## v0.1.0 — untagged
+## v0.1.0: untagged
 
 The 44 commits before this: the rule catalog and its validator, the Rust core with its
 differential check against AWS's own EIF implementation, the semgrep ruleset, the

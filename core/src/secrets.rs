@@ -1,7 +1,7 @@
 //! Secret scanner for EIF ramdisk contents and build context (BT-T09A, BT-T09B).
 //!
 //! Design constraint that shapes everything here: **a finding never carries the secret.**
-//! Audit reports get shared, pasted into issues, and — for this project — published. A
+//! Audit reports get shared, pasted into issues, and (for this project) published. A
 //! report that quotes the key it found has moved the key somewhere new. Findings carry a
 //! classification, a location, and a SHA-256 prefix that lets an operator confirm which
 //! key was hit without the report itself being sensitive.
@@ -116,7 +116,7 @@ fn known_test_digests() -> &'static [&'static str] {
 /// one inside a JSON schema description. A real mnemonic draws only from the 2048-word
 /// BIP-39 list; any of these words present means the run is a sentence.
 ///
-/// Deliberately conservative — every entry here is one confirmed absent from BIP-39, so a
+/// Deliberately conservative, every entry here is one confirmed absent from BIP-39, so a
 /// genuine mnemonic can never be suppressed by this check.
 const NOT_IN_BIP39: [&str; 24] = [
     "the", "and", "that", "for", "with", "this", "which", "are", "not", "but", "from", "they",
@@ -283,7 +283,7 @@ pub fn scan_text(path: &str, text: &str) -> Vec<Finding> {
                 continue;
             }
             // Content-addressed digests are 64 hex chars with maximal entropy, so nothing
-            // about the value distinguishes them from a key — only what precedes them
+            // about the value distinguishes them from a key, only what precedes them
             // does. Every correctly pinned Dockerfile carries `FROM image@sha256:<64 hex>`,
             // so without this the rule fires hardest on the repos doing it right.
             if preceded_by_digest_label(line, m.start()) {
@@ -351,7 +351,7 @@ mod tests {
     fn ignores_a_pinned_docker_base_image_digest() {
         // Regression: a digest-pinned FROM line is what a *correct* Dockerfile looks like.
         // Flagging it as a private key made the rule fire hardest on repos doing the right
-        // thing — caught by the clean fixture, which is what clean fixtures are for.
+        // thing, caught by the clean fixture, which is what clean fixtures are for.
         let f = scan_text(
             "Dockerfile",
             "FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:1f2e3d4c5b6a798877665544332211ffeeddccbbaa99887766554433221100ff",
@@ -402,7 +402,7 @@ mod tests {
     fn ignores_the_documented_aws_example_key() {
         // AKIAIOSFODNN7EXAMPLE appears throughout AWS's own documentation. It matches the
         // access-key-id shape exactly, so only the placeholder filter keeps it out of
-        // reports — and it turns up in enough vendored docs and samples that letting it
+        // reports, and it turns up in enough vendored docs and samples that letting it
         // through would be a steady source of false positives.
         let f = scan_text("docs.md", "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE");
         assert!(

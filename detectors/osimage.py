@@ -1,16 +1,16 @@
-"""OS image and firmware build rules — BT-OS01 (guest firmware built without the TDX
+"""OS image and firmware build rules. BT-OS01 (guest firmware built without the TDX
 target), BT-OS02 (secure boot off by default), BT-OS03 (development image features in a
 production TEE image).
 
 The rule class this catalog did not have, and the reason `meta-dstack` returned one finding
-against zkSecurity's five — including the only High in their report. Everything else here
+against zkSecurity's five, including the only High in their report. Everything else here
 audits what an application does; this audits what the machine it runs on was built from.
 
 Why that is a different question. A TEE's guarantee is a chain: hardware measures firmware,
 firmware measures the kernel, the kernel measures the workload. Every rule elsewhere in this
 catalog starts at the last link. If the firmware was built with the wrong target, or secure
 boot was never enabled, or the image ships a debug shell, the application code can be
-flawless and the chain still does not hold — and none of the application-level rules can see
+flawless and the chain still does not hold, and none of the application-level rules can see
 it, because the defect is in a BitBake recipe.
 
 Scoped narrowly on purpose. These fire only on files that are recognisably an OS or firmware
@@ -116,10 +116,10 @@ def _line(text: str, pattern: re.Pattern) -> int:
 
 
 def check_firmware_target(root: Path) -> list[Finding]:
-    """BT-OS01 — a TDX guest whose firmware is built from the general-purpose OVMF target.
+    """BT-OS01: a TDX guest whose firmware is built from the general-purpose OVMF target.
 
     zkSecurity's only High on dstack. `OvmfPkg/build.sh` produces Config-A firmware, which
-    leaves the virtual machine monitor inside the trusted computing base — so the host that
+    leaves the virtual machine monitor inside the trusted computing base, so the host that
     the entire threat model treats as adversarial is, at the firmware level, trusted. The
     fix is a different build target, and nothing above the firmware layer can compensate.
     """
@@ -163,7 +163,7 @@ def check_firmware_target(root: Path) -> list[Finding]:
                 message=(
                     "Guest firmware for a TDX project is built from the general-purpose OVMF "
                     "target rather than the Intel TDX one. That is EDK II's Config-A, which "
-                    "leaves the virtual machine monitor inside the trusted computing base — "
+                    "leaves the virtual machine monitor inside the trusted computing base, "
                     "so the host this threat model treats as adversarial is trusted by the "
                     "firmware the enclave boots from. No application-level control "
                     "compensates for it, and no measurement above this layer detects it. "
@@ -178,7 +178,7 @@ def check_firmware_target(root: Path) -> list[Finding]:
 
 
 def check_secure_boot(root: Path) -> list[Finding]:
-    """BT-OS02 — the firmware recipe offers secure boot and does not take it."""
+    """BT-OS02: the firmware recipe offers secure boot and does not take it."""
     out: list[Finding] = []
     for path, code in _iter_recipes(root):
         if not SECUREBOOT_OPTION.search(code):
@@ -199,7 +199,7 @@ def check_secure_boot(root: Path) -> list[Finding]:
                     "The firmware recipe defines a secure-boot option and leaves it out of "
                     "the default configuration. Without it the firmware will load an unsigned "
                     "bootloader, so the measured-boot chain starts from something the host "
-                    "can replace — which is the assumption every later measurement depends "
+                    "can replace, which is the assumption every later measurement depends "
                     "on. Enable it in PACKAGECONFIG, or state in the deployment "
                     "documentation which layer is expected to provide the equivalent."
                 ),
@@ -251,7 +251,7 @@ def _reachable_from_production(root: Path, target: Path, recipes: dict[str, tupl
 
 
 def check_dev_image_features(root: Path) -> list[Finding]:
-    """BT-OS03 — development conveniences reaching a production TEE image."""
+    """BT-OS03: development conveniences reaching a production TEE image."""
     out: list[Finding] = []
     recipes = {str(p): (p, c) for p, c in _iter_recipes(root)}
     for path, code in _iter_recipes(root):
@@ -273,7 +273,7 @@ def check_dev_image_features(root: Path) -> list[Finding]:
                         f"A development convenience is compiled into the image through the "
                         f"{what}. debug-tweaks, an empty root password, or a shell on the "
                         "kernel command line each hand interactive access to whoever can "
-                        "reach the guest console — and the operator can always reach it. "
+                        "reach the guest console, and the operator can always reach it. "
                         "These belong in a development image only, and the measurement will "
                         "not tell them apart from the production one unless you compare it "
                         "against a known-good value."
@@ -287,7 +287,7 @@ def check_dev_image_features(root: Path) -> list[Finding]:
 
 
 def run(root: Path, platform: Platform | None = None) -> list[Finding]:
-    """Runs everywhere. An OS image build is its own signal — a repository that does not
+    """Runs everywhere. An OS image build is its own signal, a repository that does not
     contain one never matches, so there is nothing to gate on."""
     return [
         *check_firmware_target(root),

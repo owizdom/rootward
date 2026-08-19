@@ -1,4 +1,4 @@
-"""EigenCompute rules — BT-EC01 (key derived from public material), BT-EC02 (enclave state
+"""EigenCompute rules. BT-EC01 (key derived from public material), BT-EC02 (enclave state
 asserted from an environment variable), BT-EC03 (dev-key fallback reachable in production),
 BT-EC04 (security check silently disabled), BT-EC05 (deploy secret in argv), BT-EC06
 (unauthenticated environment dump), BT-EC07 (container runs as root), BT-EC08 (egress
@@ -16,7 +16,7 @@ recorded on chain. The wallet the app spends from derives from `MNEMONIC`, deliv
 exactly that path.
 
 So the interesting failures here are not "a secret leaked". They are "the app rebuilt, by
-hand, a weaker version of a guarantee the platform already provides" — deriving its own key
+hand, a weaker version of a guarantee the platform already provides", deriving its own key
 from something public, deciding it is in a TEE because an environment variable is set, or
 committing the mnemonic the KMS exists to deliver.
 """
@@ -75,7 +75,7 @@ SECRET_INPUT = re.compile(
 
 # Evidence that what comes out of the derivation is used as a key, rather than as a
 # fingerprint or a pin. Without this, computing sha256 of a peer certificate for TLS
-# pinning — which is correct and desirable — reads as a violation.
+# pinning (which is correct and desirable) reads as a violation.
 KEY_PRODUCED = re.compile(
     r"(?i)("
     r"private_?key|priv_?key|signing_?key|signer|wallet|\bsk\b|secret_?key"
@@ -136,7 +136,7 @@ PROD_GUARD = re.compile(r"(?i)(NODE_ENV|ECLOUD_ENVIRONMENT|APP_ENV|is_?prod|prod
 
 # A default that is a path, a URL, or a filename is configuration. `KMS_SIGNING_KEY_FILE`
 # contains "KEY" and defaults to the .pem the platform ships at a fixed location, which
-# is both correct and required — flagging it would train the reader to skip EC03.
+# is both correct and required, flagging it would train the reader to skip EC03.
 NOT_A_SECRET_DEFAULT = re.compile(
     r"(?i)(^[\"\'`]?(/|\./|~|[a-z]+://)|\.(pem|json|toml|ya?ml|txt|key|crt|sock)[\"\'`]?$"
     r"|localhost|127\.0\.0\.1|0\.0\.0\.0)"
@@ -289,7 +289,7 @@ def _kdf_inputs(impl: str, at: int) -> list[str]:
 
 
 def check_public_key_derivation(root: Path) -> list[Finding]:
-    """BT-EC01 — a key is derived from material an observer can read.
+    """BT-EC01: a key is derived from material an observer can read.
 
     The headline rule. A KDF is only as secret as its input: HKDF over a public key is a
     deterministic public function, so every party who can read that public key computes the
@@ -345,7 +345,7 @@ def check_public_key_derivation(root: Path) -> list[Finding]:
 
 
 def check_env_as_attestation(root: Path) -> list[Finding]:
-    """BT-EC02 — enclave state is asserted from an environment variable."""
+    """BT-EC02: enclave state is asserted from an environment variable."""
     out: list[Finding] = []
     for path, _raw, _code, impl in _iter_code(root):
         m = ENV_AS_PROOF.search(impl)
@@ -364,8 +364,8 @@ def check_env_as_attestation(root: Path) -> list[Finding]:
                     "Whether the workload is running in a TEE is decided by the presence of "
                     "an environment variable. The environment is supplied by the platform "
                     "the enclave is supposed to be proving itself to, so this is the host "
-                    "vouching for itself. Anyone who can set the variable — including on an "
-                    "ordinary VM — gets the same answer, and every downstream branch guarded "
+                    "vouching for itself. Anyone who can set the variable, including on an "
+                    "ordinary VM, gets the same answer, and every downstream branch guarded "
                     "by it inherits the mistake. Enclave state comes from a verified "
                     "attestation or it is not known."
                 ),
@@ -378,7 +378,7 @@ def check_env_as_attestation(root: Path) -> list[Finding]:
 
 
 def check_dev_key_fallback(root: Path) -> list[Finding]:
-    """BT-EC03 — a development key or weak default is what runs when the env is unset."""
+    """BT-EC03: a development key or weak default is what runs when the env is unset."""
     out: list[Finding] = []
     for path, raw in _iter(root, CODE | SHELLY):
         code = code_only(raw, path.suffix)
@@ -412,7 +412,7 @@ def check_dev_key_fallback(root: Path) -> list[Finding]:
                         "variable is unset, with no environment guard. On EigenCompute the "
                         "environment is delivered by KMS after attestation, so the case this "
                         "branch handles is exactly the case where attestation did not happen "
-                        "— and it handles it by running on a key that is in the source tree."
+                        ", and it handles it by running on a key that is in the source tree."
                         + (
                             " The default here is a published test key that everyone has."
                             if well_known
@@ -429,7 +429,7 @@ def check_dev_key_fallback(root: Path) -> list[Finding]:
 
 
 def check_disabled_checks(root: Path) -> list[Finding]:
-    """BT-EC04 — a security check that turns itself off, or degrades to something weaker."""
+    """BT-EC04: a security check that turns itself off, or degrades to something weaker."""
     out: list[Finding] = []
     for path, _raw, _code, impl in _iter_code(root):
         rel = str(path.relative_to(root))
@@ -487,7 +487,7 @@ def check_disabled_checks(root: Path) -> list[Finding]:
 
 
 def check_secret_in_argv(root: Path) -> list[Finding]:
-    """BT-EC05 — a deploy secret passed as a command-line argument."""
+    """BT-EC05: a deploy secret passed as a command-line argument."""
     out: list[Finding] = []
     for path, raw in _iter(root, SHELLY | {".md"}):
         code = code_only(raw, path.suffix)
@@ -506,7 +506,7 @@ def check_secret_in_argv(root: Path) -> list[Finding]:
                     message=(
                         f"`--{m.group(1)}` is passed as a command-line argument. Argument "
                         "vectors are world-readable in `ps`, land in shell history, and are "
-                        "echoed into CI logs — three places this key was never meant to be. "
+                        "echoed into CI logs, three places this key was never meant to be. "
                         "The CLI reads the same value from the environment, which none of "
                         "those capture."
                     ),
@@ -519,7 +519,7 @@ def check_secret_in_argv(root: Path) -> list[Finding]:
 
 
 def check_env_dump_route(root: Path) -> list[Finding]:
-    """BT-EC06 — an unauthenticated HTTP route that enumerates the environment."""
+    """BT-EC06: an unauthenticated HTTP route that enumerates the environment."""
     out: list[Finding] = []
     for path, _raw, _code, impl in _iter_code(root):
         if not ENV_ENUMERATION.search(impl):
@@ -573,7 +573,7 @@ def check_env_dump_route(root: Path) -> list[Finding]:
 
 
 def check_container_user(root: Path) -> list[Finding]:
-    """BT-EC07 — the container overrides the platform's privilege drop."""
+    """BT-EC07: the container overrides the platform's privilege drop."""
     out: list[Finding] = []
     for path, raw in _iter(root, {""}):
         if path.name != "Dockerfile" and not path.name.startswith("Dockerfile"):
@@ -643,7 +643,7 @@ def parse_ecloud_toml(path: Path) -> dict:
 
 
 def check_egress(root: Path) -> list[Finding]:
-    """BT-EC08 — no egress allowlist, or one that allows everything."""
+    """BT-EC08: no egress allowlist, or one that allows everything."""
     out: list[Finding] = []
     for path in root.rglob("ecloud.toml"):
         if any(part in SKIP_DIRS for part in path.parts):
@@ -668,7 +668,7 @@ def check_egress(root: Path) -> list[Finding]:
                 message=(
                     "The deployment manifest does not restrict outbound traffic. A "
                     "Confidential Space workload has an ordinary network stack, so an "
-                    "unrestricted enclave can send anything it holds anywhere — which turns "
+                    "unrestricted enclave can send anything it holds anywhere, which turns "
                     "any code-execution or dependency-compromise issue into direct "
                     "exfiltration of the wallet seed. An allowlist naming the hosts the app "
                     "genuinely needs bounds that blast radius."

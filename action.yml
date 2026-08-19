@@ -109,7 +109,7 @@ runs:
           echo "## rootward"
           echo
           if [ "$CODE" = "1" ]; then
-            echo "The audit could **not run**. This is not a pass — see the log."
+            echo "The audit could **not run**. This is not a pass; see the log."
           elif [ "$CODE" = "2" ]; then
             echo "$COUNT findings, at or above \`${{ inputs.fail-on }}\`."
           else
@@ -125,6 +125,6 @@ runs:
           echo "</details>"
         } >> "$GITHUB_STEP_SUMMARY"
 
-        # Exit 1 means the audit could not run. Never let that pass as clean — a gate that
+        # Exit 1 means the audit could not run. Never let that pass as clean, a gate that
         # cannot tell a broken scanner from a clean repository is worse than no gate.
         exit $CODE

@@ -15,7 +15,7 @@ unless asked.
 only after a separate agent, given the same codebase and no access to the finder's
 reasoning, tries to refute it and fails. Findings that survive as uncertain ship as
 PLAUSIBLE and are labelled that way in the report; refuted ones are dropped and kept in the
-run log. Deterministic findings skip this entirely — a literal pattern match is its own
+run log. Deterministic findings skip this entirely, a literal pattern match is its own
 evidence.
 """
 
@@ -47,7 +47,7 @@ FINDER_MODEL = "claude-opus-5"
 # was reported as a failed pass rather than a clean one. A real repository needs room to
 # read. Override with ROOTWARD_MAX_USD when auditing something large.
 MAX_USD_PER_AGENT = float(__import__("os").environ.get("ROOTWARD_MAX_USD", "8.00"))
-# The refuter is the check on the finder, so it needs comparable capability — a weaker
+# The refuter is the check on the finder, so it needs comparable capability, a weaker
 # refuter rubber-stamps, which is worse than no refutation because it launders claims.
 REFUTER_MODEL = "claude-opus-5"
 
@@ -81,7 +81,7 @@ async def _run_json(system_prompt: str, user_prompt: str, cwd: Path, schema: dic
     """Run one agent to completion and return its structured output.
 
     Returns {} when the agent produced nothing parseable, which the callers treat as "no
-    findings" rather than an error — a semantic pass failing should degrade the audit, not
+    findings" rather than an error, a semantic pass failing should degrade the audit, not
     abort it.
     """
     query, ClaudeAgentOptions = _require_sdk()
@@ -90,10 +90,10 @@ async def _run_json(system_prompt: str, user_prompt: str, cwd: Path, schema: dic
         system_prompt=system_prompt,
         allowed_tools=READ_ONLY_TOOLS,
         # Read-only tools only, so nothing here can edit the audited repository. The
-        # permission mode governs prompting, not capability — the tool list is the guard.
+        # permission mode governs prompting, not capability, the tool list is the guard.
         permission_mode="bypassPermissions",
         # ...and the guard on *where* those tools may look is the PreToolUse hook, not the
-        # system prompt. `cwd` sets the default, it does not bound anything: an absolute
+        # system prompt. `cwd` sets the default; it does not bound anything: an absolute
         # path or a `..` walks straight out of the repository, and the audited repository's
         # README is in the model's context by construction. See agent/sandbox.py.
         hooks=sandbox.make_hooks(cwd),
@@ -107,7 +107,7 @@ async def _run_json(system_prompt: str, user_prompt: str, cwd: Path, schema: dic
     # Where the structured result actually lands, verified against sdk 0.2.139: the model
     # emits a `StructuredOutput` tool call, and the parsed value appears on the terminal
     # ResultMessage as `structured_output` (with `result` carrying the same thing as a JSON
-    # string). It is NOT in an AssistantMessage text block — those hold the model's prose
+    # string). It is NOT in an AssistantMessage text block, those hold the model's prose
     # preamble ("I'll produce the finding."), which is why reading text blocks yielded
     # unparseable output and silently produced zero findings on every pass.
     structured: dict | None = None
@@ -156,7 +156,7 @@ async def run_pass(
 
     Retried, for the same reason `refute` is: a transient SDK error is not a result. A full
     ablation across five repositories had 5 of 20 passes die with "Claude Code returned an
-    error result", including the BT-T00 pass on dstack — the one rule that re-found an
+    error result", including the BT-T00 pass on dstack, the one rule that re-found an
     external auditor's finding. Those passes were correctly reported as failed rather than
     empty, but a failed pass still costs the run its coverage, and retrying is cheap next to
     re-running the whole audit.
@@ -220,7 +220,7 @@ async def refute(finding: Finding, root: Path, attempts: int = 3, platform=None)
 
     Retried, because a transient SDK error is not a verdict. On one dstack run every one of
     16 refutations errored at once (a credential refresh mid-run) and all 16 findings shipped
-    as PLAUSIBLE — unverified output wearing a label that suggests it was checked.
+    as PLAUSIBLE, unverified output wearing a label that suggests it was checked.
     """
     user = (
         f"Finding to refute:\n\n"
@@ -272,7 +272,7 @@ async def run_semantic(root: Path, scope: list[str], rules: list[str] | None = N
     """Run the semantic passes and the adversarial check.
 
     Returns (kept, dropped, warnings). `dropped` holds refuted findings so the run log can
-    show what the verifier removed — a refutation rate near zero means the verifier is
+    show what the verifier removed, a refutation rate near zero means the verifier is
     rubber-stamping and should itself be distrusted.
     """
     warnings: list[str] = []

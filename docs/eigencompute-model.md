@@ -21,8 +21,8 @@ tool's Nitro machinery transfers.
 | Network | none; every byte crosses vsock | ordinary network stack |
 | Host boundary | parent EC2 instance | cloud operator + deployment API |
 
-The consequence for this tool is that the Rust core — EIF parsing, cpio ramdisk walking, PCR
-recomputation — has **no analogue here and does not run**. An EigenCompute audit is source
+The consequence for this tool is that the Rust core. EIF parsing, cpio ramdisk walking, PCR
+recomputation: has **no analogue here and does not run**. An EigenCompute audit is source
 and configuration only, and the report says so in its NOT VERIFIED section rather than
 leaving the reader to notice the absence.
 
@@ -111,7 +111,7 @@ Three rules follow directly:
 - A committed `MNEMONIC` (`BT-T09B`) does not merely leak a secret. It defeats the entire
   design, and that mnemonic controls a wallet.
 - A dev-key fallback (`BT-EC03`) is reached exactly when KMS did **not** release the
-  environment — which is to say, exactly when attestation did not happen. The branch handling
+  environment: which is to say, exactly when attestation did not happen. The branch handling
   that case handles it by running on a key in the source tree.
 - `USER root` (`BT-EC07`) discards step 4. This is why it is a rule here and not general
   container lint: the mitigation being overridden is one the platform went out of its way to
@@ -129,7 +129,7 @@ Metadata-Flavor: Google
 
 Claims that carry the guarantee: `hwmodel` (expect `INTEL_TDX`), `swname` (expect
 `CONFIDENTIAL_SPACE`), `secboot`, `tcbstatus`, `eat_nonce`, `aud`, `iss`, `exp`, and
-`submods` — which carries the container image digest.
+`submods`, which carries the container image digest.
 
 **Decoding the token proves nothing.** The payload is base64, not ciphertext. Three of the
 six audited deployments read claims out of a decoded token with no signature check, one of
@@ -137,14 +137,14 @@ them with a docstring saying so outright. That is `BT-CS01`, and it is the singl
 common failure on this platform.
 
 Verifying the signature is also not enough. A correctly signed token from a debug VM with
-secure boot off asserts, in plain text, that it is a debug VM with secure boot off — so the
+secure boot off asserts, in plain text, that it is a debug VM with secure boot off, so the
 claims have to be compared, which is `BT-CS02`. And the image digest has to be compared
 against a pinned value, which is `BT-T01`: pinning `submods.container.image_digest` is the
 same act as pinning PCR1/PCR2 in a KMS key policy, so it reuses the handbook's rule rather
 than minting a new one.
 
 Verification is normally **delegated** to `@layr-labs/ecloud-sdk/attest` (`AttestClient`,
-`JwtProvider`). That is the correct path, so the SDK is on a known-validator allowlist — the
+`JwtProvider`). That is the correct path, so the SDK is on a known-validator allowlist, the
 same accommodation `detectors/attestation.py` already makes for Nitro validators that
 delegate to an audited crate.
 
@@ -153,7 +153,7 @@ delegate to an audited crate.
 Stated positively in every EigenCompute report, because a reader who knows the Nitro output
 will otherwise wonder where the EIF and PCR rules went, and silence reads as a pass:
 
-- No EIF, no PCRs, no image measurement — structurally inapplicable, not skipped.
+- No EIF, no PCRs, no image measurement, structurally inapplicable, not skipped.
 - The image digest recorded on chain was not fetched. Whether the digest KMS releases
   `MNEMONIC` to matches the image this repository builds is checkable at
   `verify.eigencloud.xyz`, and it is a deployment fact rather than a repository one.

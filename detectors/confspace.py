@@ -1,4 +1,4 @@
-"""Confidential Space rules — BT-CS01 (token never verified), BT-CS02 (platform claims
+"""Confidential Space rules. BT-CS01 (token never verified), BT-CS02 (platform claims
 unchecked), BT-CS03 (attestation failure is not fatal), plus a Confidential Space emitter
 for BT-T01 (measurement not pinned).
 
@@ -9,7 +9,7 @@ regardless of who deploys on it.
 The shape of that failure is specific and worth stating, because it is what every rule here
 keys on. A Confidential Space attestation is a JWT: three base64 segments, the middle one
 holding claims about the hardware, the boot state, and the image digest. Decoding it takes
-one line and proves *nothing* — the payload is not authenticated by being readable. The
+one line and proves *nothing*, the payload is not authenticated by being readable. The
 security comes entirely from checking the signature against Google's published keys and
 then reading the claims. Code that decodes and reports is extremely common, looks like
 verification in a code review, and is worth exactly zero.
@@ -191,7 +191,7 @@ def _line_of(text: str, pattern: re.Pattern) -> int:
 
 
 def check_token_verification(root: Path) -> list[Finding]:
-    """BT-CS01 — a Confidential Space token is obtained and never cryptographically verified."""
+    """BT-CS01: a Confidential Space token is obtained and never cryptographically verified."""
     out: list[Finding] = []
     for path, _raw, code, impl in _iter_code(root):
         if not TOKEN_SOURCE.search(code):
@@ -230,7 +230,7 @@ def check_token_verification(root: Path) -> list[Finding]:
 
 
 def check_platform_claims(root: Path) -> list[Finding]:
-    """BT-CS02 — the claims that carry the platform guarantee are never compared."""
+    """BT-CS02: the claims that carry the platform guarantee are never compared."""
     out: list[Finding] = []
     for path, _raw, code, impl in _iter_code(root):
         if not TOKEN_SOURCE.search(code):
@@ -297,7 +297,7 @@ def check_platform_claims(root: Path) -> list[Finding]:
 
 
 def check_digest_pinning(root: Path) -> list[Finding]:
-    """BT-T01 on Confidential Space — a workload identity is read but pinned to nothing.
+    """BT-T01 on Confidential Space, a workload identity is read but pinned to nothing.
 
     Deliberately emits the handbook's own measurement-pinning rule rather than a new id.
     Pinning `submods.container.image_digest` is the same act as pinning PCR1/PCR2 in a KMS
@@ -339,7 +339,7 @@ def check_digest_pinning(root: Path) -> list[Finding]:
 
 
 def check_fail_open(root: Path) -> list[Finding]:
-    """BT-CS03 — attestation fails and the workload starts anyway."""
+    """BT-CS03: attestation fails and the workload starts anyway."""
     out: list[Finding] = []
     for path, _raw, code, _impl in _iter_code(root):
         if not TOKEN_SOURCE.search(code):
@@ -384,7 +384,7 @@ def check_fail_open(root: Path) -> list[Finding]:
                         "Attestation failure is caught, logged, and execution continues. "
                         "An enclave that cannot prove what it is running is indistinguishable "
                         "from one that is running something else, so this path starts the "
-                        "workload — and releases whatever the workload holds — in exactly the "
+                        "workload (and releases whatever the workload holds) in exactly the "
                         "case the attestation existed to rule out. Failure here has to be fatal."
                     ),
                     severity=Severity.HIGH,

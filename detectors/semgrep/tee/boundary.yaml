@@ -1,6 +1,6 @@
 # Rules for values and data that cross the enclave boundary in the wrong direction.
 #
-# Scope note: semgrep is used here only for *positive* anti-patterns — code that is present
+# Scope note: semgrep is used here only for *positive* anti-patterns, code that is present
 # and wrong. Checks that depend on something being *absent* across a whole file or repo
 # (no PCR pin anywhere, no root certificate pinned, no zero-PCR rejection) are not
 # expressible as a pattern match and live in the Python detectors instead.
@@ -287,7 +287,7 @@ rules:
     severity: ERROR
     message: >-
       Certificate verification disabled. Every enclave connection is proxied by the parent,
-      which the threat model treats as hostile — this hands the operator a
+      which the threat model treats as hostile, this hands the operator a
       machine-in-the-middle position on KMS and oracle traffic with no attack required.
     metadata:
       catalog-id: BT-T06B-tls-verification-disabled
@@ -389,7 +389,7 @@ rules:
     severity: WARNING
     message: >-
       Error message distinguishes a padding failure from a key or MAC failure. That single
-      bit, queried adaptively by the parent, is a padding oracle — it recovers plaintext
+      bit, queried adaptively by the parent, is a padding oracle, it recovers plaintext
       without recovering the key. Return one opaque error across the boundary.
     metadata:
       catalog-id: BT-T07B-error-differential

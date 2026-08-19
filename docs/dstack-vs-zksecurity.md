@@ -54,13 +54,13 @@ The first refutation of this finding **refuted it**, with this reasoning:
 > tampering.
 
 That is fluent, cites real code, and is wrong. AEAD gives integrity, not authenticity of
-origin. When the encryption key is public — which is precisely the case zkSecurity documents
-— the attacker encrypts their own payload and the tag validates perfectly.
+origin. When the encryption key is public, which is precisely the case zkSecurity documents
+, the attacker encrypts their own payload and the tag validates perfectly.
 
 This is the most dangerous failure mode in the whole design. A false positive wastes an
 afternoon; a false *refutation* deletes a true finding silently, and the report never
 mentions it existed. It was caught only because the external audit gave an answer to check
-against — which is the entire argument for having an external validation target.
+against: which is the entire argument for having an external validation target.
 
 The refuter prompt now carries explicit guards against this class: encryption is not
 authentication, an AEAD tag is only as good as who holds the key, a recorded measurement is
@@ -70,13 +70,13 @@ those guards the same finding comes back **confirmed**.
 ## The partial: #08
 
 zkSecurity #08 is *Unrestricted Exposure of stdout/stderr From CVM Docker Containers* in
-`guest-agent`. `BT-T05` flagged `guest-agent/src/http_routes.rs:225` — the bollard Docker
+`guest-agent`. `BT-T05` flagged `guest-agent/src/http_routes.rs:225`, the bollard Docker
 client and container-log relay, noting the `/logs/<container_name>` route at line 95 accepts
 eight caller-supplied query parameters.
 
 Same file, same code surface, different framing: reported as trusted-computing-base bloat
 rather than as boundary exposure. Worth counting as a partial hit and as evidence that
-`BT-T03` needs a companion rule for stream-level exposure — it matched a secret-named
+`BT-T03` needs a companion rule for stream-level exposure, it matched a secret-named
 value reaching a log call, and could not see a configuration that exposes an entire stream.
 
 **Since shipped:** that companion rule is `BT-T03C-stream-exposure`, and it now fires on
@@ -97,7 +97,7 @@ ${S}/OvmfPkg/build.sh $PARALLEL_JOBS -a $OVMF_ARCH -b RELEASE -t ${FIXED_GCCVER}
 
 `OvmfPkg/build.sh` with no `IntelTdx` target anywhere in the recipe. Same commit
 (`5b63aec3`), same repository, and the evidence is the invocation rather than a mention of
-it — the rule prefers a build line over a path because this recipe also rewrites
+it: the rule prefers a build line over a path because this recipe also rewrites
 `OvmfPkg/build.sh` in a `sed` a hundred lines earlier, and pointing a reader at the `sed`
 would make a correct finding look wrong.
 
@@ -106,7 +106,7 @@ is worth being clear about what that means for the number at the top: the gap wa
 here first and the rule was written afterwards, against a repository whose answer was
 already known. It is a re-find, not a blind find, and one shape of one defect.
 
-`BT-OS02` also fires, at line 12 of the same recipe — `PACKAGECONFIG ??= ""` with a
+`BT-OS02` also fires, at line 12 of the same recipe, `PACKAGECONFIG ??= ""` with a
 `[secureboot]` option declared at line 15 and never added to the default, which the recipe
 confirms itself at line 206 with `bbnote "Building without Secure Boot."`. Whether that
 corresponds to one of the four remaining meta-dstack findings is not known: the report's
@@ -117,11 +117,11 @@ counted.
 
 **Different repository (4: #00, #01, #0c, part of #0a).** These live in `meta-dstack`, the
 Yocto layer, which the corpus did not audit at the time of this comparison. It does now,
-pinned at the same commit zkSecurity read. The fifth of that group — the report's only
-High — is no longer among them; it is the second hit, above.
+pinned at the same commit zkSecurity read. The fifth of that group, the report's only
+High: is no longer among them; it is the second hit, above.
 
 **Components absent at this commit (4: #04, #06, #07, #0b).** `dcap-qvl` and `app-compose`
-are not directories in the dstack tree at `be9d0476` — verified, not assumed.
+are not directories in the dstack tree at `be9d0476`, verified, not assumed.
 
 **Out of scope by construction (#0a, #0d).** Documentation quality and deployment guidance
 are not statically detectable and are deliberately uncatalogued.
@@ -133,9 +133,9 @@ and did not flag it. This is a real recall gap in the semantic layer, not a scop
 
 ## What this tool found that the report did not
 
-- `kms/src/main_service.rs:183` — admin token hashes compared with `!=`, a non-constant-time
+- `kms/src/main_service.rs:183`, admin token hashes compared with `!=`, a non-constant-time
   comparison on authentication material (`BT-T07C`, deterministic).
-- `kms/src/onboard_service.rs:190` — `request.source_url` from an unauthenticated `onboard`
+- `kms/src/onboard_service.rs:190`, `request.source_url` from an unauthenticated `onboard`
   RPC, on a server mounted with no auth token and no `QuoteVerifier`, bound to `0.0.0.0:8000`
   per `kms.toml` (`BT-T00`).
 - Four `BT-LYR01` claim-vs-code gaps, including `kms/README.md:107` stating attestation
@@ -148,7 +148,7 @@ These are unverified beyond the adversarial pass and are offered as leads, not c
 
 One clear re-find, one partial, one in-scope miss, and ten unreachable for scope reasons that
 were largely predictable from `corpus.yaml`'s own note. The most valuable output was not the
-hit — it was discovering that the verification layer could confidently delete a correct
+hit: it was discovering that the verification layer could confidently delete a correct
 finding, which no internal benchmark would have surfaced.
 
 **Both follow-ups from this comparison have since shipped:** `meta-dstack` is in
@@ -158,6 +158,6 @@ same call site zkSecurity identified has not been verified line-for-line and is 
 
 The rule class this comparison exposed is now closed enough to be measured: `BT-OS01`–
 `OS03` read BitBake and EDK II, `BT-OS01` re-finds the High, and `BT-OS02` adds a second
-finding in the same recipe. Three rules are not coverage of a Yocto layer — they are the
+finding in the same recipe. Three rules are not coverage of a Yocto layer. they are the
 three defects there was an external answer for, and the four meta-dstack findings that are
 not the High remain unmatched.

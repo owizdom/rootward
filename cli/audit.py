@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""rootward — static auditor for Web3 protocols on cloud TEEs.
+"""rootward: static auditor for Web3 protocols on cloud TEEs.
 
     python3 cli/audit.py <path> [--format md|json] [--semgrep <bin>]
 
@@ -63,7 +63,7 @@ def _source_line(path: Path, line_no: int, max_join: int = 4) -> str:
     """The offending source for evidence, following a call across lines if it wraps.
 
     A single line is usually enough. It is not when the call is formatted across several,
-    and then the evidence reads `console.warn(` — an opening paren, which tells the reader
+    and then the evidence reads `console.warn(`, an opening paren, which tells the reader
     nothing and cannot be triaged. Where the parentheses are unbalanced, continue for a few
     lines until they close.
     """
@@ -114,7 +114,7 @@ def find_core() -> Path | None:
 # --------------------------------------------------------------- semgrep ---
 def run_semgrep(root: Path, semgrep_bin: str) -> tuple[list[Finding], list[str]]:
     """Returns (findings, warnings). A semgrep failure degrades the audit rather than
-    aborting it — a partial audit that says which part is missing beats no audit."""
+    aborting it, a partial audit that says which part is missing beats no audit."""
     if not shutil.which(semgrep_bin):
         return [], [f"semgrep not found ({semgrep_bin}); code-pattern rules did not run"]
 
@@ -170,7 +170,7 @@ def run_semgrep(root: Path, semgrep_bin: str) -> tuple[list[Finding], list[str]]
             rel = r["path"]
 
         # semgrep's extra.lines is "requires login" on the unauthenticated tier, so the
-        # evidence is read from disk instead. Evidence is not optional in this tool — a
+        # evidence is read from disk instead. Evidence is not optional in this tool, a
         # finding without the offending line is an assertion.
         evidence = (r["extra"].get("lines") or "").strip()
         if not evidence or evidence == "requires login":
@@ -320,7 +320,7 @@ def layer_scorecard(
     A single failing prerequisite caps the protocol there, which is the point: the
     handbook's layers are cumulative, so Layer 4 with broken attestation is not Layer 4.
     """
-    # LOW confidence means the detector is a prefilter that has not been adjudicated —
+    # LOW confidence means the detector is a prefilter that has not been adjudicated
     # BT-T07D and BT-T10 say so in their own catalog entries. Letting an unadjudicated guess
     # cap the score at 0 puts the headline number at the mercy of the least certain rule in
     # the catalog, and on a real repository those are exactly the findings that turn out to
@@ -360,7 +360,7 @@ def layer_scorecard(
 
     # A layer with no rules in the catalog cannot be passed, only unassessed. Reporting
     # "Layer 6" because nothing checks layers 5 and 6 would be precisely the overclaiming
-    # this tool exists to catch — so the score is capped at the highest layer we can
+    # this tool exists to catch, so the score is capped at the highest layer we can
     # actually speak to, and the gap is reported rather than silently rounded up.
     ceiling = max(
         (lvl for lvl in range(1, 7) if per_layer[lvl]["required_rules"] > 0), default=0
@@ -505,7 +505,7 @@ def not_verified(
         )
     if core is None:
         items.append(
-            "The Rust core was not built, so no binary-format analysis ran at all — and "
+            "The Rust core was not built, so no binary-format analysis ran at all, and "
             "note that this also disables BT-T09B: Dockerfile, .env and build-context "
             "secret scanning delegates to the same binary, so plain-text secrets in those "
             "files were NOT checked either. Build it (cd core && cargo build --release "
@@ -515,13 +515,13 @@ def not_verified(
         items.append(
             "The repository was larger than the platform-detection file cap, so the scan "
             "stopped before walking the whole tree. A platform signal past that point was "
-            "not seen, and platform detection gates most of the rule set — treat both the "
+            "not seen, and platform detection gates most of the rule set, treat both the "
             "detected platform and the findings below as incomplete."
         )
     if not platform.any:
         items.append(
             "No TEE platform indicators were found in this repository. Either it does not "
-            "use enclaves, or the enclave code lives elsewhere — a clean result here is "
+            "use enclaves, or the enclave code lives elsewhere, a clean result here is "
             "not evidence of a secure enclave deployment."
         )
 
@@ -601,7 +601,7 @@ SARIF_LEVEL = {
 def render_sarif(result: dict, catalog: dict[str, dict]) -> str:
     """SARIF 2.1.0, for GitHub code scanning.
 
-    Severity maps to SARIF's three levels, so critical and high both become `error` — the
+    Severity maps to SARIF's three levels, so critical and high both become `error`, the
     distinction survives in the rule metadata and the message rather than being lost.
     """
     used: dict[str, dict] = {}
@@ -716,7 +716,7 @@ def render_markdown(result: dict) -> str:
         # awarding an empty directory the tool's own maximum.
         lines += [
             "**Not assessed.** No TEE platform was detected, so no platform rules applied "
-            "and no layer can be scored. This is not a passing result — it means the audit "
+            "and no layer can be scored. This is not a passing result. it means the audit "
             "found nothing to audit. Check that you pointed at the right directory, and "
             "read the NOT VERIFIED section below.",
             "",
@@ -725,7 +725,7 @@ def render_markdown(result: dict) -> str:
         lines += [
             f"**Effective layer: {sc['effective_layer']}** "
             f"of a verifiable ceiling of {sc['verifiable_ceiling']} "
-            f"(the handbook's ladder runs to 6 — see "
+            f"(the handbook's ladder runs to 6, see "
             f"[security layers](https://bluethroatlabs.com/docs/layers-of-security-for-tees))",
             "",
         ]
@@ -746,7 +746,7 @@ def render_markdown(result: dict) -> str:
         ]
     if scored and sc["effective_layer"] <= 1:
         lines += [
-            "> The handbook states Layer 1 — TEE with no verified attestation — must not "
+            "> The handbook states Layer 1 (TEE with no verified attestation) must not "
             "be used in production.",
             "",
         ]
@@ -772,7 +772,7 @@ def render_markdown(result: dict) -> str:
         lines.append("")
     for f in result["findings"]:
         lines += [
-            f"### `{f['rule_id']}` — {f['severity']}",
+            f"### `{f['rule_id']}`: {f['severity']}",
             "",
             f"**{f['file']}:{f['line']}** · confidence {f['confidence']} · {f['detector']} · {f['verdict']}",
             "",
@@ -793,7 +793,7 @@ def render_markdown(result: dict) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="rootward",
-        description="Static auditor for Web3 protocols on cloud TEEs — AWS Nitro Enclaves, "
+        description="Static auditor for Web3 protocols on cloud TEEs. AWS Nitro Enclaves, "
                     "dstack, and EigenCompute / GCP Confidential Space.",
         epilog=(
             "examples:\n"
@@ -804,7 +804,7 @@ def main() -> int:
             "\n"
             "exit codes:\n"
             "  0  audit ran; nothing at or above --fail-on\n"
-            "  1  audit could NOT run (bad path, missing dependency) — never treat as a pass\n"
+            "  1  audit could NOT run (bad path, missing dependency); never treat as a pass\n"
             "  2  audit ran and found something at or above --fail-on\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -822,7 +822,7 @@ def main() -> int:
     )
     ap.add_argument(
         "--semgrep", default="semgrep",
-        help="path to the semgrep binary (default: found on PATH). semgrep is optional — "
+        help="path to the semgrep binary (default: found on PATH). semgrep is optional, "
              "without it the code-pattern rules are skipped and the report says so.",
     )
     ap.add_argument(
@@ -841,7 +841,7 @@ def main() -> int:
         "--no-verify",
         action="store_true",
         help="skip the adversarial refutation pass. Semantic findings then ship unverified "
-             "and are labelled as such — not recommended outside debugging.",
+             "and are labelled as such, not recommended outside debugging.",
     )
     args = ap.parse_args()
 
@@ -922,7 +922,7 @@ def main() -> int:
     else:
         print(render_markdown(result))
 
-    # Exit 2 for "found something", never 1 — 1 is reserved for "could not run". A CI gate
+    # Exit 2 for "found something"; never 1; 1 is reserved for "could not run". A CI gate
     # that cannot tell a crashed scanner from a clean repository is worse than no gate, and
     # collapsing both into 1 is how that happens.
     if args.fail_on != "never":

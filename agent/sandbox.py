@@ -2,7 +2,7 @@
 
 Until this existed, the boundary was a sentence in a system prompt. `cwd` was set to the
 audited repository and the tool list was read-only, so the worst case was a read rather
-than a write — but "please stay inside the repository" is an instruction, and the audited
+than a write, but "please stay inside the repository" is an instruction, and the audited
 repository's own files are in scope by construction. A repository written to attack the
 auditor can put instructions in its README, and the model reads that README.
 
@@ -13,7 +13,7 @@ with a reason the model sees.
 Two properties it deliberately has:
 
 **Fail closed.** A tool call whose path cannot be resolved is denied, not allowed. The
-alternative — allow what we do not understand — makes the guard decorative the moment a
+alternative (allow what we do not understand) makes the guard decorative the moment a
 tool grows an argument this file has not heard of.
 
 **Symlinks resolved on both sides.** `realpath` before comparing, so a symlink planted in

@@ -1,4 +1,4 @@
-"""dstack-specific rules — BT-DS01 (code governance), BT-DS02 (key derivation),
+"""dstack-specific rules. BT-DS01 (code governance), BT-DS02 (key derivation),
 BT-DS03 (KMS mode), BT-DS04 (measured-boot policy), BT-DS05 (gateway domain binding).
 
 Only runs when platform detection says the repo uses dstack. On a Nitro repo every one of
@@ -23,7 +23,7 @@ SKIP_DIRS = {".git", "node_modules", "target", "venv", ".venv", "dist", "build",
 TEXTY = {".rs", ".go", ".py", ".ts", ".js", ".mjs", ".json", ".yaml", ".yml", ".toml", ".sh", ".sol"}
 
 GOVERNANCE = re.compile(r"\b(KmsAuth|AppAuth)\b")
-# Registering an app / allowlisting a code hash — the operations that make the contracts
+# Registering an app / allowlisting a code hash, the operations that make the contracts
 # load-bearing rather than merely referenced.
 GOVERNANCE_USE = re.compile(
     r"(?i)\b(register_?app|addApp|allowedCodeHash|compose_?hash|app_?id|isAppAllowed|"
@@ -33,7 +33,7 @@ GOVERNANCE_USE = re.compile(
 KMS_DUPLICATION = re.compile(r"(?i)\b(simple[_-]?duplication|duplicate[_-]?root[_-]?key|single[_-]?node[_-]?kms)\b")
 KMS_THRESHOLD = re.compile(r"(?i)\b(shamir|threshold|secret[_-]?shar\w*|mpc|t_?of_?n|k_?of_?n)\b")
 
-# `quote` alone is far too generic — it appears in hardhat configs, TOML keys, and any
+# `quote` alone is far too generic, it appears in hardhat configs, TOML keys, and any
 # code that talks about string quoting. dstack produced a critical finding on
 # `quote_file = "quote.hex"` and then on `hardhat.config.ts`. Only qualified forms count.
 # --- BT-DS02: keys sealed to hardware rather than derived from app identity ----------
@@ -97,7 +97,7 @@ def _iter_text(root: Path):
             if path.stat().st_size > 1_000_000:
                 continue
             raw = path.read_text(encoding="utf-8", errors="replace")
-            # Absence checks match live code only — see model.code_only.
+            # Absence checks match live code only, see model.code_only.
             yield path, code_only(raw, path.suffix)
         except OSError:
             continue
@@ -109,7 +109,7 @@ def _first_line(text: str, pattern: re.Pattern) -> int:
 
 
 def check_governance(root: Path) -> list[Finding]:
-    """BT-DS01 — no KmsAuth/AppAuth registration, so 'code is law' is not enforced."""
+    """BT-DS01: no KmsAuth/AppAuth registration, so 'code is law' is not enforced."""
     any_governance = False
     any_use = False
     for _path, text in _iter_text(root):
@@ -148,7 +148,7 @@ def check_governance(root: Path) -> list[Finding]:
 
 
 def check_kms_mode(root: Path) -> list[Finding]:
-    """BT-DS03 — root key duplicated across nodes rather than threshold-shared."""
+    """BT-DS03: root key duplicated across nodes rather than threshold-shared."""
     findings: list[Finding] = []
     for path, text in _iter_text(root):
         if not KMS_DUPLICATION.search(text):
@@ -167,7 +167,7 @@ def check_kms_mode(root: Path) -> list[Finding]:
                     "dstack-KMS appears configured for simple duplication: one node "
                     "generates the root key and shares it with peers after verifying "
                     "attestation. That is highly available and leaves a single point of "
-                    "total compromise — one compromised node yields every derived key in "
+                    "total compromise, one compromised node yields every derived key in "
                     "the system, which is the exact failure Layer 4 exists to prevent. "
                     "Shamir-based MPC requires a threshold of nodes to collaborate."
                 ),
@@ -188,7 +188,7 @@ CONFIG_NAME = re.compile(r"(?i)(^|/)[^/]*\.config\.[a-z]+$|(^|/)(hardhat|vite|we
 
 
 def check_rtmr_policy(root: Path) -> list[Finding]:
-    """BT-DS04 — measurements collected but never compared against expected policy."""
+    """BT-DS04: measurements collected but never compared against expected policy."""
     collectors: list[tuple[Path, str]] = []
     compares = False
     for path, text in _iter_text(root):
@@ -217,7 +217,7 @@ def check_rtmr_policy(root: Path) -> list[Finding]:
                 "policy was found. dstack's verification chain runs hardware to OS to "
                 "containers, compared against expected measurements; collecting them "
                 "without comparing them is the dstack analogue of accepting an attestation "
-                "without pinning it — the quote verifies, and it attests to nothing in "
+                "without pinning it, the quote verifies, and it attests to nothing in "
                 "particular."
             ),
             severity=Severity.CRITICAL,
@@ -229,7 +229,7 @@ def check_rtmr_policy(root: Path) -> list[Finding]:
 
 
 def check_key_derivation(root: Path) -> list[Finding]:
-    """BT-DS02 — keys sealed to hardware instead of derived from application identity."""
+    """BT-DS02: keys sealed to hardware instead of derived from application identity."""
     findings: list[Finding] = []
     for path, text in _iter_text(root):
         if not HARDWARE_SEALING.search(text):
@@ -249,7 +249,7 @@ def check_key_derivation(root: Path) -> list[Finding]:
                     "derivation alongside it. dstack derives root keys using the application "
                     "identifier as a KDF parameter so a workload can migrate across physical "
                     "TEEs and vendors; hardware sealing pins the key to one machine and "
-                    "removes migration as a response to compromise — which dstack's own "
+                    "removes migration as a response to compromise, which dstack's own "
                     "threat model assumes will eventually happen."
                 ),
                 severity=Severity.MEDIUM,
@@ -261,7 +261,7 @@ def check_key_derivation(root: Path) -> list[Finding]:
 
 
 def check_gateway_binding(root: Path) -> list[Finding]:
-    """BT-DS05 — external TLS terminated without dstack-Gateway domain binding."""
+    """BT-DS05: external TLS terminated without dstack-Gateway domain binding."""
     serves_external: list[tuple[Path, str]] = []
     binds = False
     for path, text in _iter_text(root):

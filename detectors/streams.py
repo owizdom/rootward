@@ -1,12 +1,12 @@
-"""BT-T03C — an output stream exposed across the enclave boundary by configuration.
+"""BT-T03C: an output stream exposed across the enclave boundary by configuration.
 
 BT-T03 catches a secret-named value passed to a log call. This catches the case with no
 offending line at all: a relay or a config flag that exposes an entire stdout/stderr stream
 to the host, so every future log statement inside the enclave becomes an egress channel no
 matter what it prints.
 
-The distinction is not academic. On dstack the tool found the right file — the guest agent's
-container-log relay — and classified it as trusted-computing-base bloat, because the value
+The distinction is not academic. On dstack the tool found the right file, the guest agent's
+container-log relay, and classified it as trusted-computing-base bloat, because the value
 that leaks is never named in the code. zkSecurity called the same code an unrestricted
 stdout/stderr exposure. Same surface, and only one of those framings tells a reader what to
 fix.
@@ -119,7 +119,7 @@ def run(root: Path) -> list[Finding]:
                         "authentication or attestation gate on the path. "
                     )
                     + "Unlike a single leaked value, this exposes every future log statement "
-                    "inside the boundary — the defect is the channel, not the line, so no "
+                    "inside the boundary, the defect is the channel, not the line, so no "
                     "amount of care about what individual statements print will close it. "
                     "Anything written to stdout or stderr from here should be treated as "
                     "public."

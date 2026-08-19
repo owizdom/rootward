@@ -1,4 +1,4 @@
-"""vsock boundary rules — BT-T07D (replay protection), BT-T10 (unauthenticated relayed data).
+"""vsock boundary rules. BT-T07D (replay protection), BT-T10 (unauthenticated relayed data).
 
 Both are absence checks scoped to a specific place, which is the design that keeps them
 usable. Asking "does this repository have replay protection?" produces noise on every file;
@@ -6,7 +6,7 @@ asking "this function handles vsock messages, does *its* schema carry a freshnes
 produces a short list.
 
 So the shape is: find the handlers first, then check only those. Scoping is doing the heavy
-lifting for precision — the same move that keeps the attestation rules off FFI shims.
+lifting for precision, the same move that keeps the attestation rules off FFI shims.
 
 BT-T10 is the handbook's Threat 10, the one with a worked dollar figure attached: an oracle
 fetching price data through the parent, acting on it without verifying a signature, and an
@@ -89,7 +89,7 @@ AUTHORITY_USE = re.compile(
 # Deliberately generous, including a bare `.verify(...)` method call. This rule has already
 # been gated twice by the time it gets here (the file relays parent data AND uses it for
 # something with authority), so the cost of accepting a weak verification signal is a missed
-# finding, while the cost of rejecting a real one is flagging correctly-written code — and
+# finding, while the cost of rejecting a real one is flagging correctly-written code, and
 # the clean fixture caught exactly that: `ORACLE_KEY.verify(body)` on a `VerifyKey` did not
 # match a pattern list built around `verify_signature`-style names.
 PAYLOAD_VERIFIED = re.compile(
@@ -128,7 +128,7 @@ def _line_of(text: str, pattern: re.Pattern) -> int:
 
 
 def check_replay_protection(root: Path) -> list[Finding]:
-    """BT-T07D — a vsock message handler whose schema carries no freshness token."""
+    """BT-T07D: a vsock message handler whose schema carries no freshness token."""
     findings: list[Finding] = []
     for path, rel in _iter_code(root):
         raw = path.read_text(encoding="utf-8", errors="replace")
@@ -153,7 +153,7 @@ def check_replay_protection(root: Path) -> list[Finding]:
                 message=(
                     (
                         "Messages read off vsock carry a freshness field, but nothing in this "
-                        "file consumes it — no seen-nonce set, no counter comparison, no "
+                        "file consumes it, no seen-nonce set, no counter comparison, no "
                         "replay window. Carrying a nonce is not checking one. "
                         if carries_token
                         else "Messages are read off vsock with no nonce, counter, or signed "
@@ -182,7 +182,7 @@ DECLARATION_ONLY = re.compile(r"(?i)(^|/)(abi|abis|types?|generated|__generated_
 
 
 def check_relayed_authority(root: Path) -> list[Finding]:
-    """BT-T10 — relayed data used for a decision without verifying its origin."""
+    """BT-T10: relayed data used for a decision without verifying its origin."""
     findings: list[Finding] = []
     for path, rel in _iter_code(root):
         if DECLARATION_ONLY.search(rel):
@@ -209,10 +209,10 @@ def check_relayed_authority(root: Path) -> list[Finding]:
                 message=(
                     "Data fetched from outside the enclave is consumed in a decision that "
                     "carries authority, with no signature check, attestation, or proof "
-                    "verification anywhere in this file. Whoever controls the transport — a "
-                    "parent-side proxy on Nitro, the network path on Confidential Space — "
+                    "verification anywhere in this file. Whoever controls the transport, a "
+                    "parent-side proxy on Nitro, the network path on Confidential Space, "
                     "chooses what that response says. Without end-to-end authentication the "
-                    "enclave is not deciding, it is relaying someone else's decision."
+                    "enclave is not deciding; it is relaying someone else's decision."
                 ),
                 severity=Severity.CRITICAL,
                 # Deciding which relayed value carries authority is a judgment call, which is

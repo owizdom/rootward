@@ -1,4 +1,4 @@
-# Corpus A — real repositories, pinned by commit.
+# Corpus A, real repositories, pinned by commit.
 #
 # Fixtures and mutants measure the detectors against code shaped for them. This measures
 # them against code that was never written with this tool in mind, which is the only place
@@ -16,7 +16,7 @@ repos:
     # The exact commit zkSecurity audited, from the report's introduction: "The audit
     # focused on parts of two public codebases: dstack at commit be9d0476, and meta-dstack
     # at commit 5b63aec3." Auditing this pre-fix commit is what makes the comparison
-    # meaningful — current main has the fixes applied.
+    # meaningful: current main has the fixes applied.
     # resolved from the short form via the GitHub API; committed 2025-05-29,
     # inside the May 26 - June 13 audit window.
     ref: be9d0476a63e937eda4c13659547a25088393394
@@ -25,7 +25,7 @@ repos:
       External validation target. What this re-finds from the zkSecurity report is a
       result; what it misses is a documented gap. Their findings were largely in build
       configuration and OS-image generation, which is adjacent to but not identical to
-      this catalog's scope — expect partial overlap at best, and say so.
+      this catalog's scope, expect partial overlap at best, and say so.
 
   - name: meta-dstack
     url: https://github.com/Dstack-TEE/meta-dstack
@@ -62,7 +62,7 @@ repos:
     platform: nitro
     note: >-
       Reference implementation of the KMS attestation flow. A well-maintained repository
-      that should be close to clean — any finding is either a real issue or a false
+      that should be close to clean, any finding is either a real issue or a false
       positive, and both are informative.
 
   - name: attestation-doc-validation
@@ -81,7 +81,7 @@ repos:
   # Six deployed applications, pinned at the commit audited. They are the author's own
   # repositories, which is worth stating plainly: it makes the corpus easy to assemble and
   # it means findings here were not adversarially selected. What it does not do is make them
-  # softer — the EC01 finding on bobIsAlive was verified against source before it was
+  # softer: the EC01 finding on bobIsAlive was verified against source before it was
   # written down, and vanta is in the corpus precisely because it is the strongest of the six.
 
   - name: vanta
@@ -102,7 +102,7 @@ repos:
     note: >-
       Ground truth for BT-EC01. deriveTEEWalletKey derives a Starknet signing key by HMAC
       from kmsPublicKey, which in fallback mode is the literal string
-      "eigencompute-instance:${EIGENCOMPUTE_INSTANCE_ID}" — and the instance id is published
+      "eigencompute-instance:${EIGENCOMPUTE_INSTANCE_ID}", and the instance id is published
       unauthenticated on /api/tee. Verified against source, not inferred. Starknet Sepolia,
       so the funds at risk are testnet.
 
@@ -113,7 +113,7 @@ repos:
     note: >-
       A TEE-side gateway that signs every response with a secp256k1 key. Reports zero
       findings, which is the correct result and also the interesting one: the catalog has no
-      rule for "this attests nothing" — the signature is real, and what it proves is only
+      rule for "this attests nothing", the signature is real, and what it proves is only
       that whoever holds the key signed it. That gap is a rule this catalog does not have
       rather than a clean bill of health.
 
@@ -132,7 +132,7 @@ repos:
     platform: eigencompute
     note: >-
       Carries the EC03 shape the rule was written for: SEAL_KEY defaulting to 64 zeroes.
-      Also holds a defect this catalog cannot see — the enclave returns the exact numeric
+      Also holds a defect this catalog cannot see, the enclave returns the exact numeric
       distance to a sealed secret, so two guesses determine it. Information disclosure
       through an intended API is not a pattern, and the gap is worth recording.
 

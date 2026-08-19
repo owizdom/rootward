@@ -1,8 +1,8 @@
-//! `rootward-core` — the Rust half of the auditor, as a subprocess that speaks JSON.
+//! `rootward-core`, the Rust half of the auditor, as a subprocess that speaks JSON.
 //!
 //! Deliberately a binary rather than a PyO3 extension module. The Python side calls this
 //! a handful of times per audit to do chunky work (parse one EIF, scan one build context),
-//! never in a loop, so the binding overhead PyO3 would save is not measurable — while the
+//! never in a loop, so the binding overhead PyO3 would save is not measurable, while the
 //! costs are real: an ABI tied to a specific CPython version, a maturin build step in
 //! everyone's install path, and a native crash taking the whole auditor down with it.
 //! A subprocess boundary is one JSON contract, debuggable with `cat`, and survives the

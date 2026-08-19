@@ -5,7 +5,7 @@ Run: uv run --with pyyaml catalog/coverage.py
 
 A catalogued rule with no working detector is a rule the tool does not check. Keeping that
 gap measured and printed is the difference between "42 rules" meaning coverage and meaning
-intent — and a security tool that overstates its coverage is worse than one with an honest
+intent: and a security tool that overstates its coverage is worse than one with an honest
 hole, because someone will rely on it.
 
 Exit code is always 0: at this stage an uncovered rule is expected, not a failure.
@@ -67,7 +67,7 @@ def agent_rule_ids() -> dict[str, list[str]]:
 
 
 def rust_rule_ids() -> dict[str, list[str]]:
-    """Rules implemented in the Rust core, which does not emit catalog ids itself —
+    """Rules implemented in the Rust core, which does not emit catalog ids itself
     the mapping lives here so it stays visible rather than implicit."""
     return {
         "BT-T09A-eif-embedded-secret": ["core:eif-secret-scan"],
@@ -104,7 +104,7 @@ def main() -> int:
             print(f"  {rid:38} {kind}")
 
     # Any catalog-id referenced by a detector but absent from the catalog is a broken
-    # reference — a finding would be emitted that no rule explains.
+    # reference: a finding would be emitted that no rule explains.
     known = {r["id"] for r in rules}
     orphans = sorted(set(impl) - known)
     if orphans:

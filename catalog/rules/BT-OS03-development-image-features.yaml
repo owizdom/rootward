@@ -12,7 +12,7 @@ detector: detectors:osimage.check_dev_image_features
 languages: [any]
 rationale: >
   debug-tweaks, an empty root password, a permitted root login, or a shell on the kernel
-  command line each grant interactive access to whoever reaches the guest console — and the
+  command line each grant interactive access to whoever reaches the guest console, and the
   operator always can. Inside a TEE that is not a development convenience but a bypass of the
   entire boundary: an attacker who gets a shell does not need to defeat attestation, because
   the code that attested is the code they are now driving. The measurement will not

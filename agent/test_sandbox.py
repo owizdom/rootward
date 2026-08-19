@@ -41,7 +41,7 @@ def main() -> int:
         outside.mkdir()
         (outside / "id_rsa").write_text("PRIVATE KEY\n")
 
-        # A symlink inside the tree pointing out of it — BT-T00A applied to ourselves.
+        # A symlink inside the tree pointing out of it. BT-T00A applied to ourselves.
         (root / "escape").symlink_to(outside)
 
         expect_allowed("Read", {"file_path": "src/main.py"}, "relative in-tree read", root)
@@ -60,11 +60,11 @@ def main() -> int:
         expect_denied("Read", {"file_path": "src/../../secrets/id_rsa"}, "traversal through the tree", root)
 
     if failures:
-        print(f"FAIL — {len(failures)} problem(s):\n")
+        print(f"FAIL: {len(failures)} problem(s):\n")
         for f in failures:
             print(f"  {f}")
         return 1
-    print("OK — sandbox holds on 13 cases")
+    print("OK: sandbox holds on 13 cases")
     return 0
 
 

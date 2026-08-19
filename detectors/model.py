@@ -1,6 +1,6 @@
 """Shared finding model.
 
-Every detector — semgrep, the Rust core, and the Python analyzers — normalises into this
+Every detector (semgrep, the Rust core, and the Python analyzers) normalises into this
 one shape, so the report renderer and the adversarial verifier have a single contract to
 work against.
 
@@ -40,7 +40,7 @@ class Confidence(str, Enum):
 
 class Verdict(str, Enum):
     """Set by the adversarial pass in verify/. Deterministic detector hits are CONFIRMED
-    on arrival — their evidence is a literal pattern match, and there is nothing for a
+    on arrival, their evidence is a literal pattern match, and there is nothing for a
     model to adjudicate."""
 
     CONFIRMED = "confirmed"
@@ -77,7 +77,7 @@ class Finding:
 
     def key(self) -> tuple:
         """Dedup key. Two detectors finding the same defect on the same line is one
-        finding, not two — semgrep and a Python analyzer overlap on several rules."""
+        finding, not two, semgrep and a Python analyzer overlap on several rules."""
         return (self.rule_id, self.file, self.line)
 
     def to_dict(self) -> dict:
@@ -107,7 +107,7 @@ def dedupe(findings: Iterable[Finding]) -> list[Finding]:
 
 
 def sort_for_report(findings: Iterable[Finding]) -> list[Finding]:
-    """Severity first, then confidence, then location — so the reader hits the thing that
+    """Severity first, then confidence, then location, so the reader hits the thing that
     matters most before anything else."""
     ranks = {Confidence.HIGH: 0, Confidence.MEDIUM: 1, Confidence.LOW: 2}
     return sorted(
@@ -144,7 +144,7 @@ def code_only(text: str, suffix: str) -> str:
     security is not security, and comments describing what code *used to* do outlive the
     code constantly.
 
-    Blank lines are preserved so line numbers stay correct for evidence quoting — a
+    Blank lines are preserved so line numbers stay correct for evidence quoting, a
     detector that reports the wrong line is worse than one that reports nothing.
     """
     marker = _LINE_COMMENT.get(suffix)
@@ -219,8 +219,8 @@ def strip_string_literals(text: str) -> str:
     inside a *string* survives it, and a string is not an implementation.
 
     This is not hypothetical tidying. The Confidential Space rules were first tested against
-    a fixture carrying a `VERIFICATION_CHAIN` array — human-readable steps like "Validate the
-    TDX quote against Intel DCAP" — with no code behind any of them. That array satisfied the
+    a fixture carrying a `VERIFICATION_CHAIN` array, human-readable steps like "Validate the
+    TDX quote against Intel DCAP", with no code behind any of them. That array satisfied the
     "is verification present?" check and suppressed the finding. The fixture was modelled on
     a real deployed app that does exactly this, so the rule for catching prose-instead-of-code
     was being defeated by prose. Anything asking "does this repo actually do X" has to look at

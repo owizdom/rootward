@@ -20,7 +20,7 @@ remediation: >
   Add secureboot to PACKAGECONFIG, or document which layer of the deployment provides the
   equivalent guarantee and how that is verified.
 false_positives: >
-  Secure boot is frequently supplied by the platform rather than the image — a cloud
+  Secure boot is frequently supplied by the platform rather than the image, a cloud
   confidential VM asserts it through the attestation token's secboot claim, not through the
   guest firmware build. Where that is the case the recipe is correct as written and the
   finding is noise. The rule stays quiet when the recipe enables the option anywhere.
